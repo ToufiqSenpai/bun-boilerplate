@@ -71,9 +71,15 @@ export const upsertArticleCategoryTranslationSchema = articleCategorySchema.omit
   locale: true
 })
 
+// DELETE /article-categories/:id (params)
+export const deleteArticleCategoryParamsSchema = z.object({
+  id: z.uuidv7({ error: "Invalid category id" }).describe("Article category id")
+})
+
 // Derived types (outputs of the schemas above)
 export type ArticleCategory = z.output<typeof articleCategorySchema>
 export type CreateArticleCategoryBody = z.output<typeof createArticleCategorySchema>
 export type ListArticleCategoriesQuery = z.output<typeof listArticleCategoriesQuerySchema>
 export type ArticleCategoryTranslationParams = z.output<typeof articleCategoryTranslationParamsSchema>
 export type UpsertArticleCategoryTranslationBody = z.output<typeof upsertArticleCategoryTranslationSchema>
+export type DeleteArticleCategoryParams = z.output<typeof deleteArticleCategoryParamsSchema>

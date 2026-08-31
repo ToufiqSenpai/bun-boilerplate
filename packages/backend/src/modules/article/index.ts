@@ -7,6 +7,7 @@ import {
   articleCategorySchema,
   articleCategoryTranslationParamsSchema,
   createArticleCategorySchema,
+  deleteArticleCategoryParamsSchema,
   listArticleCategoriesHeadersSchema,
   listArticleCategoriesQuerySchema,
   listArticleCategoryResponseSchema,
@@ -59,5 +60,16 @@ export const articlePlugin = new Elysia({ name: "article" })
         200: articleCategorySchema,
         201: articleCategorySchema
       }
+    }
+  )
+  .delete(
+    "/article-categories/:id",
+    async ({ params, status, articleCategoryService }) => {
+      await articleCategoryService.delete(params)
+      return status(204)
+    },
+    {
+      admin: true,
+      params: deleteArticleCategoryParamsSchema
     }
   )
