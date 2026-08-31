@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "drizzle.config.ts"],
+  "compilerOptions": {
+    "types": ["bun", "vitest/globals"]
+  }
+}

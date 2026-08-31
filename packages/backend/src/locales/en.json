@@ -1,0 +1,25 @@
+{
+  "email": {
+    "resetPassword": {
+      "subject": "Reset your password",
+      "preview": "A password reset was requested for your account",
+      "title": "Password Reset",
+      "intro": "Hi {{name}}, we received a request to reset the password for your account ({{email}}).",
+      "expires": "This link expires in {{expires}} minutes.",
+      "cta": "Reset Password",
+      "ignore": "If you didn't request a password reset, you can safely ignore this email.",
+      "once": "This link can only be used once.",
+      "fallbackLabel": "If the button doesn't work, copy and paste this URL into your browser:"
+    },
+    "verifyEmail": {
+      "subject": "Verify your email address",
+      "preview": "Confirm your email to activate your account",
+      "title": "Verify Your Email",
+      "intro": "Hi {{name}}, please confirm your email address ({{email}}) to activate your account.",
+      "expires": "This link expires in {{expires}} minutes.",
+      "cta": "Verify Email",
+      "ignore": "If you didn't create an account, you can safely ignore this email.",
+      "fallbackLabel": "If the button doesn't work, copy and paste this URL into your browser:"
+    }
+  }
+}
