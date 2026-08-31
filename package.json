@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "build": "bun run --filter '*' build",
-    "dev": "bun run --filter '*' dev",
+    "dev": "concurrently --names \"backend,web\" --prefix \"[{name}]\" --prefix-colors \"cyan,magenta\" --kill-others --kill-others-on-fail \"cd packages/backend && bun run --silent dev\" \"wait-on tcp:127.0.0.1:8080 --timeout 60000 --interval 500 && cd packages/web && bun run --silent dev\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -32,6 +32,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitest/coverage-v8": "^5.0.0-beta.7",
+    "concurrently": "^10.0.5",
     "drizzle-kit": "^1.0.0-rc.4",
     "jsdom": "^30.0.1",
     "oxfmt": "^0.64.0",
@@ -39,6 +40,7 @@
     "oxlint-tsgolint": "^7.0.2001",
     "typescript": "7.0.2",
     "vitest": "^5.0.0-beta.7",
-    "vitest-mock-extended": "^5.1.1"
+    "vitest-mock-extended": "^5.1.1",
+    "wait-on": "^9.1.0"
   }
 }
