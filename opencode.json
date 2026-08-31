@@ -8,5 +8,17 @@
         "typeAware": true
       }
     }
+  },
+  "mcp": {
+    "infisical": {
+      "type": "local",
+      "command": ["bun", "x", "@infisical/mcp"],
+      "enabled": true,
+      "environment": {
+        "INFISICAL_UNIVERSAL_AUTH_CLIENT_ID": "{env:INFISICAL_UNIVERSAL_AUTH_CLIENT_ID}",
+        "INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET": "{env:INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}",
+        "INFISICAL_HOST_URL": "{env:INFISICAL_HOST_URL}"
+      }
+    }
   }
 }

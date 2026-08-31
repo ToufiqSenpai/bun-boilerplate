@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "zahra-zelita",
+      "name": "bun-boilerplate",
       "dependencies": {
         "better-auth": "^1.7.1",
         "i18next": "^25.7.4",
