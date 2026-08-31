@@ -22,9 +22,7 @@ export const articles = pgTable("articles", {
   status: articleStatusEnum("status").notNull().default("draft"),
   publishedAt: timestamp("published_at", { withTimezone: true }),
   authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
-  categoryId: uuid("category_id")
-    .notNull()
-    .references(() => articleCategories.id, { onDelete: "restrict" })
+  categoryId: uuid("category_id").references(() => articleCategories.id, { onDelete: "set null" })
 })
 
 export const articleTranslations = pgTable("article_translations", {
