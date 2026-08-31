@@ -79,6 +79,12 @@ function buildEmptyChain() {
   return { chain, values, returning }
 }
 
+function mockDelete(database: Database, chain: { where: ReturnType<typeof vi.fn> }): void {
+  // SAFETY: mockDeep delete is a vitest mock with overloads, safe to cast to plain mock to override implementation
+  const deleteMock = database.delete as ReturnType<typeof vi.fn>
+  vi.mocked(deleteMock).mockReturnValue(chain)
+}
+
 function mockTransaction(database: Database, txMock: { insert: ReturnType<typeof vi.fn> }): void {
   // SAFETY: mockDeep transaction is a vitest mock, safe to override implementation for test
   const transactionMock = database.transaction as ReturnType<typeof vi.fn>
@@ -137,6 +143,12 @@ function mockListSelect(database: Database, rows: ListRow[], total: number) {
   const countChainMock = countChain as never
   vi.mocked(database.select).mockReturnValueOnce(rowsChainMock).mockReturnValueOnce(countChainMock)
   return { rowsChain, countChain }
+}
+
+function buildDeleteChain<T>(rows: T[]) {
+  const returning = vi.fn<() => Promise<T[]>>().mockResolvedValue(rows)
+  const where = vi.fn<() => { returning: typeof returning }>().mockReturnValue({ returning })
+  return { where, returning }
 }
 
 function buildSelectLimitChain<T>(rows: T[]) {
@@ -699,6 +711,38 @@ describe("ArticleCategoryService", () => {
 
       expect(rowsChain.from).toHaveBeenCalledWith(articleCategories)
       expect(countChain.from).toHaveBeenCalledWith(articleCategories)
+    })
+  })
+
+  describe("delete", () => {
+    afterEach(() => {
+      vi.clearAllMocks()
+    })
+
+    test("deletes the category by id", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      const chain = buildDeleteChain([{ id }])
+
+      mockDelete(database, chain)
+
+      const service = new ArticleCategoryService(database)
+      await service.delete({ id })
+
+      expect(database.delete).toHaveBeenCalledWith(articleCategories)
+      expect(chain.where).toHaveBeenCalled()
+    })
+
+    test("throws NotFoundError when no row is deleted", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      const chain = buildDeleteChain([])
+
+      mockDelete(database, chain)
+
+      const service = new ArticleCategoryService(database)
+
+      await expect(service.delete({ id })).rejects.toBeInstanceOf(NotFoundError)
     })
   })
 })

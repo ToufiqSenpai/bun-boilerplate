@@ -8,6 +8,7 @@ import type {
   ArticleCategory,
   ArticleCategoryTranslationParams,
   CreateArticleCategoryBody,
+  DeleteArticleCategoryParams,
   ListArticleCategoriesQuery,
   UpsertArticleCategoryTranslationBody
 } from "../schemas/article-category.schema.js"
@@ -169,6 +170,14 @@ export class ArticleCategoryService {
       if (error instanceof Error && "code" in error && error.code === "23505") throw this.slugConflictError(data)
       throw error
     }
+  }
+
+  public async delete(params: DeleteArticleCategoryParams): Promise<void> {
+    const [deleted] = await this.database
+      .delete(articleCategories)
+      .where(eq(articleCategories.id, params.id))
+      .returning()
+    if (!deleted) throw new NotFoundError("Article category not found")
   }
 
   private slugConflictError(data: UpsertArticleCategoryTranslationBody): ValidationError {

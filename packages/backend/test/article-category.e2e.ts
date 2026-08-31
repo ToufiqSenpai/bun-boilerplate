@@ -1,8 +1,12 @@
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
 import slugify from "@sindresorhus/slugify"
+import { eq } from "drizzle-orm"
 
+import { database } from "../src/common/database.js"
 import { app } from "../src/main.js"
+import { articleCategories, articleCategoryTranslations } from "../src/modules/article/tables/article-category.table.js"
+import { articles } from "../src/modules/article/tables/article.table.js"
 import { createAuthSession } from "./helpers/auth.js"
 import type { EdenValidationError } from "./helpers/validation.js"
 
@@ -410,5 +414,158 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       expect(status).toBe(403)
       expect(error).not.toBeNull()
     })
+  })
+})
+
+describe("DELETE /api/article-categories/:id", () => {
+  async function createCategory(adminHeaders: Record<string, string>) {
+    const { data } = await api.api["article-categories"].post(
+      {
+        locale: "en",
+        name: faker.lorem.words({ min: 1, max: 3 }),
+        slug: faker.lorem.slug(),
+        description: faker.lorem.sentence()
+      },
+      { headers: adminHeaders }
+    )
+    if (!data) throw new Error("failed to seed category")
+    return data
+  }
+
+  async function seedArticle(categoryId: string) {
+    const [article] = await database.insert(articles).values({ categoryId }).returning()
+    if (!article) throw new Error("failed to seed article")
+    return article
+  }
+
+  test("deletes the category and returns 204 with no body", async () => {
+    const headers = await createAuthSession("admin")
+    const category = await createCategory(headers)
+
+    const { data, error, status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, {
+      headers
+    })
+
+    expect(status).toBe(204)
+    expect(error).toBeNull()
+    // 204 has no content-type, so treaty decodes the empty body as an empty string
+    expect(data).toBe("")
+
+    const [removed] = await database
+      .select({ id: articleCategories.id })
+      .from(articleCategories)
+      .where(eq(articleCategories.id, category.id))
+      .limit(1)
+    expect(removed).toBeUndefined()
+
+    const list = await api.api["article-categories"].get({ query: { page: 1, limit: 100 } })
+    expect(list.data?.data.some(row => row.id === category.id)).toBe(false)
+  })
+
+  test("deletes only the targeted Category, leaving others intact", async () => {
+    const headers = await createAuthSession("admin")
+    const target = await createCategory(headers)
+    const other = await createCategory(headers)
+
+    const { status } = await api.api["article-categories"]({ id: target.id }).delete(undefined, { headers })
+    expect(status).toBe(204)
+
+    const list = await api.api["article-categories"].get({ query: { page: 1, limit: 100 } })
+    const ids = list.data?.data.map(row => row.id) ?? []
+    expect(ids).not.toContain(target.id)
+    expect(ids).toContain(other.id)
+  })
+
+  test("cascades deletion to all CategoryTranslations", async () => {
+    const headers = await createAuthSession("admin")
+    const category = await createCategory(headers)
+    await api.api["article-categories"]({ id: category.id })
+      .translations({ locale: "id" })
+      .put({ name: faker.lorem.words(2), slug: faker.lorem.slug() }, { headers })
+
+    const { status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    expect(status).toBe(204)
+
+    const translations = await database
+      .select({ id: articleCategoryTranslations.id })
+      .from(articleCategoryTranslations)
+      .where(eq(articleCategoryTranslations.categoryId, category.id))
+    expect(translations).toEqual([])
+  })
+
+  test("clears the Category reference on linked Articles via SET NULL", async () => {
+    const headers = await createAuthSession("admin")
+    const category = await createCategory(headers)
+    const article = await seedArticle(category.id)
+
+    const { status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    expect(status).toBe(204)
+
+    const [remaining] = await database
+      .select({ categoryId: articles.categoryId })
+      .from(articles)
+      .where(eq(articles.id, article.id))
+      .limit(1)
+    expect(remaining?.categoryId).toBeNull()
+  })
+
+  test("returns 404 when the Category does not exist", async () => {
+    const headers = await createAuthSession("admin")
+
+    const { error, status } = await api.api["article-categories"]({
+      id: faker.string.uuid({ version: 7 })
+    }).delete(undefined, { headers })
+
+    expect(status).toBe(404)
+    expect(error).not.toBeNull()
+  })
+
+  test("returns 404 when the same Category is deleted twice", async () => {
+    const headers = await createAuthSession("admin")
+    const category = await createCategory(headers)
+
+    const first = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    expect(first.status).toBe(204)
+
+    const { error, status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    expect(status).toBe(404)
+    expect(error).not.toBeNull()
+  })
+
+  test("returns 422 when the id is not a valid UUIDv7", async () => {
+    const headers = await createAuthSession("admin")
+
+    const { error, status } = await api.api["article-categories"]({ id: "not-an-id" }).delete(undefined, { headers })
+
+    expect(status).toBe(422)
+    expect(error).not.toBeNull()
+    // SAFETY: error is ValidationError per previous expect
+    expect((error as EdenValidationError).value).toMatchObject({
+      type: "validation",
+      on: "params",
+      property: "id",
+      message: expect.stringContaining("Invalid category id")
+    })
+  })
+
+  test("returns 401 without a session", async () => {
+    const category = await createCategory(await createAuthSession("admin"))
+
+    const { error, status } = await api.api["article-categories"]({ id: category.id }).delete()
+
+    expect(status).toBe(401)
+    expect(error).not.toBeNull()
+  })
+
+  test("returns 403 for a non-admin session", async () => {
+    const category = await createCategory(await createAuthSession("admin"))
+    const userHeaders = await createAuthSession("user")
+
+    const { error, status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, {
+      headers: userHeaders
+    })
+
+    expect(status).toBe(403)
+    expect(error).not.toBeNull()
   })
 })
