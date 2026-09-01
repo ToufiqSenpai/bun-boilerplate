@@ -1,9 +1,8 @@
 import { IconEye, IconEyeOff } from "@tabler/icons-react"
 import * as React from "react"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "src/components/ui/input-group"
-import { cn } from "src/utils/component"
 
-interface PasswordInputProps extends React.ComponentProps<"input"> {
+interface PasswordInputProps extends Omit<React.ComponentProps<"input">, "type"> {
   showPasswordLabel?: string
   hidePasswordLabel?: string
 }
@@ -17,7 +16,7 @@ function PasswordInput({
   const [passwordVisible, setPasswordVisible] = React.useState(false)
 
   return (
-    <InputGroup className={cn(className)}>
+    <InputGroup className={className}>
       <InputGroupInput type={passwordVisible ? "text" : "password"} {...props} />
       <InputGroupAddon align="inline-end">
         <InputGroupButton

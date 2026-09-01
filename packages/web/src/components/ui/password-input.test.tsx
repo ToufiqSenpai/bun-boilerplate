@@ -58,8 +58,18 @@ describe("PasswordInput", () => {
   })
 
   it("forwards change events to the underlying input", () => {
-    const { container } = render(<PasswordInput value="typed" readOnly />)
+    const changes: string[] = []
+    const { container } = render(
+      <PasswordInput
+        defaultValue=""
+        onChange={e => {
+          changes.push(e.target.value)
+        }}
+      />
+    )
 
-    expect(getInput(container).value).toBe("typed")
+    fireEvent.change(getInput(container), { target: { value: "hunter2" } })
+
+    expect(changes).toEqual(["hunter2"])
   })
 })
