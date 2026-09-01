@@ -1,12 +1,14 @@
 import { Elysia } from "elysia"
 
 import { database } from "../../common/database.js"
+import { notFoundSchema } from "../../common/error.js"
 import { localePlugin } from "../../common/i18n.js"
 import { authPlugin } from "../auth/index.js"
 import {
   articleCategorySchema,
   articleCategoryTranslationParamsSchema,
   createArticleCategorySchema,
+  deleteArticleCategoryNoContentSchema,
   deleteArticleCategoryParamsSchema,
   listArticleCategoriesHeadersSchema,
   listArticleCategoriesQuerySchema,
@@ -15,13 +17,14 @@ import {
 } from "./schemas/article-category.schema.js"
 import { ArticleCategoryService } from "./services/article-category.service.js"
 
-export const articlePlugin = new Elysia({ name: "article" })
+const articleCategoryService = new ArticleCategoryService(database)
+
+export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
   .use(authPlugin)
   .use(localePlugin)
-  .resolve(() => ({ articleCategoryService: new ArticleCategoryService(database) }))
   .get(
     "/article-categories",
-    ({ query, locale, set, articleCategoryService }) => {
+    ({ query, locale, set }) => {
       set.headers["content-language"] = locale
       return articleCategoryService.list(query, locale)
     },
@@ -33,7 +36,7 @@ export const articlePlugin = new Elysia({ name: "article" })
   )
   .post(
     "/article-categories",
-    async ({ body, set, status, articleCategoryService }) => {
+    async ({ body, set, status }) => {
       set.headers["content-language"] = body.locale
       return status(201, await articleCategoryService.create(body))
     },
@@ -47,7 +50,7 @@ export const articlePlugin = new Elysia({ name: "article" })
   )
   .put(
     "/article-categories/:id/translations/:locale",
-    async ({ params, body, set, status, articleCategoryService }) => {
+    async ({ params, body, set, status }) => {
       set.headers["content-language"] = params.locale
       const { translation, created } = await articleCategoryService.upsertTranslation(params, body)
       return status(created ? 201 : 200, translation)
@@ -58,18 +61,23 @@ export const articlePlugin = new Elysia({ name: "article" })
       body: upsertArticleCategoryTranslationSchema,
       response: {
         200: articleCategorySchema,
-        201: articleCategorySchema
+        201: articleCategorySchema,
+        404: notFoundSchema
       }
     }
   )
   .delete(
     "/article-categories/:id",
-    async ({ params, status, articleCategoryService }) => {
+    async ({ params, status }) => {
       await articleCategoryService.delete(params)
-      return status(204)
+      return status(204, undefined)
     },
     {
       admin: true,
-      params: deleteArticleCategoryParamsSchema
+      params: deleteArticleCategoryParamsSchema,
+      response: {
+        204: deleteArticleCategoryNoContentSchema,
+        404: notFoundSchema
+      }
     }
   )

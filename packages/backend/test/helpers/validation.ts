@@ -18,3 +18,8 @@ export interface EdenValidationError {
   status: number
   value: ValidationErrorPayload
 }
+
+export interface EdenApiError<T> {
+  status: number
+  value: T
+}

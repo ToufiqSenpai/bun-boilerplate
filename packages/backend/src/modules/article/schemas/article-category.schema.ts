@@ -39,6 +39,15 @@ export const articleCategorySchema = z
   })
   .extend(collectionSchema.shape)
 
+export type ArticleCategory = z.output<typeof articleCategorySchema>
+
+// GET /article-categories (query + headers)
+export const listArticleCategoriesQuerySchema = paginationQuerySchema
+export const listArticleCategoriesHeadersSchema = localeHeadersSchema
+export const listArticleCategoryResponseSchema = paginatedSchema(articleCategorySchema)
+
+export type ListArticleCategoriesQuery = z.output<typeof listArticleCategoriesQuerySchema>
+
 // POST /article-categories (body) — slug uniqueness is per locale, matching the UNIQUE(locale, slug) constraint
 export const createArticleCategorySchema = articleCategorySchema
   .omit({ id: true, createdAt: true, updatedAt: true })
@@ -54,10 +63,7 @@ export const createArticleCategorySchema = articleCategorySchema
     { error: "Slug already exists", path: ["slug"] }
   )
 
-// GET /article-categories (query + headers)
-export const listArticleCategoriesQuerySchema = paginationQuerySchema
-export const listArticleCategoriesHeadersSchema = localeHeadersSchema
-export const listArticleCategoryResponseSchema = paginatedSchema(articleCategorySchema)
+export type CreateArticleCategoryBody = z.output<typeof createArticleCategorySchema>
 
 // PUT /article-categories/:id/translations/:locale (params + body) — uniqueness needs params.id, checked in the service
 export const articleCategoryTranslationParamsSchema = z.object({
@@ -71,15 +77,13 @@ export const upsertArticleCategoryTranslationSchema = articleCategorySchema.omit
   locale: true
 })
 
-// DELETE /article-categories/:id (params)
+export type ArticleCategoryTranslationParams = z.output<typeof articleCategoryTranslationParamsSchema>
+export type UpsertArticleCategoryTranslationBody = z.output<typeof upsertArticleCategoryTranslationSchema>
+
+// DELETE /article-categories/:id (params + 204 response) — status code without a response body
 export const deleteArticleCategoryParamsSchema = z.object({
   id: z.uuidv7({ error: "Invalid category id" }).describe("Article category id")
 })
+export const deleteArticleCategoryNoContentSchema = z.undefined().describe("Empty response body on successful deletion")
 
-// Derived types (outputs of the schemas above)
-export type ArticleCategory = z.output<typeof articleCategorySchema>
-export type CreateArticleCategoryBody = z.output<typeof createArticleCategorySchema>
-export type ListArticleCategoriesQuery = z.output<typeof listArticleCategoriesQuerySchema>
-export type ArticleCategoryTranslationParams = z.output<typeof articleCategoryTranslationParamsSchema>
-export type UpsertArticleCategoryTranslationBody = z.output<typeof upsertArticleCategoryTranslationSchema>
 export type DeleteArticleCategoryParams = z.output<typeof deleteArticleCategoryParamsSchema>

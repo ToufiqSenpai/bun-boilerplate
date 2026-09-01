@@ -5,12 +5,12 @@ import { admin, openAPI } from "better-auth/plugins"
 import { randomUUIDv7 } from "bun"
 import { count, eq } from "drizzle-orm"
 import { Elysia } from "elysia"
-import { z } from "zod"
 
 import { config } from "../../common/config.js"
 import { database } from "../../common/database.js"
 import { emailService } from "../../common/email.js"
 import { logger } from "../../common/logger.js"
+import { authSetupResponseSchema } from "./schemas/auth.schema.js"
 import { AuthService } from "./services/auth.service.js"
 import { accounts, sessions, users, verifications } from "./tables/auth.table.js"
 import { ResetPasswordTemplate } from "./templates/reset-password.template.js"
@@ -99,7 +99,7 @@ export const auth = betterAuth({
     autoSignIn: true,
     password: {
       hash: password => hash(password, ARGON2_OPTIONS),
-      verify: ({ password, hash: storedHash }) => verify(storedHash, password)
+      verify: ({ password, hash: storedHash }) => verify(storedHash, password, ARGON2_OPTIONS)
     },
     sendResetPassword: async ({ user, url }) => {
       void emailService
@@ -197,9 +197,9 @@ export const auth = betterAuth({
 
 const authService = new AuthService(database)
 
-export const authPlugin = new Elysia({ name: "auth" })
+export const authPlugin = new Elysia({ name: "auth", tags: ["Auth"] })
   .get("/auth/setup", async () => ({ needed: await authService.isSetupNeeded() }), {
-    response: z.object({ needed: z.boolean() })
+    response: authSetupResponseSchema
   })
   .mount(auth.handler)
   .macro("auth", {

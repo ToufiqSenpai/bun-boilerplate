@@ -8,7 +8,7 @@ import { app } from "../src/main.js"
 import { articleCategories, articleCategoryTranslations } from "../src/modules/article/tables/article-category.table.js"
 import { articles } from "../src/modules/article/tables/article.table.js"
 import { createAuthSession } from "./helpers/auth.js"
-import type { EdenValidationError } from "./helpers/validation.js"
+import type { EdenApiError, EdenValidationError } from "./helpers/validation.js"
 
 const api = treaty(app)
 
@@ -386,6 +386,8 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
 
     expect(status).toBe(404)
     expect(error).not.toBeNull()
+    // SAFETY: error is EdenApiError with parsed body per previous expect
+    expect((error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
   })
 
   describe("authentication", () => {
@@ -518,6 +520,8 @@ describe("DELETE /api/article-categories/:id", () => {
 
     expect(status).toBe(404)
     expect(error).not.toBeNull()
+    // SAFETY: error is EdenApiError with parsed body per previous expect
+    expect((error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
   })
 
   test("returns 404 when the same Category is deleted twice", async () => {
@@ -530,6 +534,8 @@ describe("DELETE /api/article-categories/:id", () => {
     const { error, status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
     expect(status).toBe(404)
     expect(error).not.toBeNull()
+    // SAFETY: error is EdenApiError with parsed body per previous expect
+    expect((error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
   })
 
   test("returns 422 when the id is not a valid UUIDv7", async () => {
