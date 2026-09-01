@@ -1,6 +1,7 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError, ValidationError } from "elysia"
+import { z } from "zod"
 
 import type { Database } from "../../../common/database.js"
 import type { Paginated } from "../../../helpers/pagination.js"
@@ -66,6 +67,49 @@ export class ArticleCategoryService {
         total,
         totalPages: total === 0 ? 0 : Math.ceil(total / query.limit)
       }
+    }
+  }
+
+  public async getByIdentifier(identifier: string, locale: Locale): Promise<ArticleCategory> {
+    const isId = z.uuidv7().safeParse(identifier).success
+    const predicate = isId
+      ? and(eq(articleCategories.id, identifier), eq(articleCategoryTranslations.locale, locale))
+      : and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, identifier))
+
+    const [row] = await this.database
+      .select({
+        id: articleCategories.id,
+        createdAt: articleCategories.createdAt,
+        updatedAt: articleCategories.updatedAt,
+        locale: articleCategoryTranslations.locale,
+        name: articleCategoryTranslations.name,
+        slug: articleCategoryTranslations.slug,
+        description: articleCategoryTranslations.description
+      })
+      .from(articleCategories)
+      .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
+      .where(predicate)
+      .limit(1)
+    if (!row) {
+      if (isId) {
+        const [exists] = await this.database
+          .select({ id: articleCategories.id })
+          .from(articleCategories)
+          .where(eq(articleCategories.id, identifier))
+          .limit(1)
+        if (exists) throw new NotFoundError(`Article category translation not found for locale ${locale}`)
+      }
+      throw new NotFoundError("Article category not found")
+    }
+
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      locale: row.locale,
+      name: row.name,
+      slug: row.slug,
+      description: row.description ?? undefined
     }
   }
 

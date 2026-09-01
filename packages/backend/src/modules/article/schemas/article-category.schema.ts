@@ -16,6 +16,7 @@ const slugSchema = z
   .max(255, { error: "Slug must be at most 255 characters" })
   .transform(value => slugify(value))
   .refine(slug => slug.length > 0, { error: "Slug must not be empty" })
+  .refine(slug => !z.uuidv7().safeParse(slug).success, { error: "Slug must not look like a category id" })
   .describe("URL-friendly slug, slugified before stored")
 
 // Base schema: shape of an article category as returned in responses
@@ -47,6 +48,17 @@ export const listArticleCategoriesHeadersSchema = localeHeadersSchema
 export const listArticleCategoryResponseSchema = paginatedSchema(articleCategorySchema)
 
 export type ListArticleCategoriesQuery = z.output<typeof listArticleCategoriesQuerySchema>
+
+// GET /article-categories/:identifier (params + headers) — resolves an ArticleCategory by uuidv7 id or per-locale Slug.
+// The uuidv7 branch is tried first, so an identifier that looks like an id is always treated as an id, never as a Slug.
+export const getArticleCategoryParamsSchema = z.object({
+  identifier: z
+    .union([z.uuidv7(), slugSchema], { error: "Invalid identifier" })
+    .describe("Article category id (uuidv7) or slug in the requested locale")
+})
+export const getArticleCategoryHeadersSchema = localeHeadersSchema
+
+export type GetArticleCategoryParams = z.output<typeof getArticleCategoryParamsSchema>
 
 // POST /article-categories (body) — slug uniqueness is per locale, matching the UNIQUE(locale, slug) constraint
 export const createArticleCategorySchema = omitCollection(articleCategorySchema).refine(

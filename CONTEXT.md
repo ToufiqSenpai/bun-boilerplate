@@ -29,20 +29,20 @@ _Avoid_: Permission, Group, Privilege
 ### Content
 
 **Article**:
-A publishable content item that may belong to a Category and carries translatable fields.
+A publishable content item that may belong to an ArticleCategory and carries translatable fields.
 _Avoid_: Post, Page, Entry, Content
 
-**Category**:
-An optional grouping for Articles (one-to-many); an Article may exist without a Category.
-_Avoid_: ArticleCategory, Topic, Section, Tag
+**ArticleCategory**:
+An optional grouping for Articles (one-to-many); an Article may exist without an ArticleCategory.
+_Avoid_: Category, Topic, Section, Tag
 
 **ArticleTranslation**:
 Per-Locale localized fields for an Article: title, slug, excerpt, content, metaTitle, metaDescription.
 _Avoid_: Translation, LocalizedArticle
 
-**CategoryTranslation**:
-Per-Locale localized fields for a Category: name, slug, description.
-_Avoid_: Translation, LocalizedCategory
+**ArticleCategoryTranslation**:
+Per-Locale localized fields for an ArticleCategory: name, slug, description.
+_Avoid_: CategoryTranslation, Translation, LocalizedCategory
 
 **Status**:
 Lifecycle of an Article: `draft`, `published`, or `archived`.
