@@ -210,6 +210,14 @@ describe("getArticleCategoryParamsSchema", () => {
     expect(output.identifier).toBe(slug)
   })
 
+  test("treats a uuid-shaped identifier that is not a uuidv7 as a Slug", () => {
+    const v4 = faker.string.uuid({ version: 4 })
+
+    const output = getArticleCategoryParamsSchema.parse({ identifier: v4 })
+
+    expect(output.identifier).toBe(slugify(v4))
+  })
+
   test("rejects an empty identifier", () => {
     const issues = parseIssuesFor("")
 

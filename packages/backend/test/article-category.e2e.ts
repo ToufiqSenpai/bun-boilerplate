@@ -188,12 +188,13 @@ describe("GET /api/article-categories/:identifier", () => {
   test("returns 404 with a translation-specific message when the category exists without the locale", async () => {
     const category = await createCategory(await createAuthSession("admin"))
 
-    const { error, status } = await categoryByIdentifier(category.id).get({
+    const { error, status, headers } = await categoryByIdentifier(category.id).get({
       headers: { "x-locale": "id" }
     })
 
     expect(status).toBe(404)
     expect(error).not.toBeNull()
+    expect(headers.get("content-language")).toBe("id")
     // SAFETY: error is EdenApiError with parsed body per previous expect
     expect((error as EdenApiError<{ message: string }>).value.message).toContain("translation")
   })

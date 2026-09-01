@@ -1,4 +1,6 @@
 import { faker } from "@faker-js/faker"
+import type { SQL } from "drizzle-orm"
+import { PgDialect } from "drizzle-orm/pg-core"
 import { NotFoundError, ValidationError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
 
@@ -169,10 +171,17 @@ function buildUpsertChain<T>(row: T) {
 
 function buildJoinedLimitChain(rows: ListRow[]) {
   const limit = vi.fn<(limit: number) => Promise<ListRow[]>>().mockResolvedValue(rows)
-  const where = vi.fn<() => { limit: typeof limit }>().mockReturnValue({ limit })
+  const where = vi.fn<(predicate: unknown) => { limit: typeof limit }>().mockReturnValue({ limit })
   const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
   const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
   return { from, innerJoin, where, limit }
+}
+
+const pgDialect = new PgDialect()
+
+function renderPredicate(whereCall: unknown): string {
+  // SAFETY: the where() argument is always a drizzle SQL instance built by the service
+  return pgDialect.sqlToQuery(whereCall as SQL).sql
 }
 
 function createUpsertParams(
@@ -764,6 +773,10 @@ describe("ArticleCategoryService", () => {
       })
       expect(chain.from).toHaveBeenCalledWith(articleCategories)
       expect(chain.limit).toHaveBeenCalledWith(1)
+      const sql = renderPredicate(chain.where.mock.calls[0]?.[0])
+      expect(sql).toContain(`"article_categories"."id"`)
+      expect(sql).toContain(`"article_category_translations"."locale"`)
+      expect(sql).not.toContain(`"article_category_translations"."slug"`)
     })
 
     test("resolves a slug identifier through locale and slug predicates", async () => {
@@ -777,6 +790,11 @@ describe("ArticleCategoryService", () => {
 
       expect(result.slug).toBe(slug)
       expect(chain.from).toHaveBeenCalledWith(articleCategories)
+      expect(chain.limit).toHaveBeenCalledWith(1)
+      const sql = renderPredicate(chain.where.mock.calls[0]?.[0])
+      expect(sql).toContain(`"article_category_translations"."locale"`)
+      expect(sql).toContain(`"article_category_translations"."slug"`)
+      expect(sql).not.toContain(`"article_categories"."id"`)
     })
 
     test("maps null description to undefined", async () => {

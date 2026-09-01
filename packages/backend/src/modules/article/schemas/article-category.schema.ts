@@ -58,8 +58,6 @@ export const getArticleCategoryParamsSchema = z.object({
 })
 export const getArticleCategoryHeadersSchema = localeHeadersSchema
 
-export type GetArticleCategoryParams = z.output<typeof getArticleCategoryParamsSchema>
-
 // POST /article-categories (body) — slug uniqueness is per locale, matching the UNIQUE(locale, slug) constraint
 export const createArticleCategorySchema = omitCollection(articleCategorySchema).refine(
   async ({ locale, slug }) => {
