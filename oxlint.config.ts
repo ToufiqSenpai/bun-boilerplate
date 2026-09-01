@@ -226,7 +226,10 @@ export default defineConfig({
         "anti-slop/no-runtime-typeof": "off",
         // Generic Label/FieldGroup primitives wire htmlFor/role via props spread.
         "jsx-a11y/label-has-associated-control": "off",
-        "jsx-a11y/prefer-tag-over-role": "off"
+        "jsx-a11y/prefer-tag-over-role": "off",
+        // InputGroupAddon upstream wires onClick on role="group" as a mouse-only focus convenience; keyboard users reach the control via Tab.
+        "jsx-a11y/click-events-have-key-events": "off",
+        "jsx-a11y/no-noninteractive-element-interactions": "off"
       }
     },
     {
