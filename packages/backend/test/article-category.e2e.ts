@@ -86,6 +86,17 @@ async function createCategory(adminHeaders: Record<string, string>, locale: "en"
   return data
 }
 
+function expectIdLikeSlugRejected(error: CategoryTreatyResult["error"]) {
+  expect(error).not.toBeNull()
+  // SAFETY: error is ValidationError per previous expect
+  expect((error as EdenValidationError).value).toMatchObject({
+    type: "validation",
+    on: "body",
+    property: "slug",
+    message: expect.stringContaining("Slug must not look like a category id")
+  })
+}
+
 describe("GET /api/article-categories", () => {
   test("returns 200 with empty paginated data on fresh database", async () => {
     const { data, error, status } = await api.api["article-categories"].get({
@@ -112,6 +123,24 @@ describe("GET /api/article-categories/:identifier", () => {
       )
     if (!data) throw new Error("failed to seed translation")
     return data
+  }
+
+  function expectNotFoundCategory(result: CategoryTreatyResult) {
+    expect(result.status).toBe(404)
+    expect(result.error).not.toBeNull()
+    // SAFETY: error is EdenApiError with parsed body per previous expect
+    expect((result.error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
+  }
+
+  async function expectIdentifierRejected(identifier: string) {
+    const { error, status } = await categoryByIdentifier(identifier).get()
+
+    expect(status).toBe(422)
+    expect(error).not.toBeNull()
+    // SAFETY: error is ValidationError per previous expect
+    const payload = (error as EdenValidationError).value
+    expect(validationErrorSchema.safeParse(payload).success).toBe(true)
+    expect(payload).toMatchObject({ type: "validation", on: "params", property: "identifier" })
   }
 
   test("returns 200 for a known id without authentication and echoes Content-Language", async () => {
@@ -159,30 +188,18 @@ describe("GET /api/article-categories/:identifier", () => {
     const miss = await categoryByIdentifier(category.slug).get({
       headers: { "x-locale": "id" }
     })
-    expect(miss.status).toBe(404)
-    // SAFETY: error is EdenApiError with parsed body per previous expect
-    expect((miss.error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
+    expectNotFoundCategory(miss)
   })
 
   test("returns 404 for a slug that does not exist in the resolved locale", async () => {
     const adminHeaders = await createAuthSession("admin")
     const category = await createCategory(adminHeaders)
 
-    const { error, status } = await categoryByIdentifier(`${category.slug}-missing`).get()
-
-    expect(status).toBe(404)
-    expect(error).not.toBeNull()
-    // SAFETY: error is EdenApiError with parsed body per previous expect
-    expect((error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
+    expectNotFoundCategory(await categoryByIdentifier(`${category.slug}-missing`).get())
   })
 
   test("returns 404 with a generic message for an id that does not exist", async () => {
-    const { error, status } = await categoryByIdentifier(faker.string.uuid({ version: 7 })).get()
-
-    expect(status).toBe(404)
-    expect(error).not.toBeNull()
-    // SAFETY: error is EdenApiError with parsed body per previous expect
-    expect((error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
+    expectNotFoundCategory(await categoryByIdentifier(faker.string.uuid({ version: 7 })).get())
   })
 
   test("returns 404 with a translation-specific message when the category exists without the locale", async () => {
@@ -242,25 +259,11 @@ describe("GET /api/article-categories/:identifier", () => {
 
   describe("422 Unprocessable Entity", () => {
     test("rejects an identifier that slugifies to an empty string", async () => {
-      const { error, status } = await categoryByIdentifier("---").get()
-
-      expect(status).toBe(422)
-      expect(error).not.toBeNull()
-      // SAFETY: error is ValidationError per previous expect
-      const payload = (error as EdenValidationError).value
-      expect(validationErrorSchema.safeParse(payload).success).toBe(true)
-      expect(payload).toMatchObject({ type: "validation", on: "params", property: "identifier" })
+      await expectIdentifierRejected("---")
     })
 
     test("rejects an identifier exceeding 255 characters", async () => {
-      const { error, status } = await categoryByIdentifier("a".repeat(256)).get()
-
-      expect(status).toBe(422)
-      expect(error).not.toBeNull()
-      // SAFETY: error is ValidationError per previous expect
-      const payload = (error as EdenValidationError).value
-      expect(validationErrorSchema.safeParse(payload).success).toBe(true)
-      expect(payload).toMatchObject({ type: "validation", on: "params", property: "identifier" })
+      await expectIdentifierRejected("a".repeat(256))
     })
   })
 })
@@ -486,14 +489,7 @@ describe("POST /api/article-categories", () => {
       )
 
       expect(status).toBe(422)
-      expect(error).not.toBeNull()
-      // SAFETY: error is ValidationError per previous expect
-      expect((error as EdenValidationError).value).toMatchObject({
-        type: "validation",
-        on: "body",
-        property: "slug",
-        message: expect.stringContaining("Slug must not look like a category id")
-      })
+      expectIdLikeSlugRejected(error)
     })
   })
 })
@@ -613,14 +609,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
         .put({ name: category.name, slug: faker.string.uuid({ version: 7 }) }, { headers })
 
       expect(status).toBe(422)
-      expect(error).not.toBeNull()
-      // SAFETY: error is ValidationError per previous expect
-      expect((error as EdenValidationError).value).toMatchObject({
-        type: "validation",
-        on: "body",
-        property: "slug",
-        message: expect.stringContaining("Slug must not look like a category id")
-      })
+      expectIdLikeSlugRejected(error)
     })
 
     test("rejects a locale outside the enum", async () => {
