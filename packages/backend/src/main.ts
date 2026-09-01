@@ -1,4 +1,5 @@
 import "./instrument.js"
+import "zod/compile"
 import { cors } from "@elysiajs/cors"
 import { openapi } from "@elysiajs/openapi"
 import * as Sentry from "@sentry/elysia"
