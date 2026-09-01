@@ -22,7 +22,19 @@ export const app = Sentry.withElysia(new Elysia({ name: "app" }))
       documentation: {
         info: { title: config.app.name, version: "1.0.0" }
       },
-      mapJsonSchema: { zod: (schema: z.ZodType) => z.toJSONSchema(schema, { io: "input" }) }
+      mapJsonSchema: {
+        zod: (schema: z.ZodType) =>
+          z.toJSONSchema(schema, {
+            io: "input",
+            unrepresentable: "any",
+            override: ({ zodSchema, jsonSchema }) => {
+              if (zodSchema instanceof z.ZodDate) {
+                jsonSchema.type = "string"
+                jsonSchema.format = "date-time"
+              }
+            }
+          })
+      }
     })
   )
   .use(
