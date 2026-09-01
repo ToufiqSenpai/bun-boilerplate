@@ -10,17 +10,51 @@ import { config } from "./common/config.js"
 import { errorPlugin } from "./common/error.js"
 import { localePlugin } from "./common/i18n.js"
 import { logger } from "./common/logger.js"
-import { articlePlugin } from "./modules/article/index.js"
-import { authPlugin } from "./modules/auth/index.js"
+import { articlePlugin, articleTags } from "./modules/article/index.js"
+import { authPlugin, authTags } from "./modules/auth/index.js"
 
 export const app = Sentry.withElysia(new Elysia({ name: "app" }))
-  .resolve(({}) => {})
   .use(
     openapi({
       enabled: config.app.environment === "development",
       path: "/api",
       documentation: {
-        info: { title: config.app.name, version: "1.0.0" }
+        info: {
+          title: config.app.name,
+          version: "1.0.0",
+          description: [
+            "REST API for the Bun boilerplate backend.",
+            "",
+            "## Conventions",
+            '- Errors use a JSON envelope: `{ "message": string }`.',
+            "- Invalid `body`, `query`, `headers`, `params`, or `cookie` return 422 with a `validation` payload listing all issues.",
+            "- List endpoints are paginated with `page` and `limit` query parameters and return `{ data, meta }`.",
+            "- The response `meta` object echoes `page`, `limit`, `total`, and `totalPages`.",
+            "",
+            "## Localization",
+            "- Translatable resources expose one row per locale. List endpoints select the translation via the `locale` query parameter.",
+            "- Request locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default (`en`).",
+            "- Responses echo the effective locale in the `Content-Language` header.",
+            "",
+            "## Authentication",
+            "- Session authentication uses the better-auth session cookie (`better-auth.session_token`).",
+            "- Endpoints marked admin-only require a session whose user has the `admin` role.",
+            "- Email verification is required for new accounts; the first registered user is automatically promoted to `admin`.",
+            "- The better-auth endpoints mounted under `/api/auth` (sign-in, sign-up, sessions, etc.) are documented by better-auth's own OpenAPI reference, which is enabled in development."
+          ].join("\n")
+        },
+        servers: [{ url: config.app.baseURL, description: `${config.app.environment} server` }],
+        tags: [...authTags, ...articleTags],
+        components: {
+          securitySchemes: {
+            sessionCookie: {
+              type: "apiKey",
+              in: "cookie",
+              name: "better-auth.session_token",
+              description: "Session cookie issued by better-auth on sign-in"
+            }
+          }
+        }
       },
       mapJsonSchema: {
         zod: (schema: z.ZodType) =>

@@ -10,6 +10,7 @@ import { config } from "../../common/config.js"
 import { database } from "../../common/database.js"
 import { emailService } from "../../common/email.js"
 import { logger } from "../../common/logger.js"
+import type { OpenApiTag } from "../../common/openapi.js"
 import { authSetupResponseSchema } from "./schemas/auth.schema.js"
 import { AuthService } from "./services/auth.service.js"
 import { accounts, sessions, users, verifications } from "./tables/auth.table.js"
@@ -197,9 +198,18 @@ export const auth = betterAuth({
 
 const authService = new AuthService(database)
 
+export const authTags: OpenApiTag[] = [
+  { name: "Auth", description: "Session-based authentication (better-auth) and setup status" }
+]
+
 export const authPlugin = new Elysia({ name: "auth", tags: ["Auth"] })
   .get("/auth/setup", async () => ({ needed: await authService.isSetupNeeded() }), {
-    response: authSetupResponseSchema
+    response: authSetupResponseSchema,
+    detail: {
+      summary: "Check initial setup status",
+      description:
+        "Reports whether the instance still has no accounts. The first registered user is automatically promoted to admin and their email is marked verified."
+    }
   })
   .mount(auth.handler)
   .macro("auth", {
