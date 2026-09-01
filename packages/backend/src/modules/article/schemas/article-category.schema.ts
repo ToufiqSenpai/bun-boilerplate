@@ -5,7 +5,7 @@ import { z } from "zod"
 
 import { database } from "../../../common/database.js"
 import { localeHeadersSchema } from "../../../common/i18n.js"
-import { collectionSchema } from "../../../common/schema.js"
+import { collectionSchema, omitCollection } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 import { articleCategoryTranslations } from "../tables/article-category.table.js"
 
@@ -49,19 +49,17 @@ export const listArticleCategoryResponseSchema = paginatedSchema(articleCategory
 export type ListArticleCategoriesQuery = z.output<typeof listArticleCategoriesQuerySchema>
 
 // POST /article-categories (body) — slug uniqueness is per locale, matching the UNIQUE(locale, slug) constraint
-export const createArticleCategorySchema = articleCategorySchema
-  .omit({ id: true, createdAt: true, updatedAt: true })
-  .refine(
-    async ({ locale, slug }) => {
-      const [exists] = await database
-        .select({ slug: articleCategoryTranslations.slug })
-        .from(articleCategoryTranslations)
-        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
-        .limit(1)
-      return !exists
-    },
-    { error: "Slug already exists", path: ["slug"] }
-  )
+export const createArticleCategorySchema = omitCollection(articleCategorySchema).refine(
+  async ({ locale, slug }) => {
+    const [exists] = await database
+      .select({ slug: articleCategoryTranslations.slug })
+      .from(articleCategoryTranslations)
+      .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
+      .limit(1)
+    return !exists
+  },
+  { error: "Slug already exists", path: ["slug"] }
+)
 
 export type CreateArticleCategoryBody = z.output<typeof createArticleCategorySchema>
 
@@ -70,12 +68,7 @@ export const articleCategoryTranslationParamsSchema = z.object({
   id: z.uuidv7({ error: "Invalid category id" }).describe("Article category id"),
   locale: z.enum(LOCALES, { error: "Invalid locale" }).describe("Locale of the translation to create or replace")
 })
-export const upsertArticleCategoryTranslationSchema = articleCategorySchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  locale: true
-})
+export const upsertArticleCategoryTranslationSchema = omitCollection(articleCategorySchema).omit({ locale: true })
 
 export type ArticleCategoryTranslationParams = z.output<typeof articleCategoryTranslationParamsSchema>
 export type UpsertArticleCategoryTranslationBody = z.output<typeof upsertArticleCategoryTranslationSchema>

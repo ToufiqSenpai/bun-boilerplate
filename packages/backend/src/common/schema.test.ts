@@ -1,7 +1,7 @@
 import { faker } from "@faker-js/faker"
 import { z } from "zod"
 
-import { collectionSchema, timestampSchema } from "./schema.js"
+import { collectionSchema, omitCollection, timestampSchema } from "./schema.js"
 
 function createTimestamp() {
   return faker.date.recent().toISOString()
@@ -136,9 +136,7 @@ describe("collectionSchema", () => {
   })
 
   test("rejects invalid timestamps on createdAt and updatedAt", () => {
-    const result = collectionSchema.safeParse(
-      createCollectionInput({ createdAt: "yesterday", updatedAt: "tomorrow" })
-    )
+    const result = collectionSchema.safeParse(createCollectionInput({ createdAt: "yesterday", updatedAt: "tomorrow" }))
 
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -162,5 +160,41 @@ describe("collectionSchema", () => {
     expect(shape.id.description).toBe("Unique identifier")
     expect(shape.createdAt.description).toBe("Creation timestamp")
     expect(shape.updatedAt.description).toBe("Last update timestamp")
+  })
+})
+
+describe("omitCollection", () => {
+  const itemSchema = z.object({ name: z.string(), ...collectionSchema.shape })
+  const withoutCollection = omitCollection(itemSchema)
+
+  test("removes exactly the collection fields from the shape", () => {
+    expect(Object.keys(withoutCollection.shape).sort()).toEqual(["name"])
+  })
+
+  test("parses payloads that carry no collection fields", () => {
+    const result = withoutCollection.safeParse({ name: "Technology" })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual({ name: "Technology" })
+    }
+  })
+
+  test("strips collection keys when they are present in the input", () => {
+    const result = withoutCollection.safeParse({ ...createCollectionInput(), name: "Technology" })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(Object.keys(result.data).sort()).toEqual(["name"])
+    }
+  })
+
+  test("keeps validating the remaining fields", () => {
+    const result = withoutCollection.safeParse({})
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(issuePaths(result.error)).toEqual(["name"])
+    }
   })
 })
