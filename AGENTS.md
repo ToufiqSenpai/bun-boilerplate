@@ -47,6 +47,7 @@ Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --p
 - Coverage excludes `**/*.d.ts`, `**/*.{test,spec}.{ts,tsx}`.
 - Backend `src/main.ts` guards `app.listen` with `import.meta.main && config.app.environment !== "test"` — import `app` in tests without side-effects.
 - E2E helpers in `packages/backend/test/helpers/`, specs `*.e2e.ts` under `packages/backend/test/`.
+- Mocking: `anti-slop/no-module-mocking` (`oxlint.config.ts:32`) bans `vi.mock`/`vi.doMock`/`vi.unstable_mockModule` (and `jest` equivalent). Do not mock modules or over-mock functions. Replace dependencies through real seams — constructor params, function args, service interfaces, or faithful test doubles. Mock only at the seam for external boundaries (DB, HTTP, email, time, `config`) via injection, never whole-module mocks.
 
 ## Architecture Notes
 
