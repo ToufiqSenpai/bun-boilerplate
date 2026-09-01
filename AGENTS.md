@@ -40,6 +40,7 @@ Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --p
 - TS `module: nodenext`, `target: esnext`, strict + `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, `isolatedModules`. `skipLibCheck:true`.
 - `oxlint.config.ts` is type-aware (`typeAware:true`, LSP `npx oxlint --lsp`). Plugins: typescript, react, jsx-a11y, vitest, node + custom `tools/oxlint/anti-slop/index.ts`. Notable rules: `anti-slop/*`, `no-restricted-imports: ban node:*` (use bare `fs` not `node:fs`), `typescript/explicit-member-accessibility`, `consistent-type-definitions: interface`. Overrides relax `anti-slop/no-runtime-typeof` and a11y in `packages/web/src/components/ui/**` (vendored shadcn) and `react/only-export-components` in routes.
 - `oxfmt` (not Prettier): `printWidth 120`, `tabWidth 2`, `semi false`, `singleQuote false`, `sortImports true`.
+- Lint discipline: Never disable lint via comment (`eslint-disable`, `oxlint-disable`, `@ts-ignore`, `@ts-expect-error`, `biome-ignore`, etc.) and never edit `oxlint.config.ts`, `oxfmt`, or any lint/type config without explicit user approval. If a rule feels wrong, ask the user directly — do not silently suppress or reconfigure.
 
 ## Testing Conventions
 
