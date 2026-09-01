@@ -66,7 +66,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       detail: {
         summary: "Get article category by id or slug",
         description:
-          "Public. Resolves an article category by its stable uuidv7 id or by its slug in the requested locale. The locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default. Returns 404 when the category does not exist or when it has no translation in the resolved locale; no fallback translation is served. A valid uuidv7 identifier is always treated as an id. Slugs are unique per locale, so the same slug may exist under different locales."
+          "Resolves an article category by its stable uuidv7 id or by its slug in the requested locale. The locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default. Returns 404 when the category does not exist or when it has no translation in the resolved locale; no fallback translation is served. A valid uuidv7 identifier is always treated as an id. Slugs are unique per locale, so the same slug may exist under different locales."
       }
     }
   )

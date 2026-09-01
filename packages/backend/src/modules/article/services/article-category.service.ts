@@ -16,16 +16,6 @@ import type {
 import { articleCategorySchema, upsertArticleCategoryTranslationSchema } from "../schemas/article-category.schema.js"
 import { articleCategories, articleCategoryTranslations } from "../tables/article-category.table.js"
 
-const articleCategoryProjection = {
-  id: articleCategories.id,
-  createdAt: articleCategories.createdAt,
-  updatedAt: articleCategories.updatedAt,
-  locale: articleCategoryTranslations.locale,
-  name: articleCategoryTranslations.name,
-  slug: articleCategoryTranslations.slug,
-  description: articleCategoryTranslations.description
-}
-
 interface JoinedArticleCategoryRow {
   id: string
   createdAt: Date
@@ -36,19 +26,17 @@ interface JoinedArticleCategoryRow {
   description: string | null
 }
 
-function toArticleCategory(row: JoinedArticleCategoryRow): ArticleCategory {
-  return {
-    id: row.id,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    locale: row.locale,
-    name: row.name,
-    slug: row.slug,
-    description: row.description ?? undefined
-  }
-}
-
 export class ArticleCategoryService {
+  private readonly articleCategoryProjection = {
+    id: articleCategories.id,
+    createdAt: articleCategories.createdAt,
+    updatedAt: articleCategories.updatedAt,
+    locale: articleCategoryTranslations.locale,
+    name: articleCategoryTranslations.name,
+    slug: articleCategoryTranslations.slug,
+    description: articleCategoryTranslations.description
+  }
+
   public constructor(private readonly database: Database) {}
 
   public async list(
@@ -59,7 +47,7 @@ export class ArticleCategoryService {
 
     const [rows, [countResult]] = await Promise.all([
       this.database
-        .select(articleCategoryProjection)
+        .select(this.articleCategoryProjection)
         .from(articleCategories)
         .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
         .where(eq(articleCategoryTranslations.locale, locale))
@@ -76,7 +64,7 @@ export class ArticleCategoryService {
     const total = countResult?.value ?? 0
 
     return {
-      data: rows.map(toArticleCategory),
+      data: rows.map(row => this.toArticleCategory(row)),
       meta: {
         page: query.page,
         limit: query.limit,
@@ -93,7 +81,7 @@ export class ArticleCategoryService {
       : and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, identifier))
 
     const [row] = await this.database
-      .select(articleCategoryProjection)
+      .select(this.articleCategoryProjection)
       .from(articleCategories)
       .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
       .where(predicate)
@@ -110,7 +98,7 @@ export class ArticleCategoryService {
       throw new NotFoundError("Article category not found")
     }
 
-    return toArticleCategory(row)
+    return this.toArticleCategory(row)
   }
 
   public async create(data: CreateArticleCategoryBody): Promise<ArticleCategory> {
@@ -222,6 +210,18 @@ export class ArticleCategoryService {
       .where(eq(articleCategories.id, params.id))
       .returning()
     if (!deleted) throw new NotFoundError("Article category not found")
+  }
+
+  private toArticleCategory(row: JoinedArticleCategoryRow): ArticleCategory {
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      locale: row.locale,
+      name: row.name,
+      slug: row.slug,
+      description: row.description ?? undefined
+    }
   }
 
   private slugConflictError(data: UpsertArticleCategoryTranslationBody): ValidationError {

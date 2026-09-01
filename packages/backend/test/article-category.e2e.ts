@@ -72,6 +72,20 @@ function categoryByIdentifier(identifier: string): CategoryByIdentifierNode {
   return categoriesSegment({ identifier })
 }
 
+async function createCategory(adminHeaders: Record<string, string>, locale: "en" | "id" = "en") {
+  const { data } = await api.api["article-categories"].post(
+    {
+      locale,
+      name: faker.lorem.words({ min: 1, max: 3 }),
+      slug: faker.lorem.slug(),
+      description: faker.lorem.sentence()
+    },
+    { headers: adminHeaders }
+  )
+  if (!data) throw new Error("failed to seed category")
+  return data
+}
+
 describe("GET /api/article-categories", () => {
   test("returns 200 with empty paginated data on fresh database", async () => {
     const { data, error, status } = await api.api["article-categories"].get({
@@ -86,20 +100,6 @@ describe("GET /api/article-categories", () => {
 })
 
 describe("GET /api/article-categories/:identifier", () => {
-  async function createCategory(adminHeaders: Record<string, string>, locale: "en" | "id" = "en") {
-    const { data } = await api.api["article-categories"].post(
-      {
-        locale,
-        name: faker.lorem.words({ min: 1, max: 3 }),
-        slug: faker.lorem.slug(),
-        description: faker.lorem.sentence()
-      },
-      { headers: adminHeaders }
-    )
-    if (!data) throw new Error("failed to seed category")
-    return data
-  }
-
   async function addTranslation(category: { id: string }, adminHeaders: Record<string, string>, locale: "en" | "id") {
     const { data } = await categoryById(category.id)
       .translations({ locale })
@@ -499,20 +499,6 @@ describe("POST /api/article-categories", () => {
 })
 
 describe("PUT /api/article-categories/:id/translations/:locale", () => {
-  async function createCategory(adminHeaders: Record<string, string>) {
-    const { data } = await api.api["article-categories"].post(
-      {
-        locale: "en",
-        name: faker.lorem.words({ min: 1, max: 3 }),
-        slug: faker.lorem.slug(),
-        description: faker.lorem.sentence()
-      },
-      { headers: adminHeaders }
-    )
-    if (!data) throw new Error("failed to seed category")
-    return data
-  }
-
   describe("200/201 Upsert", () => {
     test("creates a translation for a new locale with 201", async () => {
       const headers = await createAuthSession("admin")
@@ -698,20 +684,6 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
 })
 
 describe("DELETE /api/article-categories/:id", () => {
-  async function createCategory(adminHeaders: Record<string, string>) {
-    const { data } = await api.api["article-categories"].post(
-      {
-        locale: "en",
-        name: faker.lorem.words({ min: 1, max: 3 }),
-        slug: faker.lorem.slug(),
-        description: faker.lorem.sentence()
-      },
-      { headers: adminHeaders }
-    )
-    if (!data) throw new Error("failed to seed category")
-    return data
-  }
-
   async function seedArticle(categoryId: string) {
     const [article] = await database.insert(articles).values({ categoryId }).returning()
     if (!article) throw new Error("failed to seed article")
