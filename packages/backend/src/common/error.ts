@@ -15,10 +15,33 @@ export const notFoundSchema = z
   })
   .describe("Not found response")
 
+export const validationIssueSchema = z.looseObject({
+  path: z
+    .array(z.union([z.string(), z.number()]))
+    .describe("Path to the offending value, e.g. body.name as [body, name]"),
+  message: z.string().describe("Human-readable description of the validation failure"),
+  code: z.string().describe('Machine-readable issue code, e.g. "invalid_type"'),
+  expected: z.string().optional().describe("Expected type or value, when applicable")
+})
+
+export const validationErrorSchema = z
+  .object({
+    type: z.literal("validation").describe('Discriminator, always "validation"'),
+    on: z.enum(["body", "query", "headers", "params", "cookie"]).describe("Request part that failed validation"),
+    property: z.string().describe("First offending property name"),
+    summary: z.string().optional().describe("Short summary of the first issue"),
+    message: z.string().describe("Message of the first issue"),
+    expected: z.unknown().optional().describe("Expected shape of the payload"),
+    found: z.unknown().describe("The rejected payload as received"),
+    errors: z.array(validationIssueSchema).describe("All validation issues")
+  })
+  .describe("Request validation failed; in production Elysia reduces the body to only type, on, and found")
+
 export const errorPlugin = new Elysia({ name: "error" })
   .guard({
     as: "global",
     response: {
+      422: validationErrorSchema,
       500: internalServerErrorSchema
     }
   })

@@ -1,7 +1,13 @@
 import { faker } from "@faker-js/faker"
 import { Elysia } from "elysia"
 
-import { errorPlugin, internalServerErrorSchema, notFoundSchema } from "./error.js"
+import {
+  errorPlugin,
+  internalServerErrorSchema,
+  notFoundSchema,
+  validationErrorSchema,
+  validationIssueSchema
+} from "./error.js"
 
 describe("errorPlugin", () => {
   describe("generic Error", () => {
@@ -185,5 +191,154 @@ describe("notFoundSchema", () => {
   test("has descriptions on the root and the message field", () => {
     expect(notFoundSchema.description).toBe("Not found response")
     expect(notFoundSchema.shape.message.description).toBe("Not Found message")
+  })
+})
+
+interface ValidationIssueOverrides {
+  path?: (string | number)[]
+  message?: string
+  code?: string
+  expected?: string
+}
+
+interface ValidationErrorOverrides {
+  type?: string
+  on?: string
+  property?: string
+  summary?: string
+  message?: string
+  expected?: unknown
+  found?: { locale: string }
+  errors?: ValidationIssueOverrides[]
+}
+
+function createValidationIssue(overrides: ValidationIssueOverrides = {}) {
+  return {
+    path: ["name"],
+    message: "Name is required",
+    code: "custom",
+    ...overrides
+  }
+}
+
+function createValidationErrorPayload(overrides: ValidationErrorOverrides = {}) {
+  return {
+    type: "validation",
+    on: "body",
+    property: "name",
+    message: "Name is required",
+    found: { locale: "en" },
+    errors: [createValidationIssue()],
+    ...overrides
+  }
+}
+
+describe("validationIssueSchema", () => {
+  test("accepts a minimal issue", () => {
+    const result = validationIssueSchema.safeParse(createValidationIssue())
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual(createValidationIssue())
+    }
+  })
+
+  test("accepts an issue with expected and extra zod keys", () => {
+    const issue = {
+      ...createValidationIssue({ code: "invalid_type", expected: "string" }),
+      input: null,
+      origin: "string"
+    }
+
+    const result = validationIssueSchema.safeParse(issue)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.expected).toBe("string")
+      expect(result.data).toHaveProperty("input", null)
+    }
+  })
+
+  test("accepts numeric path segments for array indices", () => {
+    const result = validationIssueSchema.safeParse(createValidationIssue({ path: ["data", 0, "slug"] }))
+
+    expect(result.success).toBe(true)
+  })
+
+  test("rejects an issue missing code", () => {
+    const { code: _ignored, ...withoutCode } = createValidationIssue()
+
+    const result = validationIssueSchema.safeParse(withoutCode)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.map(issue => issue.path.join("."))).toEqual(["code"])
+    }
+  })
+
+  test("rejects a non-array path", () => {
+    const result = validationIssueSchema.safeParse({ ...createValidationIssue(), path: "name" })
+
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("validationErrorSchema", () => {
+  test("accepts the full development payload", () => {
+    const payload = createValidationErrorPayload({
+      summary: "Slug must be a string",
+      expected: { name: "string" }
+    })
+
+    const result = validationErrorSchema.safeParse(payload)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual(payload)
+    }
+  })
+
+  test("accepts a payload without optional summary and expected", () => {
+    expect(validationErrorSchema.safeParse(createValidationErrorPayload()).success).toBe(true)
+  })
+
+  test("accepts every validation location", () => {
+    for (const on of ["body", "query", "headers", "params", "cookie"] as const) {
+      expect(validationErrorSchema.safeParse(createValidationErrorPayload({ on })).success).toBe(true)
+    }
+  })
+
+  test("rejects an unknown validation location", () => {
+    const result = validationErrorSchema.safeParse(createValidationErrorPayload({ on: "response" }))
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.map(issue => issue.path.join("."))).toEqual(["on"])
+    }
+  })
+
+  test("rejects a wrong discriminator type", () => {
+    expect(validationErrorSchema.safeParse(createValidationErrorPayload({ type: "server" })).success).toBe(false)
+  })
+
+  test("rejects an empty errors array entry that misses required issue fields", () => {
+    const result = validationErrorSchema.safeParse(createValidationErrorPayload({ errors: [{ message: "x" }] }))
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.map(issue => issue.path.join("."))).toEqual(["errors.0.path", "errors.0.code"])
+    }
+  })
+
+  test("has descriptions on the root and its fields", () => {
+    expect(validationErrorSchema.description).toBe(
+      "Request validation failed; in production Elysia reduces the body to only type, on, and found"
+    )
+
+    const shape = validationErrorSchema.shape
+    expect(shape.type.description).toBe('Discriminator, always "validation"')
+    expect(shape.on.description).toBe("Request part that failed validation")
+    expect(shape.found.description).toBe("The rejected payload as received")
+    expect(shape.errors.description).toBe("All validation issues")
   })
 })

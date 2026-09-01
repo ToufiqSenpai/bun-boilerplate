@@ -1,18 +1,10 @@
-export interface ValidationIssue {
-  path: string[]
-  message: string
-  code: string
-  expected?: string
-}
+import type { z } from "zod"
 
-export interface ValidationErrorPayload {
-  type: "validation"
-  on: string
-  property: string
-  message: string
-  found: unknown
-  errors: ValidationIssue[]
-}
+import type { validationErrorSchema } from "../../src/common/error.js"
+
+export type ValidationIssue = z.output<typeof validationErrorSchema>["errors"][number]
+
+export type ValidationErrorPayload = z.output<typeof validationErrorSchema>
 
 export interface EdenValidationError {
   status: number

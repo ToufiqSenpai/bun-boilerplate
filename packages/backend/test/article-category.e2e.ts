@@ -4,6 +4,7 @@ import slugify from "@sindresorhus/slugify"
 import { eq } from "drizzle-orm"
 
 import { database } from "../src/common/database.js"
+import { validationErrorSchema } from "../src/common/error.js"
 import { app } from "../src/main.js"
 import { articleCategories, articleCategoryTranslations } from "../src/modules/article/tables/article-category.table.js"
 import { articles } from "../src/modules/article/tables/article.table.js"
@@ -59,7 +60,10 @@ describe("POST /api/article-categories", () => {
       expect(status).toBe(422)
       expect(error).not.toBeNull()
       // SAFETY: error is ValidationError per previous expect
-      expect((error as EdenValidationError).value).toMatchObject({
+      const payload = (error as EdenValidationError).value
+
+      expect(validationErrorSchema.safeParse(payload).success).toBe(true)
+      expect(payload).toMatchObject({
         type: "validation",
         on: "body",
         property: "slug",
