@@ -1,6 +1,7 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError, ValidationError } from "elysia"
+import { z } from "zod"
 
 import type { Database } from "../../../common/database.js"
 import type { Paginated } from "../../../helpers/pagination.js"
@@ -15,7 +16,27 @@ import type {
 import { articleCategorySchema, upsertArticleCategoryTranslationSchema } from "../schemas/article-category.schema.js"
 import { articleCategories, articleCategoryTranslations } from "../tables/article-category.table.js"
 
+interface JoinedArticleCategoryRow {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  locale: Locale
+  name: string
+  slug: string
+  description: string | null
+}
+
 export class ArticleCategoryService {
+  private readonly articleCategoryProjection = {
+    id: articleCategories.id,
+    createdAt: articleCategories.createdAt,
+    updatedAt: articleCategories.updatedAt,
+    locale: articleCategoryTranslations.locale,
+    name: articleCategoryTranslations.name,
+    slug: articleCategoryTranslations.slug,
+    description: articleCategoryTranslations.description
+  }
+
   public constructor(private readonly database: Database) {}
 
   public async list(
@@ -26,15 +47,7 @@ export class ArticleCategoryService {
 
     const [rows, [countResult]] = await Promise.all([
       this.database
-        .select({
-          id: articleCategories.id,
-          createdAt: articleCategories.createdAt,
-          updatedAt: articleCategories.updatedAt,
-          locale: articleCategoryTranslations.locale,
-          name: articleCategoryTranslations.name,
-          slug: articleCategoryTranslations.slug,
-          description: articleCategoryTranslations.description
-        })
+        .select(this.articleCategoryProjection)
         .from(articleCategories)
         .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
         .where(eq(articleCategoryTranslations.locale, locale))
@@ -51,15 +64,7 @@ export class ArticleCategoryService {
     const total = countResult?.value ?? 0
 
     return {
-      data: rows.map(row => ({
-        id: row.id,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        locale: row.locale,
-        name: row.name,
-        slug: row.slug,
-        description: row.description ?? undefined
-      })),
+      data: rows.map(row => this.toArticleCategory(row)),
       meta: {
         page: query.page,
         limit: query.limit,
@@ -67,6 +72,33 @@ export class ArticleCategoryService {
         totalPages: total === 0 ? 0 : Math.ceil(total / query.limit)
       }
     }
+  }
+
+  public async getByIdentifier(identifier: string, locale: Locale): Promise<ArticleCategory> {
+    const isId = z.uuidv7().safeParse(identifier).success
+    const predicate = isId
+      ? and(eq(articleCategories.id, identifier), eq(articleCategoryTranslations.locale, locale))
+      : and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, identifier))
+
+    const [row] = await this.database
+      .select(this.articleCategoryProjection)
+      .from(articleCategories)
+      .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
+      .where(predicate)
+      .limit(1)
+    if (!row) {
+      if (isId) {
+        const [exists] = await this.database
+          .select({ id: articleCategories.id })
+          .from(articleCategories)
+          .where(eq(articleCategories.id, identifier))
+          .limit(1)
+        if (exists) throw new NotFoundError(`Article category translation not found for locale ${locale}`)
+      }
+      throw new NotFoundError("Article category not found")
+    }
+
+    return this.toArticleCategory(row)
   }
 
   public async create(data: CreateArticleCategoryBody): Promise<ArticleCategory> {
@@ -178,6 +210,18 @@ export class ArticleCategoryService {
       .where(eq(articleCategories.id, params.id))
       .returning()
     if (!deleted) throw new NotFoundError("Article category not found")
+  }
+
+  private toArticleCategory(row: JoinedArticleCategoryRow): ArticleCategory {
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      locale: row.locale,
+      name: row.name,
+      slug: row.slug,
+      description: row.description ?? undefined
+    }
   }
 
   private slugConflictError(data: UpsertArticleCategoryTranslationBody): ValidationError {

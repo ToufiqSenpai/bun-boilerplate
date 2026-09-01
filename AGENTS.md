@@ -66,4 +66,4 @@ Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 ### Domain docs
 
-Single-context — one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`. Use `CONTEXT.md` terms verbatim (User/Account/Session/Verification/Role; Article/Category/ArticleTranslation/CategoryTranslation/Status/Slug/Locale).
+Single-context — one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`. Use `CONTEXT.md` terms verbatim (User/Account/Session/Verification/Role; Article/ArticleCategory/ArticleTranslation/ArticleCategoryTranslation/Status/Slug/Locale).

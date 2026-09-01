@@ -11,6 +11,8 @@ import {
   createArticleCategorySchema,
   deleteArticleCategoryNoContentSchema,
   deleteArticleCategoryParamsSchema,
+  getArticleCategoryHeadersSchema,
+  getArticleCategoryParamsSchema,
   listArticleCategoriesHeadersSchema,
   listArticleCategoriesQuerySchema,
   listArticleCategoryResponseSchema,
@@ -43,6 +45,28 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
         summary: "List article categories",
         description:
           "Returns a paginated list of article categories, each translated into the requested locale. The translation is matched exactly against the `locale` query parameter; categories without a translation in that locale are omitted."
+      }
+    }
+  )
+  .get(
+    "/article-categories/:identifier",
+    ({ params, locale, set }) => {
+      set.headers["content-language"] = locale
+      return articleCategoryService.getByIdentifier(params.identifier, locale)
+    },
+    {
+      headers: getArticleCategoryHeadersSchema,
+      params: getArticleCategoryParamsSchema,
+      response: {
+        200: articleCategorySchema.describe("The article category translated into the requested locale"),
+        404: notFoundSchema.describe(
+          "No article category exists with the given identifier, or no translation exists for the resolved locale"
+        )
+      },
+      detail: {
+        summary: "Get article category by id or slug",
+        description:
+          "Resolves an article category by its stable uuidv7 id or by its slug in the requested locale. The locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default. Returns 404 when the category does not exist or when it has no translation in the resolved locale; no fallback translation is served. A valid uuidv7 identifier is always treated as an id. Slugs are unique per locale, so the same slug may exist under different locales."
       }
     }
   )

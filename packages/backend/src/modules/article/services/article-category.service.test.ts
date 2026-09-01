@@ -1,4 +1,6 @@
 import { faker } from "@faker-js/faker"
+import type { SQL } from "drizzle-orm"
+import { PgDialect } from "drizzle-orm/pg-core"
 import { NotFoundError, ValidationError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
 
@@ -165,6 +167,21 @@ function buildUpsertChain<T>(row: T) {
     .fn<() => { onConflictDoUpdate: typeof onConflictDoUpdate }>()
     .mockReturnValue({ onConflictDoUpdate })
   return { values, onConflictDoUpdate, returning }
+}
+
+function buildJoinedLimitChain(rows: ListRow[]) {
+  const limit = vi.fn<(limit: number) => Promise<ListRow[]>>().mockResolvedValue(rows)
+  const where = vi.fn<(predicate: unknown) => { limit: typeof limit }>().mockReturnValue({ limit })
+  const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
+  const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
+  return { from, innerJoin, where, limit }
+}
+
+const pgDialect = new PgDialect()
+
+function renderPredicate(whereCall: unknown): string {
+  // SAFETY: the where() argument is always a drizzle SQL instance built by the service
+  return pgDialect.sqlToQuery(whereCall as SQL).sql
 }
 
 function createUpsertParams(
@@ -711,6 +728,118 @@ describe("ArticleCategoryService", () => {
 
       expect(rowsChain.from).toHaveBeenCalledWith(articleCategories)
       expect(countChain.from).toHaveBeenCalledWith(articleCategories)
+    })
+  })
+
+  describe("getByIdentifier", () => {
+    afterEach(() => {
+      vi.clearAllMocks()
+    })
+
+    function mockJoinedSelect(database: Database, rows: ListRow[]) {
+      const chain = buildJoinedLimitChain(rows)
+      // SAFETY: drizzle select chain is mocked for unit test; return shape matches service usage
+      vi.mocked(database.select).mockReturnValueOnce(chain as never)
+      return chain
+    }
+
+    function mockJoinedSelectAndProbe(database: Database, rows: ListRow[], probeRows: { id: string }[]) {
+      const joinChain = buildJoinedLimitChain(rows)
+      const probeChain = buildSelectLimitChain(probeRows)
+      // SAFETY: drizzle select chains are mocked for unit test; return shapes match service usage
+      vi.mocked(database.select)
+        .mockReturnValueOnce(joinChain as never)
+        .mockReturnValueOnce(probeChain as never)
+      return { joinChain, probeChain }
+    }
+
+    test("resolves a uuidv7 identifier through id and locale predicates", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      const row = createListRow({ id })
+      const chain = mockJoinedSelect(database, [row])
+
+      const service = new ArticleCategoryService(database)
+      const result = await service.getByIdentifier(id, "en")
+
+      expect(result).toEqual({
+        id: row.id,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        locale: row.locale,
+        name: row.name,
+        slug: row.slug,
+        description: row.description ?? undefined
+      })
+      expect(chain.from).toHaveBeenCalledWith(articleCategories)
+      expect(chain.limit).toHaveBeenCalledWith(1)
+      const sql = renderPredicate(chain.where.mock.calls[0]?.[0])
+      expect(sql).toContain(`"article_categories"."id"`)
+      expect(sql).toContain(`"article_category_translations"."locale"`)
+      expect(sql).not.toContain(`"article_category_translations"."slug"`)
+    })
+
+    test("resolves a slug identifier through locale and slug predicates", async () => {
+      const database = mockDeep<Database>()
+      const slug = faker.lorem.slug()
+      const row = createListRow({ slug })
+      const chain = mockJoinedSelect(database, [row])
+
+      const service = new ArticleCategoryService(database)
+      const result = await service.getByIdentifier(slug, "id")
+
+      expect(result.slug).toBe(slug)
+      expect(chain.from).toHaveBeenCalledWith(articleCategories)
+      expect(chain.limit).toHaveBeenCalledWith(1)
+      const sql = renderPredicate(chain.where.mock.calls[0]?.[0])
+      expect(sql).toContain(`"article_category_translations"."locale"`)
+      expect(sql).toContain(`"article_category_translations"."slug"`)
+      expect(sql).not.toContain(`"article_categories"."id"`)
+    })
+
+    test("maps null description to undefined", async () => {
+      const database = mockDeep<Database>()
+      const row = createListRow({ description: null })
+      mockJoinedSelect(database, [row])
+
+      const service = new ArticleCategoryService(database)
+      const result = await service.getByIdentifier(row.slug, "en")
+
+      expect(result.description).toBeUndefined()
+    })
+
+    test("throws generic NotFoundError when the id does not exist", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      mockJoinedSelectAndProbe(database, [], [])
+
+      const service = new ArticleCategoryService(database)
+
+      await expect(service.getByIdentifier(id, "en")).rejects.toThrow("Article category not found")
+    })
+
+    test("throws translation-specific NotFoundError when the category exists without the locale", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      mockJoinedSelectAndProbe(database, [], [{ id }])
+
+      const service = new ArticleCategoryService(database)
+
+      await expect(service.getByIdentifier(id, "id")).rejects.toThrow(
+        "Article category translation not found for locale id"
+      )
+    })
+
+    test("throws generic NotFoundError for an unknown slug without a follow-up probe", async () => {
+      const database = mockDeep<Database>()
+      mockJoinedSelect(database, [])
+
+      const service = new ArticleCategoryService(database)
+
+      await expect(service.getByIdentifier(`${faker.lorem.slug()}-missing`, "en")).rejects.toThrow(
+        "Article category not found"
+      )
+      expect(database.select).toHaveBeenCalledTimes(1)
     })
   })
 

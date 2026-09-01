@@ -6,12 +6,96 @@ import { eq } from "drizzle-orm"
 import { database } from "../src/common/database.js"
 import { validationErrorSchema } from "../src/common/error.js"
 import { app } from "../src/main.js"
+import type {
+  ArticleCategory,
+  UpsertArticleCategoryTranslationBody
+} from "../src/modules/article/schemas/article-category.schema.js"
 import { articleCategories, articleCategoryTranslations } from "../src/modules/article/tables/article-category.table.js"
 import { articles } from "../src/modules/article/tables/article.table.js"
 import { createAuthSession } from "./helpers/auth.js"
 import type { EdenApiError, EdenValidationError } from "./helpers/validation.js"
 
 const api = treaty(app)
+
+interface CategoryTreatyResult {
+  data: ArticleCategory | null
+  error: EdenApiError<unknown> | null
+  status: number
+  headers: Headers
+}
+
+interface CategoryOptions {
+  headers?: Record<string, string>
+}
+
+interface CategoryIdParams {
+  id: string
+}
+
+interface CategoryIdentifierParams {
+  identifier: string
+}
+
+interface CategoryLocaleParams {
+  // Path segment text: deliberately string so tests can probe locales outside the enum.
+  locale: string
+}
+
+interface CategoryTranslationNode {
+  put(body: UpsertArticleCategoryTranslationBody, options?: CategoryOptions): Promise<CategoryTreatyResult>
+}
+
+interface CategoryByIdNode {
+  translations(params: CategoryLocaleParams): CategoryTranslationNode
+  delete(body?: undefined, options?: CategoryOptions): Promise<CategoryTreatyResult>
+}
+
+interface CategoryByIdentifierNode {
+  get(options?: CategoryOptions): Promise<CategoryTreatyResult>
+}
+
+interface CategoriesSegment {
+  (params: CategoryIdParams): CategoryByIdNode
+  (params: CategoryIdentifierParams): CategoryByIdentifierNode
+}
+
+// SAFETY: eden v1 intersects the params of sibling dynamic routes (:id, :identifier) under one path segment and
+// erases the method types of the result; this declaration restores the correct runtime proxy variant so the
+// treaty seam stays fully typed at the call sites.
+const categoriesSegment: CategoriesSegment = api.api["article-categories"] as never
+
+function categoryById(id: string): CategoryByIdNode {
+  return categoriesSegment({ id })
+}
+
+function categoryByIdentifier(identifier: string): CategoryByIdentifierNode {
+  return categoriesSegment({ identifier })
+}
+
+async function createCategory(adminHeaders: Record<string, string>, locale: "en" | "id" = "en") {
+  const { data } = await api.api["article-categories"].post(
+    {
+      locale,
+      name: faker.lorem.words({ min: 1, max: 3 }),
+      slug: faker.lorem.slug(),
+      description: faker.lorem.sentence()
+    },
+    { headers: adminHeaders }
+  )
+  if (!data) throw new Error("failed to seed category")
+  return data
+}
+
+function expectIdLikeSlugRejected(error: CategoryTreatyResult["error"]) {
+  expect(error).not.toBeNull()
+  // SAFETY: error is ValidationError per previous expect
+  expect((error as EdenValidationError).value).toMatchObject({
+    type: "validation",
+    on: "body",
+    property: "slug",
+    message: expect.stringContaining("Slug must not look like a category id")
+  })
+}
 
 describe("GET /api/article-categories", () => {
   test("returns 200 with empty paginated data on fresh database", async () => {
@@ -23,6 +107,164 @@ describe("GET /api/article-categories", () => {
     expect(status).toBe(200)
     expect(data?.data).toEqual([])
     expect(data?.meta.total).toBe(0)
+  })
+})
+
+describe("GET /api/article-categories/:identifier", () => {
+  async function addTranslation(category: { id: string }, adminHeaders: Record<string, string>, locale: "en" | "id") {
+    const { data } = await categoryById(category.id)
+      .translations({ locale })
+      .put(
+        {
+          name: faker.lorem.words({ min: 1, max: 3 }),
+          slug: faker.lorem.slug()
+        },
+        { headers: adminHeaders }
+      )
+    if (!data) throw new Error("failed to seed translation")
+    return data
+  }
+
+  function expectNotFoundCategory(result: CategoryTreatyResult) {
+    expect(result.status).toBe(404)
+    expect(result.error).not.toBeNull()
+    // SAFETY: error is EdenApiError with parsed body per previous expect
+    expect((result.error as EdenApiError<{ message: string }>).value).toEqual({ message: "Article category not found" })
+  }
+
+  async function expectIdentifierRejected(identifier: string) {
+    const { error, status } = await categoryByIdentifier(identifier).get()
+
+    expect(status).toBe(422)
+    expect(error).not.toBeNull()
+    // SAFETY: error is ValidationError per previous expect
+    const payload = (error as EdenValidationError).value
+    expect(validationErrorSchema.safeParse(payload).success).toBe(true)
+    expect(payload).toMatchObject({ type: "validation", on: "params", property: "identifier" })
+  }
+
+  test("returns 200 for a known id without authentication and echoes Content-Language", async () => {
+    const category = await createCategory(await createAuthSession("admin"))
+
+    const { data, error, status, headers } = await categoryByIdentifier(category.id).get()
+
+    expect(error).toBeNull()
+    expect(status).toBe(200)
+    expect(data).toMatchObject({
+      id: category.id,
+      locale: "en",
+      name: category.name,
+      slug: category.slug,
+      description: category.description
+    })
+    expect(headers.get("content-language")).toBe("en")
+  })
+
+  test("returns 200 by slug, resolving the identifier case-insensitively", async () => {
+    const category = await createCategory(await createAuthSession("admin"))
+
+    const { data, error, status } = await categoryByIdentifier(category.slug.toUpperCase()).get()
+
+    expect(error).toBeNull()
+    expect(status).toBe(200)
+    expect(data?.id).toBe(category.id)
+    expect(data?.slug).toBe(category.slug)
+  })
+
+  test("scopes slug lookup to the resolved locale", async () => {
+    const adminHeaders = await createAuthSession("admin")
+    const category = await createCategory(adminHeaders)
+    const translated = await addTranslation(category, adminHeaders, "id")
+
+    const hit = await categoryByIdentifier(translated.slug).get({
+      headers: { "x-locale": "id" }
+    })
+    expect(hit.error).toBeNull()
+    expect(hit.status).toBe(200)
+    expect(hit.data?.id).toBe(category.id)
+    expect(hit.data?.name).toBe(translated.name)
+    expect(hit.headers.get("content-language")).toBe("id")
+
+    const miss = await categoryByIdentifier(category.slug).get({
+      headers: { "x-locale": "id" }
+    })
+    expectNotFoundCategory(miss)
+  })
+
+  test("returns 404 for a slug that does not exist in the resolved locale", async () => {
+    const adminHeaders = await createAuthSession("admin")
+    const category = await createCategory(adminHeaders)
+
+    expectNotFoundCategory(await categoryByIdentifier(`${category.slug}-missing`).get())
+  })
+
+  test("returns 404 with a generic message for an id that does not exist", async () => {
+    expectNotFoundCategory(await categoryByIdentifier(faker.string.uuid({ version: 7 })).get())
+  })
+
+  test("returns 404 with a translation-specific message when the category exists without the locale", async () => {
+    const category = await createCategory(await createAuthSession("admin"))
+
+    const { error, status, headers } = await categoryByIdentifier(category.id).get({
+      headers: { "x-locale": "id" }
+    })
+
+    expect(status).toBe(404)
+    expect(error).not.toBeNull()
+    expect(headers.get("content-language")).toBe("id")
+    // SAFETY: error is EdenApiError with parsed body per previous expect
+    expect((error as EdenApiError<{ message: string }>).value.message).toContain("translation")
+  })
+
+  describe("locale resolution", () => {
+    test("prefers X-Locale over Accept-Language", async () => {
+      const adminHeaders = await createAuthSession("admin")
+      const category = await createCategory(adminHeaders)
+      await addTranslation(category, adminHeaders, "id")
+
+      const { data, status, headers } = await categoryByIdentifier(category.slug).get({
+        headers: { "x-locale": "en", "accept-language": "id,en;q=0.9" }
+      })
+
+      expect(status).toBe(200)
+      expect(data?.id).toBe(category.id)
+      expect(data?.name).toBe(category.name)
+      expect(headers.get("content-language")).toBe("en")
+    })
+
+    test("falls back to Accept-Language when X-Locale is absent", async () => {
+      const adminHeaders = await createAuthSession("admin")
+      const category = await createCategory(adminHeaders)
+      const translated = await addTranslation(category, adminHeaders, "id")
+
+      const { data, status, headers } = await categoryByIdentifier(translated.slug).get({
+        headers: { "accept-language": "id,en;q=0.9" }
+      })
+
+      expect(status).toBe(200)
+      expect(data?.name).toBe(translated.name)
+      expect(headers.get("content-language")).toBe("id")
+    })
+
+    test("falls back to the default locale when no locale headers are sent", async () => {
+      const category = await createCategory(await createAuthSession("admin"))
+
+      const { data, status, headers } = await categoryByIdentifier(category.slug).get()
+
+      expect(status).toBe(200)
+      expect(data?.id).toBe(category.id)
+      expect(headers.get("content-language")).toBe("en")
+    })
+  })
+
+  describe("422 Unprocessable Entity", () => {
+    test("rejects an identifier that slugifies to an empty string", async () => {
+      await expectIdentifierRejected("---")
+    })
+
+    test("rejects an identifier exceeding 255 characters", async () => {
+      await expectIdentifierRejected("a".repeat(256))
+    })
   })
 })
 
@@ -238,24 +480,21 @@ describe("POST /api/article-categories", () => {
         ])
       })
     })
+    test("rejects a slug that looks like a category id", async () => {
+      const headers = await createAuthSession("admin")
+
+      const { error, status } = await api.api["article-categories"].post(
+        { locale: "en", name: faker.lorem.words(2), slug: faker.string.uuid({ version: 7 }) },
+        { headers }
+      )
+
+      expect(status).toBe(422)
+      expectIdLikeSlugRejected(error)
+    })
   })
 })
 
 describe("PUT /api/article-categories/:id/translations/:locale", () => {
-  async function createCategory(adminHeaders: Record<string, string>) {
-    const { data } = await api.api["article-categories"].post(
-      {
-        locale: "en",
-        name: faker.lorem.words({ min: 1, max: 3 }),
-        slug: faker.lorem.slug(),
-        description: faker.lorem.sentence()
-      },
-      { headers: adminHeaders }
-    )
-    if (!data) throw new Error("failed to seed category")
-    return data
-  }
-
   describe("200/201 Upsert", () => {
     test("creates a translation for a new locale with 201", async () => {
       const headers = await createAuthSession("admin")
@@ -263,7 +502,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       const name = faker.lorem.words({ min: 1, max: 3 })
       const slug = faker.lorem.slug()
 
-      const { data, error, status } = await api.api["article-categories"]({ id: category.id })
+      const { data, error, status } = await categoryById(category.id)
         .translations({ locale: "id" })
         .put({ name, slug }, { headers })
 
@@ -279,7 +518,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       const category = await createCategory(headers)
       const newName = faker.lorem.words({ min: 1, max: 3 })
 
-      const { data, error, status } = await api.api["article-categories"]({ id: category.id })
+      const { data, error, status } = await categoryById(category.id)
         .translations({ locale: "en" })
         .put({ name: newName, slug: category.slug }, { headers })
 
@@ -294,7 +533,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       const category = await createCategory(headers)
       expect(category.description).toBeDefined()
 
-      const { data } = await api.api["article-categories"]({ id: category.id })
+      const { data } = await categoryById(category.id)
         .translations({ locale: "en" })
         .put({ name: category.name, slug: category.slug }, { headers })
 
@@ -306,7 +545,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       const category = await createCategory(headers)
       const rawSlug = faker.lorem.words({ min: 1, max: 3 }).toUpperCase()
 
-      const { data, status } = await api.api["article-categories"]({ id: category.id })
+      const { data, status } = await categoryById(category.id)
         .translations({ locale: "id" })
         .put({ name: category.name, slug: rawSlug }, { headers })
 
@@ -321,7 +560,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       const first = await createCategory(headers)
       const second = await createCategory(headers)
 
-      const { error, status } = await api.api["article-categories"]({ id: second.id })
+      const { error, status } = await categoryById(second.id)
         .translations({ locale: "en" })
         .put({ name: second.name, slug: first.slug }, { headers })
 
@@ -346,7 +585,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
     test("rejects a non-uuid category id", async () => {
       const headers = await createAuthSession("admin")
 
-      const { error, status } = await api.api["article-categories"]({ id: "not-an-id" })
+      const { error, status } = await categoryById("not-an-id")
         .translations({ locale: "en" })
         .put({ name: faker.lorem.words({ min: 1, max: 3 }), slug: faker.lorem.slug() }, { headers })
 
@@ -361,11 +600,23 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       })
     })
 
+    test("rejects a slug that renames to a category-id-shaped value", async () => {
+      const headers = await createAuthSession("admin")
+      const category = await createCategory(headers)
+
+      const { error, status } = await categoryById(category.id)
+        .translations({ locale: "id" })
+        .put({ name: category.name, slug: faker.string.uuid({ version: 7 }) }, { headers })
+
+      expect(status).toBe(422)
+      expectIdLikeSlugRejected(error)
+    })
+
     test("rejects a locale outside the enum", async () => {
       const headers = await createAuthSession("admin")
       const category = await createCategory(headers)
 
-      const { error, status } = await api.api["article-categories"]({ id: category.id })
+      const { error, status } = await categoryById(category.id)
         .translations({ locale: "de" })
         .put({ name: category.name, slug: faker.lorem.slug() }, { headers })
 
@@ -384,7 +635,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
   test("returns 404 when the category does not exist", async () => {
     const headers = await createAuthSession("admin")
 
-    const { error, status } = await api.api["article-categories"]({ id: faker.string.uuid({ version: 7 }) })
+    const { error, status } = await categoryById(faker.string.uuid({ version: 7 }))
       .translations({ locale: "en" })
       .put({ name: faker.lorem.words({ min: 1, max: 3 }), slug: faker.lorem.slug() }, { headers })
 
@@ -398,12 +649,10 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
     test("rejects without session with 401", async () => {
       const category = await createCategory(await createAuthSession("admin"))
 
-      const { error, status } = await api.api["article-categories"]({ id: category.id })
-        .translations({ locale: "en" })
-        .put({
-          name: category.name,
-          slug: category.slug
-        })
+      const { error, status } = await categoryById(category.id).translations({ locale: "en" }).put({
+        name: category.name,
+        slug: category.slug
+      })
 
       expect(status).toBe(401)
       expect(error).not.toBeNull()
@@ -413,7 +662,7 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
       const category = await createCategory(await createAuthSession("admin"))
       const userHeaders = await createAuthSession("user")
 
-      const { error, status } = await api.api["article-categories"]({ id: category.id })
+      const { error, status } = await categoryById(category.id)
         .translations({ locale: "en" })
         .put({ name: category.name, slug: category.slug }, { headers: userHeaders })
 
@@ -424,20 +673,6 @@ describe("PUT /api/article-categories/:id/translations/:locale", () => {
 })
 
 describe("DELETE /api/article-categories/:id", () => {
-  async function createCategory(adminHeaders: Record<string, string>) {
-    const { data } = await api.api["article-categories"].post(
-      {
-        locale: "en",
-        name: faker.lorem.words({ min: 1, max: 3 }),
-        slug: faker.lorem.slug(),
-        description: faker.lorem.sentence()
-      },
-      { headers: adminHeaders }
-    )
-    if (!data) throw new Error("failed to seed category")
-    return data
-  }
-
   async function seedArticle(categoryId: string) {
     const [article] = await database.insert(articles).values({ categoryId }).returning()
     if (!article) throw new Error("failed to seed article")
@@ -448,7 +683,7 @@ describe("DELETE /api/article-categories/:id", () => {
     const headers = await createAuthSession("admin")
     const category = await createCategory(headers)
 
-    const { data, error, status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, {
+    const { data, error, status } = await categoryById(category.id).delete(undefined, {
       headers
     })
 
@@ -473,7 +708,7 @@ describe("DELETE /api/article-categories/:id", () => {
     const target = await createCategory(headers)
     const other = await createCategory(headers)
 
-    const { status } = await api.api["article-categories"]({ id: target.id }).delete(undefined, { headers })
+    const { status } = await categoryById(target.id).delete(undefined, { headers })
     expect(status).toBe(204)
 
     const list = await api.api["article-categories"].get({ query: { page: 1, limit: 100 } })
@@ -485,11 +720,11 @@ describe("DELETE /api/article-categories/:id", () => {
   test("cascades deletion to all CategoryTranslations", async () => {
     const headers = await createAuthSession("admin")
     const category = await createCategory(headers)
-    await api.api["article-categories"]({ id: category.id })
+    await categoryById(category.id)
       .translations({ locale: "id" })
       .put({ name: faker.lorem.words(2), slug: faker.lorem.slug() }, { headers })
 
-    const { status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    const { status } = await categoryById(category.id).delete(undefined, { headers })
     expect(status).toBe(204)
 
     const translations = await database
@@ -504,7 +739,7 @@ describe("DELETE /api/article-categories/:id", () => {
     const category = await createCategory(headers)
     const article = await seedArticle(category.id)
 
-    const { status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    const { status } = await categoryById(category.id).delete(undefined, { headers })
     expect(status).toBe(204)
 
     const [remaining] = await database
@@ -518,9 +753,7 @@ describe("DELETE /api/article-categories/:id", () => {
   test("returns 404 when the Category does not exist", async () => {
     const headers = await createAuthSession("admin")
 
-    const { error, status } = await api.api["article-categories"]({
-      id: faker.string.uuid({ version: 7 })
-    }).delete(undefined, { headers })
+    const { error, status } = await categoryById(faker.string.uuid({ version: 7 })).delete(undefined, { headers })
 
     expect(status).toBe(404)
     expect(error).not.toBeNull()
@@ -532,10 +765,10 @@ describe("DELETE /api/article-categories/:id", () => {
     const headers = await createAuthSession("admin")
     const category = await createCategory(headers)
 
-    const first = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    const first = await categoryById(category.id).delete(undefined, { headers })
     expect(first.status).toBe(204)
 
-    const { error, status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, { headers })
+    const { error, status } = await categoryById(category.id).delete(undefined, { headers })
     expect(status).toBe(404)
     expect(error).not.toBeNull()
     // SAFETY: error is EdenApiError with parsed body per previous expect
@@ -545,7 +778,7 @@ describe("DELETE /api/article-categories/:id", () => {
   test("returns 422 when the id is not a valid UUIDv7", async () => {
     const headers = await createAuthSession("admin")
 
-    const { error, status } = await api.api["article-categories"]({ id: "not-an-id" }).delete(undefined, { headers })
+    const { error, status } = await categoryById("not-an-id").delete(undefined, { headers })
 
     expect(status).toBe(422)
     expect(error).not.toBeNull()
@@ -561,7 +794,7 @@ describe("DELETE /api/article-categories/:id", () => {
   test("returns 401 without a session", async () => {
     const category = await createCategory(await createAuthSession("admin"))
 
-    const { error, status } = await api.api["article-categories"]({ id: category.id }).delete()
+    const { error, status } = await categoryById(category.id).delete()
 
     expect(status).toBe(401)
     expect(error).not.toBeNull()
@@ -571,7 +804,7 @@ describe("DELETE /api/article-categories/:id", () => {
     const category = await createCategory(await createAuthSession("admin"))
     const userHeaders = await createAuthSession("user")
 
-    const { error, status } = await api.api["article-categories"]({ id: category.id }).delete(undefined, {
+    const { error, status } = await categoryById(category.id).delete(undefined, {
       headers: userHeaders
     })
 
