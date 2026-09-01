@@ -15,16 +15,20 @@ A provider linkage for a User (e.g. OAuth provider, password credential) storing
 _Avoid_: ProviderAccount, OAuthAccount, Connection
 
 **Session**:
-An active authenticated period for a User, identified by a token with expiry and optional impersonation.
+An active authenticated period for a User, identified by a token with expiry and optional impersonation. A `Session` is only valid after `Verification` is complete (`emailVerified`), enforced in the `auth` macro; no `Session` is created on `signUp` alone when `requireEmailVerification` is true.
 _Avoid_: Token, Login
 
 **Verification**:
-A time-bound proof used to confirm an identifier or action.
+A time-bound proof used to confirm an identifier or action. Every `User` including the first `User` with `Role` `admin` must complete `Verification` before a `Session` is established; no auto-verified bypass.
 _Avoid_: OTP, Challenge, Code
 
 **Role**:
 A comma-separated capability label on a User (e.g. `admin`).
 _Avoid_: Permission, Group, Privilege
+
+**Setup**:
+The one-time initialization that creates the first `User` with `Role` `admin` via `/admin/setup`. `Setup` succeeds only after `Verification` is completed, not on `signUp` alone.
+_Avoid_: Onboarding, Bootstrap, Install
 
 ### Content
 

@@ -67,3 +67,11 @@ Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context — one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`. Use `CONTEXT.md` terms verbatim (User/Account/Session/Verification/Role; Article/ArticleCategory/ArticleTranslation/ArticleCategoryTranslation/Status/Slug/Locale).
+
+## Git Workflow — implement must use branch + PR
+
+When invoking `/implement` (or implementing any ticket/issue):
+
+1. Before code: `git fetch origin` and ensure working tree clean (`git status`), then `git switch main && git pull` and `git switch -c feat/<issue-number>-<slug>` (e.g. `feat/11-backend-verification-gate`). If branch exists, `git switch` to it.
+2. Do the work via `/tdd` at the pre-agreed seams, committing in small steps to **that branch** only. Never commit directly to `main`.
+3. After `/code-review` passes: `git push -u origin HEAD` then `gh pr create --title "<issue>: <title>" --body "Fixes #<number>" --base main`. Keep `ready-for-agent` on the issue; PR gets review label.
