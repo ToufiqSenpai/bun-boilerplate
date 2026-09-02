@@ -3,8 +3,8 @@ import * as React from "react"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "src/components/ui/input-group"
 
 interface PasswordInputProps extends Omit<React.ComponentProps<"input">, "type"> {
-  showPasswordLabel?: string
-  hidePasswordLabel?: string
+  readonly showPasswordLabel?: string
+  readonly hidePasswordLabel?: string
 }
 
 function PasswordInput({
