@@ -1,10 +1,14 @@
+import { existsSync } from "fs"
 import { join } from "path"
 
 import { InfisicalSDK } from "@infisical/sdk"
 
 import { assetsDir } from "./assets.js"
 
-process.loadEnvFile(join(assetsDir, ".env"))
+const envPath = join(assetsDir, ".env")
+if (existsSync(envPath)) {
+  process.loadEnvFile(envPath)
+}
 
 const clientId = process.env.INFISICAL_CLIENT_ID ?? ""
 const clientSecret = process.env.INFISICAL_CLIENT_SECRET ?? ""
