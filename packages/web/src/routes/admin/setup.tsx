@@ -23,8 +23,6 @@ const setupSchema = z
     path: ["confirmPassword"]
   })
 
-type SetupValues = z.infer<typeof setupSchema>
-
 export const Route = createFileRoute("/admin/setup")({
   head: () => ({
     meta: [{ title: "Admin Setup" }]
@@ -43,7 +41,7 @@ function AdminSetupPage() {
   const navigate = useNavigate()
   const [serverError, setServerError] = useState<string | null>(null)
 
-  const form = useForm<SetupValues>({
+  const form = useForm({
     defaultValues: {
       name: "",
       email: "",

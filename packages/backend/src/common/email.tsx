@@ -102,7 +102,11 @@ export abstract class EmailTemplate<TProps> {
   public abstract getEntityId(): string
 
   public async getSubject(): Promise<string> {
-    return getTranslator(this.locale)(this.subjectKey())
+    const key = this.subjectKey()
+
+    // subjectKey is a dynamic identifier, so use the defaultValue overload: a typed-escape hatch
+    // that also gives a sane fallback when a locale lacks the key.
+    return getTranslator(this.locale)(key, { defaultValue: key })
   }
 
   public async getTemplate(): Promise<ReactNode> {
