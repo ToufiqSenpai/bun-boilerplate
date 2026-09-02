@@ -1,5 +1,4 @@
-import path from "path"
-import { fileURLToPath } from "url"
+import { join } from "path"
 
 import { PGlite } from "@electric-sql/pglite"
 import { sql } from "drizzle-orm"
@@ -10,6 +9,7 @@ import { timestamp, uuid } from "drizzle-orm/pg-core"
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite"
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator"
 
+import { assetsDir } from "./assets.js"
 import { config } from "./config.js"
 import { logger } from "./logger.js"
 
@@ -29,7 +29,7 @@ export const database = isTest
 
 export type Database = typeof database
 
-const migrationsFolder = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "migrations")
+const migrationsFolder = join(assetsDir, "migrations")
 const migrateFn = isTest ? migratePglite : migrateNeon
 
 try {

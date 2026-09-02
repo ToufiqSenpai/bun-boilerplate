@@ -2,7 +2,9 @@ import { join } from "path"
 
 import { InfisicalSDK } from "@infisical/sdk"
 
-process.loadEnvFile(join(import.meta.dirname, "../../.env"))
+import { assetsDir } from "./assets.js"
+
+process.loadEnvFile(join(assetsDir, ".env"))
 
 const clientId = process.env.INFISICAL_CLIENT_ID ?? ""
 const clientSecret = process.env.INFISICAL_CLIENT_SECRET ?? ""
