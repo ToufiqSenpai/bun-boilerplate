@@ -7,6 +7,7 @@
     "generate-routes": "tsr generate",
     "typecheck": "tsc --noEmit",
     "build": "bun --bun vite build",
+    "package": "bun run build && bun scripts/package-exe.ts",
     "preview": "bun --bun vite preview",
     "test": "bun --bun vitest run",
     "start": "bun .output/server/index.mjs"

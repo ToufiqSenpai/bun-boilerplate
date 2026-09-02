@@ -25,7 +25,7 @@ bun run format:check       # oxfmt . --check
 
 Per-package (from package dir):
 - `packages/backend`: `bun --bun vitest run` (unit), `bun --bun vitest run --config vitest.e2e.config.ts` (e2e); `bun run db:generate|db:migrate|db:push|db:studio` (drizzle-kit, schema `src/modules/**/*.table.ts`, out `migrations/`)
-- `packages/web`: `bun run generate-routes` (tsr generate, output `src/routeTree.gen.ts` — do not hand-edit), `bun run typecheck` (known pre-existing tsc errors from eden client + backend email templates — tracked separately), `bun run build` (`bun --bun vite build`); all web scripts run on Bun (vite, vitest, nitro preset `bun`)
+- `packages/web`: `bun run generate-routes` (tsr generate, output `src/routeTree.gen.ts` — do not hand-edit), `bun run typecheck` (known pre-existing tsc errors from eden client + backend email templates — tracked separately), `bun run build` (`bun --bun vite build`), `bun run package` (build + `bun build --compile` standalone exe at `dist/web.exe` with `public/` embedded — see `scripts/package-exe.ts`, which patches nitro's `../public/` manifest paths because compiled `__nitro_main__` dir is `~BUN/root`); all web scripts run on Bun (vite, vitest, nitro preset `bun`)
 - `packages/i18n`: `bun run test`
 
 Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --project=backend|web|i18n -t "test name"`. E2E is isolated: `vitest.e2e.config.ts` forces `sequence.concurrent:false`, `fileParallelism:false`, 30s timeouts — keep it.
