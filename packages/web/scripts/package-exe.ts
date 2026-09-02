@@ -20,4 +20,4 @@ if (result.exitCode !== 0) {
   process.exit(result.exitCode)
 }
 
-console.log(`Standalone executable ready: ${outfile}.exe`)
+console.log(`Standalone executable ready: ${outfile}${process.platform === "win32" ? ".exe" : ""}`)
