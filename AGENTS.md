@@ -13,7 +13,7 @@ Use `bun` (not npm/pnpm). Root `bun.lock` is source of truth; `package-lock.json
 
 ```bash
 bun run build              # bun run --filter '*' build
-bun run dev                # --filter '*' dev (backend: bun src/main.ts, web: vite dev :3000 via Nitro)
+bun run dev                # --filter '*' dev (backend: bun src/main.ts, web: bun --bun vite dev :3000 via Nitro)
 bun run test               # vitest run (all projects)
 bun run test:watch         # vitest
 bun run test:coverage      # vitest run --coverage (v8, text+html+lcov)
@@ -25,7 +25,7 @@ bun run format:check       # oxfmt . --check
 
 Per-package (from package dir):
 - `packages/backend`: `bun --bun vitest run` (unit), `bun --bun vitest run --config vitest.e2e.config.ts` (e2e); `bun run db:generate|db:migrate|db:push|db:studio` (drizzle-kit, schema `src/modules/**/*.table.ts`, out `migrations/`)
-- `packages/web`: `bun run generate-routes` (tsr generate, output `src/routeTree.gen.ts` — do not hand-edit), `bun run build` (vite build + copy `instrument.server.mjs` to `.output/server`)
+- `packages/web`: `bun run generate-routes` (tsr generate, output `src/routeTree.gen.ts` — do not hand-edit), `bun run typecheck` (known pre-existing tsc errors from eden client + backend email templates — tracked separately), `bun run build` (`bun --bun vite build`); all web scripts run on Bun (vite, vitest, nitro preset `bun`)
 - `packages/i18n`: `bun run test`
 
 Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --project=backend|web|i18n -t "test name"`. E2E is isolated: `vitest.e2e.config.ts` forces `sequence.concurrent:false`, `fileParallelism:false`, 30s timeouts — keep it.
@@ -33,7 +33,7 @@ Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --p
 ## Config & Env
 
 - `packages/backend/src/common/config.ts` is single source of truth (Zod `configSchema`). Env is loaded via `secret.ts` → Infisical SDK (`INFISICAL_CLIENT_ID/SECRET/PROJECT_ID` + `NODE_ENV`) plus `process.loadEnvFile(.env)`. Do not read `.env` files directly; use `config` object. Required groups: `app` (port, origins, baseURL), `auth` (BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID/SECRET), `database` (DATABASE_URL), `email` (RESEND_API_KEY `re_*`), `s3` (S3_*), `sentry` (SENTRY_DSN). `drizzle.config.ts` reads `config.database.url`.
-- `packages/web` dev needs `dotenv -e .env.local -- NODE_OPTIONS='--import ./instrument.server.mjs' vite dev --port 3000` (see `packages/web/package.json:dev`). Sentry instrumented via `instrument.server.mjs` on both dev and prod (`node --import ./.output/server/instrument.server.mjs`).
+- `packages/web` dev needs `dotenv -e .env.local -- bun --bun vite dev --port 3000` (see `packages/web/package.json:dev`). Sentry instrumented via `src/instrument.ts` (backend pattern: imported first in `src/server.ts`, reads `process.env.VITE_SENTRY_DSN` at runtime — do not use `import.meta.env` there, it gets inlined at build). Prod: nitro bun preset, run with `bun .output/server/index.mjs`.
 
 ## Typecheck / Lint / Format
 
