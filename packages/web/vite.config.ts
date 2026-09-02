@@ -10,7 +10,13 @@ const config = defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [
     devtools(),
-    nitro({ preset: "bun", rollupConfig: { external: [/^@sentry\//] } }),
+    nitro({
+      preset: "bun",
+      noExternals: true,
+      inlineDynamicImports: true,
+      serveStatic: "inline",
+      rollupConfig: { external: [/^@sentry\//] }
+    }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),
