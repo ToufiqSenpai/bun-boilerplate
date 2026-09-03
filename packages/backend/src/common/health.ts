@@ -6,6 +6,10 @@ import { logger } from "./logger.js"
 
 export const CHECK_TIMEOUT_MS = 1500
 
+export const LIVE_PATH = "/health/live"
+
+export const READY_PATH = "/health/ready"
+
 export type HealthCheck = () => Promise<boolean>
 
 export type HealthChecks = Record<string, HealthCheck>
@@ -15,9 +19,9 @@ export async function databaseCheck(): Promise<boolean> {
   return true
 }
 
-export function isHealthProbeRoute(value: string): boolean {
+export function isHealthRoute(value: string): boolean {
   const path = toPathname(value)
-  return path === "/health/live" || path === "/health/ready"
+  return path === LIVE_PATH || path === READY_PATH
 }
 
 function toPathname(value: string): string {
@@ -62,9 +66,9 @@ async function runCheck(name: string, check: HealthCheck): Promise<boolean> {
 
 export function createHealthPlugin(checks: HealthChecks = { database: databaseCheck }) {
   return new Elysia({ name: "health" })
-    .get("/health/live", () => ({ status: "alive" as const }), { detail: { hide: true } })
+    .get(LIVE_PATH, () => ({ status: "alive" as const }), { detail: { hide: true } })
     .get(
-      "/health/ready",
+      READY_PATH,
       async ({ set }) => {
         const entries = Object.entries(checks)
         const results = await Promise.all(entries.map(([name, check]) => runCheck(name, check)))

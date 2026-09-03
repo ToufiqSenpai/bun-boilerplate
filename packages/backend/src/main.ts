@@ -82,8 +82,8 @@ export const app = Sentry.withElysia(new Elysia({ name: "app" }))
     })
   )
   .use(errorPlugin)
-  .use(localePlugin)
   .use(healthPlugin)
+  .use(localePlugin)
   .group("/api", app => app.use(authPlugin).use(articlePlugin))
 
 if (import.meta.main && config.app.environment !== "test") {

@@ -1,9 +1,19 @@
 import { Elysia } from "elysia"
 
-import { createHealthPlugin, databaseCheck, isHealthProbeRoute } from "./health.js"
+import { createHealthPlugin, databaseCheck, isHealthRoute } from "./health.js"
+import type { HealthChecks } from "./health.js"
 
-function buildApp(checks: Record<string, () => Promise<boolean>>) {
+function buildApp(checks: HealthChecks) {
   return new Elysia().use(createHealthPlugin(checks))
+}
+
+interface HealthBody {
+  status: string
+}
+
+async function readStatus(res: Response): Promise<HealthBody> {
+  // SAFETY: health body is { status: string }
+  return (await res.json()) as HealthBody
 }
 
 describe("healthPlugin liveness", () => {
@@ -13,8 +23,7 @@ describe("healthPlugin liveness", () => {
     })
 
     const res = await app.handle(new Request("http://localhost/health/live"))
-    // SAFETY: health body is { status: string }
-    const body = (await res.json()) as { status: string }
+    const body = await readStatus(res)
 
     expect(res.status).toBe(200)
     expect(body).toEqual({ status: "alive" })
@@ -28,8 +37,7 @@ describe("healthPlugin readiness", () => {
     })
 
     const res = await app.handle(new Request("http://localhost/health/ready"))
-    // SAFETY: health body is { status: string }
-    const body = (await res.json()) as { status: string }
+    const body = await readStatus(res)
 
     expect(res.status).toBe(200)
     expect(body).toEqual({ status: "ready" })
@@ -41,8 +49,7 @@ describe("healthPlugin readiness", () => {
     })
 
     const res = await app.handle(new Request("http://localhost/health/ready"))
-    // SAFETY: health body is { status: string }
-    const body = (await res.json()) as { status: string }
+    const body = await readStatus(res)
 
     expect(res.status).toBe(503)
     expect(body).toEqual({ status: "unavailable" })
@@ -54,8 +61,7 @@ describe("healthPlugin readiness", () => {
     })
 
     const res = await app.handle(new Request("http://localhost/health/ready"))
-    // SAFETY: health body is { status: string }
-    const body = (await res.json()) as { status: string }
+    const body = await readStatus(res)
 
     expect(res.status).toBe(503)
     expect(body).toEqual({ status: "unavailable" })
@@ -67,8 +73,7 @@ describe("healthPlugin readiness", () => {
     })
 
     const res = await app.handle(new Request("http://localhost/health/ready"))
-    // SAFETY: health body is { status: string }
-    const body = (await res.json()) as { status: string }
+    const body = await readStatus(res)
 
     expect(res.status).toBe(503)
     expect(body).toEqual({ status: "unavailable" })
@@ -81,8 +86,7 @@ describe("healthPlugin readiness", () => {
     })
 
     const res = await app.handle(new Request("http://localhost/health/ready"))
-    // SAFETY: health body is { status: string }
-    const body = (await res.json()) as { status: string }
+    const body = await readStatus(res)
 
     expect(res.status).toBe(503)
     expect(body).toEqual({ status: "unavailable" })
@@ -95,22 +99,22 @@ describe("databaseCheck", () => {
   })
 })
 
-describe("isHealthProbeRoute", () => {
+describe("isHealthRoute", () => {
   test("matches both health paths", () => {
-    expect(isHealthProbeRoute("/health/live")).toBe(true)
-    expect(isHealthProbeRoute("/health/ready")).toBe(true)
+    expect(isHealthRoute("/health/live")).toBe(true)
+    expect(isHealthRoute("/health/ready")).toBe(true)
   })
 
   test("matches sampler-shaped inputs for both health paths", () => {
-    expect(isHealthProbeRoute("GET /health/live")).toBe(true)
-    expect(isHealthProbeRoute("GET /health/ready")).toBe(true)
-    expect(isHealthProbeRoute("http://127.0.0.1:8080/health/ready")).toBe(true)
-    expect(isHealthProbeRoute("/health/ready?foo=bar")).toBe(true)
+    expect(isHealthRoute("GET /health/live")).toBe(true)
+    expect(isHealthRoute("GET /health/ready")).toBe(true)
+    expect(isHealthRoute("http://127.0.0.1:8080/health/ready")).toBe(true)
+    expect(isHealthRoute("/health/ready?foo=bar")).toBe(true)
   })
 
   test("rejects arbitrary routes", () => {
-    expect(isHealthProbeRoute("/api/articles")).toBe(false)
-    expect(isHealthProbeRoute("/health")).toBe(false)
-    expect(isHealthProbeRoute("/")).toBe(false)
+    expect(isHealthRoute("/api/articles")).toBe(false)
+    expect(isHealthRoute("/health")).toBe(false)
+    expect(isHealthRoute("/")).toBe(false)
   })
 })

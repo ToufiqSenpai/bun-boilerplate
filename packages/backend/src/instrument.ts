@@ -4,7 +4,7 @@ import { pinoIntegration } from "@sentry/bun"
 import * as Sentry from "@sentry/elysia"
 
 import { config } from "./common/config.js"
-import { isHealthProbeRoute } from "./common/health.js"
+import { isHealthRoute } from "./common/health.js"
 
 const defaultSampleRate = config.app.environment === "production" ? 0.1 : 1.0
 
@@ -14,9 +14,9 @@ Sentry.init({
   environment: config.app.environment,
   tracesSampleRate: defaultSampleRate,
   tracesSampler: samplingContext => {
-    if (isHealthProbeRoute(samplingContext.name)) return 0
+    if (isHealthRoute(samplingContext.name)) return 0
     const url = samplingContext.normalizedRequest?.url ?? ""
-    if (url !== "" && isHealthProbeRoute(url)) return 0
+    if (url !== "" && isHealthRoute(url)) return 0
     return defaultSampleRate
   },
   enableLogs: true,
