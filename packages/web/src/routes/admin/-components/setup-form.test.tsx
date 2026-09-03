@@ -1,5 +1,20 @@
+import { render, screen } from "@testing-library/react"
+
 import { AdminSetupForm } from "src/routes/admin/-components/setup-form"
 import { defineSetupFormCases } from "src/routes/admin/-components/setup-form-cases"
+import { successSignUp } from "src/routes/admin/-components/setup-test-helpers"
+
+test("renders header copy and localized labels", () => {
+  render(<AdminSetupForm onSignUp={successSignUp()} />)
+
+  expect(screen.getByText("Admin Setup")).toBeTruthy()
+  expect(screen.getByText("Create the first administrator account to get started.")).toBeTruthy()
+  expect(screen.getByLabelText("Name")).toBeTruthy()
+  expect(screen.getByLabelText("Email")).toBeTruthy()
+  expect(screen.getByLabelText("Password")).toBeTruthy()
+  expect(screen.getByLabelText("Confirm password")).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Create admin" })).toBeTruthy()
+})
 
 defineSetupFormCases("AdminSetupForm (en)", AdminSetupForm, {
   name: "Name",
@@ -7,7 +22,6 @@ defineSetupFormCases("AdminSetupForm (en)", AdminSetupForm, {
   password: "Password",
   confirmPassword: "Confirm password",
   title: "Admin Setup",
-  description: "Create the first administrator account to get started.",
   submit: "Create admin",
   submitting: "Creating…",
   toggleShow: "Show password",

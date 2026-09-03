@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 
-import type { AdminSetupForm } from "src/routes/admin/-components/setup-form"
-import type { SetupSignUpInput } from "src/routes/admin/-components/setup-form"
+import type {
+  AdminSetupForm,
+  SetupSignUpInput
+} from "src/routes/admin/-components/setup-form"
 import type { SetupFieldLabels } from "src/routes/admin/-components/setup-test-helpers"
 import {
   VALID_SETUP_VALUES,
@@ -12,7 +14,6 @@ import {
 
 interface SetupFormCaseTexts extends SetupFieldLabels {
   readonly title: string
-  readonly description: string
   readonly submit: string
   readonly submitting: string
   readonly toggleShow: string
@@ -30,18 +31,6 @@ interface SetupFormCaseTexts extends SetupFieldLabels {
 
 function defineSetupFormCases(suiteName: string, Form: typeof AdminSetupForm, text: SetupFormCaseTexts): void {
   describe(suiteName, () => {
-    test("renders header copy and localized labels", () => {
-      render(<Form onSignUp={successSignUp()} />)
-
-      expect(screen.getByText(text.title)).toBeTruthy()
-      expect(screen.getByText(text.description)).toBeTruthy()
-      expect(screen.getByLabelText(text.name)).toBeTruthy()
-      expect(screen.getByLabelText(text.email)).toBeTruthy()
-      expect(screen.getByLabelText(text.password)).toBeTruthy()
-      expect(screen.getByLabelText(text.confirmPassword)).toBeTruthy()
-      expect(screen.getByRole("button", { name: text.submit })).toBeTruthy()
-    })
-
     test("shows inline required error for an empty name", async () => {
       render(<Form onSignUp={successSignUp()} />)
 
@@ -133,7 +122,7 @@ function defineSetupFormCases(suiteName: string, Form: typeof AdminSetupForm, te
 
       const alert = await screen.findByRole("alert")
       expect(alert.textContent).toContain("Email already taken")
-      expect(alert.getAttribute("data-slot")).toBe("alert")
+      expect(alert.dataset.slot).toBe("alert")
     })
 
     test("shows the generic fallback when the server error has no message", async () => {

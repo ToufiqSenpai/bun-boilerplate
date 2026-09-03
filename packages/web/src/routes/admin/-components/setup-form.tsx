@@ -166,7 +166,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                     id={field.name}
                     label={i18n.t("admin.setup.name.label")}
                     touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(error => String(error))}
+                    messages={field.state.meta.errors.map(String)}
                   >
                     <Input
                       id={field.name}
@@ -187,7 +187,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                     id={field.name}
                     label={i18n.t("admin.setup.email.label")}
                     touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(error => String(error))}
+                    messages={field.state.meta.errors.map(String)}
                   >
                     <Input
                       id={field.name}
@@ -221,7 +221,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                       id={field.name}
                       label={config.label}
                       touched={field.state.meta.isTouched}
-                      messages={field.state.meta.errors.map(error => String(error))}
+                      messages={field.state.meta.errors.map(String)}
                     >
                       <PasswordInput
                         id={field.name}

@@ -15,7 +15,7 @@ interface SetupStatusResult {
 export function requireSetupNeeded(result: SetupStatusResult): SetupStatus {
   const { data, error, status } = result
 
-  if (error !== null || status !== 200 || !data || !data.needed) throw notFound()
+  if (error !== null || status !== 200 || !data?.needed) throw notFound()
 
   return data
 }
