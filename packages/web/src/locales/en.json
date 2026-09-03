@@ -27,15 +27,25 @@
       "submit": "Create admin",
       "submitting": "Creating…",
       "error": {
-        "nameRequired": "Name is required",
-        "nameTooLong": "Name must be at most 64 characters",
-        "emailInvalid": "Enter a valid email address",
-        "emailTooLong": "Email must be at most 128 characters",
-        "passwordTooShort": "Password must be at least 8 characters",
-        "passwordTooLong": "Password must be at most 128 characters",
-        "confirmPasswordRequired": "Confirm your password",
-        "passwordMismatch": "Passwords do not match",
-        "serverGeneric": "Something went wrong. Please try again."
+        "name": {
+          "required": "Name is required",
+          "max": "Name must be at most 64 characters"
+        },
+        "email": {
+          "invalid": "Enter a valid email address",
+          "max": "Email must be at most 128 characters"
+        },
+        "password": {
+          "min": "Password must be at least 8 characters",
+          "max": "Password must be at most 128 characters",
+          "mismatch": "Passwords do not match"
+        },
+        "confirmPassword": {
+          "required": "Confirm your password"
+        },
+        "server": {
+          "generic": "Something went wrong. Please try again."
+        }
       }
     }
   }

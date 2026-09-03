@@ -27,15 +27,25 @@
       "submit": "Buat admin",
       "submitting": "Membuat…",
       "error": {
-        "nameRequired": "Nama wajib diisi",
-        "nameTooLong": "Nama maksimal 64 karakter",
-        "emailInvalid": "Masukkan alamat email yang valid",
-        "emailTooLong": "Email maksimal 128 karakter",
-        "passwordTooShort": "Password minimal 8 karakter",
-        "passwordTooLong": "Password maksimal 128 karakter",
-        "confirmPasswordRequired": "Konfirmasi password Anda",
-        "passwordMismatch": "Password tidak sama",
-        "serverGeneric": "Terjadi kesalahan. Silakan coba lagi."
+        "name": {
+          "required": "Nama wajib diisi",
+          "max": "Nama maksimal 64 karakter"
+        },
+        "email": {
+          "invalid": "Masukkan alamat email yang valid",
+          "max": "Email maksimal 128 karakter"
+        },
+        "password": {
+          "min": "Password minimal 8 karakter",
+          "max": "Password maksimal 128 karakter",
+          "mismatch": "Password tidak sama"
+        },
+        "confirmPassword": {
+          "required": "Konfirmasi password Anda"
+        },
+        "server": {
+          "generic": "Terjadi kesalahan. Silakan coba lagi."
+        }
       }
     }
   }

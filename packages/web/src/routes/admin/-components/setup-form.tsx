@@ -27,16 +27,16 @@ interface AdminSetupFormProps {
 
 const setupSchema = z
   .object({
-    name: z.string().min(1, i18n.t("admin.setup.error.nameRequired")).max(64, i18n.t("admin.setup.error.nameTooLong")),
-    email: z.email(i18n.t("admin.setup.error.emailInvalid")).max(128, i18n.t("admin.setup.error.emailTooLong")),
+    name: z.string().min(1, i18n.t("admin.setup.error.name.required")).max(64, i18n.t("admin.setup.error.name.max")),
+    email: z.email(i18n.t("admin.setup.error.email.invalid")).max(128, i18n.t("admin.setup.error.email.max")),
     password: z
       .string()
-      .min(8, i18n.t("admin.setup.error.passwordTooShort"))
-      .max(128, i18n.t("admin.setup.error.passwordTooLong")),
-    confirmPassword: z.string().min(1, i18n.t("admin.setup.error.confirmPasswordRequired"))
+      .min(8, i18n.t("admin.setup.error.password.min"))
+      .max(128, i18n.t("admin.setup.error.password.max")),
+    confirmPassword: z.string().min(1, i18n.t("admin.setup.error.confirmPassword.required"))
   })
   .refine(data => data.password === data.confirmPassword, {
-    message: i18n.t("admin.setup.error.passwordMismatch"),
+    message: i18n.t("admin.setup.error.password.mismatch"),
     path: ["confirmPassword"]
   })
 
@@ -65,7 +65,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
 
       if (!parsed.success) {
         const firstIssue = parsed.error.issues[0]
-        setServerError(firstIssue?.message ?? i18n.t("admin.setup.error.serverGeneric"))
+        setServerError(firstIssue?.message ?? i18n.t("admin.setup.error.server.generic"))
         return
       }
 
@@ -76,7 +76,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
       })
 
       if (error) {
-        setServerError(error.message ?? i18n.t("admin.setup.error.serverGeneric"))
+        setServerError(error.message ?? i18n.t("admin.setup.error.server.generic"))
         return
       }
 
@@ -168,9 +168,9 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                 validators={{
                   onChangeListenTo: ["password"],
                   onChange: ({ value, fieldApi }) => {
-                    if (value.length === 0) return i18n.t("admin.setup.error.confirmPasswordRequired")
+                    if (value.length === 0) return i18n.t("admin.setup.error.confirmPassword.required")
                     const password = fieldApi.form.getFieldValue("password")
-                    if (value !== password) return i18n.t("admin.setup.error.passwordMismatch")
+                    if (value !== password) return i18n.t("admin.setup.error.password.mismatch")
                     return undefined
                   }
                 }}

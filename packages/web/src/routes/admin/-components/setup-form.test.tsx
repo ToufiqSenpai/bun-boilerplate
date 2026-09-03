@@ -1,12 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+
 import type { SetupSignUpInput } from "src/routes/admin/-components/setup-form"
 import { AdminSetupForm } from "src/routes/admin/-components/setup-form"
+import {
+  VALID_SETUP_VALUES,
+  fillValidSetupForm,
+  touchSetupField
+} from "src/routes/admin/-components/setup-test-helpers"
 
-const VALID = {
-  name: "Admin",
-  email: "admin@example.com",
-  password: "password123",
-  confirmPassword: "password123"
+const LABELS = {
+  name: "Name",
+  email: "Email",
+  password: "Password",
+  confirmPassword: "Confirm password"
 } as const
 
 function successSignUp(calls: SetupSignUpInput[] = []) {
@@ -15,22 +21,6 @@ function successSignUp(calls: SetupSignUpInput[] = []) {
     return { error: null }
   }
 }
-
-function fillValidForm() {
-  fireEvent.change(screen.getByLabelText("Name"), { target: { value: VALID.name } })
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: VALID.email } })
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: VALID.password } })
-  fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: VALID.confirmPassword } })
-}
-
-function touchField(label: string, value: string) {
-  const input = screen.getByLabelText(label)
-  // Type then set the target value: TanStack skips validation when the value is unchanged.
-  fireEvent.change(input, { target: { value: `${value}x` } })
-  fireEvent.change(input, { target: { value } })
-  fireEvent.blur(input)
-}
-
 describe("AdminSetupForm (en)", () => {
   test("renders centered header copy and localized labels", () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
@@ -47,7 +37,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows inline required error for an empty name", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    touchField("Name", "")
+    touchSetupField("Name", "")
 
     expect(await screen.findByText("Name is required")).toBeTruthy()
   })
@@ -55,7 +45,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows inline max-length error for a long name", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    touchField("Name", "a".repeat(65))
+    touchSetupField("Name", "a".repeat(65))
 
     expect(await screen.findByText("Name must be at most 64 characters")).toBeTruthy()
   })
@@ -63,7 +53,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows inline error for an invalid email", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    touchField("Email", "not-an-email")
+    touchSetupField("Email", "not-an-email")
 
     expect(await screen.findByText("Enter a valid email address")).toBeTruthy()
   })
@@ -71,7 +61,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows inline max-length error for a long email", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    touchField("Email", `${"a".repeat(120)}@example.com`)
+    touchSetupField("Email", `${"a".repeat(120)}@example.com`)
 
     expect(await screen.findByText("Email must be at most 128 characters")).toBeTruthy()
   })
@@ -79,7 +69,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows inline error for a short password", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    touchField("Password", "short")
+    touchSetupField("Password", "short")
 
     expect(await screen.findByText("Password must be at least 8 characters")).toBeTruthy()
   })
@@ -87,7 +77,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows inline max-length error for a long password", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    touchField("Password", "a".repeat(129))
+    touchSetupField("Password", "a".repeat(129))
 
     expect(await screen.findByText("Password must be at most 128 characters")).toBeTruthy()
   })
@@ -95,7 +85,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows inline required error for an empty confirm password", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    touchField("Confirm password", "")
+    touchSetupField("Confirm password", "")
 
     expect(await screen.findByText("Confirm your password")).toBeTruthy()
   })
@@ -104,7 +94,7 @@ describe("AdminSetupForm (en)", () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } })
-    touchField("Confirm password", "something-else")
+    touchSetupField("Confirm password", "something-else")
 
     expect(await screen.findByText("Passwords do not match")).toBeTruthy()
   })
@@ -130,7 +120,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows the raw server message in a destructive alert", async () => {
     render(<AdminSetupForm onSignUp={async () => ({ error: { message: "Email already taken" } })} />)
 
-    fillValidForm()
+    fillValidSetupForm(LABELS)
     fireEvent.click(screen.getByRole("button", { name: "Create admin" }))
 
     const alert = await screen.findByRole("alert")
@@ -141,7 +131,7 @@ describe("AdminSetupForm (en)", () => {
   test("shows the generic fallback when the server error has no message", async () => {
     render(<AdminSetupForm onSignUp={async () => ({ error: {} })} />)
 
-    fillValidForm()
+    fillValidSetupForm(LABELS)
     fireEvent.click(screen.getByRole("button", { name: "Create admin" }))
 
     expect(await screen.findByText("Something went wrong. Please try again.")).toBeTruthy()
@@ -168,7 +158,7 @@ describe("AdminSetupForm (en)", () => {
       />
     )
 
-    fillValidForm()
+    fillValidSetupForm(LABELS)
     const submit = screen.getByRole("button", { name: "Create admin" })
     fireEvent.click(submit)
     fireEvent.click(submit)
@@ -180,14 +170,14 @@ describe("AdminSetupForm (en)", () => {
 
     await screen.findByText("Create admin")
     expect(calls).toHaveLength(1)
-    expect(calls[0]).toEqual({ name: VALID.name, email: VALID.email, password: VALID.password })
-    expect(completed).toEqual([VALID.email])
+    expect(calls[0]).toEqual({ name: VALID_SETUP_VALUES.name, email: VALID_SETUP_VALUES.email, password: VALID_SETUP_VALUES.password })
+    expect(completed).toEqual([VALID_SETUP_VALUES.email])
   })
 
   test("stays on the form after success instead of navigating away", async () => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
-    fillValidForm()
+    fillValidSetupForm(LABELS)
     fireEvent.click(screen.getByRole("button", { name: "Create admin" }))
 
     await screen.findByText("Create admin")

@@ -1,18 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+
 import { i18n } from "src/i18n"
 import type { SetupSignUpInput } from "src/routes/admin/-components/setup-form"
+import { fillValidSetupForm, touchSetupField } from "src/routes/admin/-components/setup-test-helpers"
 
 await i18n.changeLanguage("id")
 
 const { AdminSetupForm } = await import("src/routes/admin/-components/setup-form")
 
-function fillValidForm() {
-  fireEvent.change(screen.getByLabelText("Nama"), { target: { value: "Admin" } })
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "admin@example.com" } })
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } })
-  fireEvent.change(screen.getByLabelText("Konfirmasi password"), { target: { value: "password123" } })
-}
-
+const LABELS = {
+  name: "Nama",
+  email: "Email",
+  password: "Password",
+  confirmPassword: "Konfirmasi password"
+} as const
 describe("AdminSetupForm (id)", () => {
   test("renders localized header, labels, and button", () => {
     render(<AdminSetupForm onSignUp={async () => ({ error: null })} />)
@@ -27,16 +28,10 @@ describe("AdminSetupForm (id)", () => {
   test("shows localized validation messages", async () => {
     render(<AdminSetupForm onSignUp={async () => ({ error: null })} />)
 
-    const name = screen.getByLabelText("Nama")
-    // Type then clear: TanStack skips validation when the value is unchanged.
-    fireEvent.change(name, { target: { value: "x" } })
-    fireEvent.change(name, { target: { value: "" } })
-    fireEvent.blur(name)
+    touchSetupField("Nama", "")
     expect(await screen.findByText("Nama wajib diisi")).toBeTruthy()
 
-    const email = screen.getByLabelText("Email")
-    fireEvent.change(email, { target: { value: "bukan-email" } })
-    fireEvent.blur(email)
+    touchSetupField("Email", "bukan-email")
     expect(await screen.findByText("Masukkan alamat email yang valid")).toBeTruthy()
   })
 
@@ -51,7 +46,7 @@ describe("AdminSetupForm (id)", () => {
       <AdminSetupForm onSignUp={async () => ({ error: { message: "Email sudah dipakai" } })} />
     )
 
-    fillValidForm()
+    fillValidSetupForm(LABELS)
     fireEvent.click(screen.getByRole("button", { name: "Buat admin" }))
     expect(await screen.findByText("Email sudah dipakai")).toBeTruthy()
     unmount()
@@ -66,7 +61,7 @@ describe("AdminSetupForm (id)", () => {
       />
     )
 
-    fillValidForm()
+    fillValidSetupForm(LABELS)
     fireEvent.click(screen.getByRole("button", { name: "Buat admin" }))
 
     expect(await screen.findByText("Terjadi kesalahan. Silakan coba lagi.")).toBeTruthy()
