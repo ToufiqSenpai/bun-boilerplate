@@ -23,8 +23,12 @@ A time-bound proof used to confirm an identifier or action. Every `User` includi
 _Avoid_: OTP, Challenge, Code
 
 **Role**:
-A comma-separated capability label on a User (e.g. `admin`).
-_Avoid_: Permission, Group, Privilege
+A comma-separated capability label on a User (e.g. `superadmin`, `admin`).
+_Avoid_: Group, Privilege
+
+**Permission**:
+A resource-action grant checked against a Role (e.g. `articleCategory:create`).
+_Avoid_: Privilege
 
 **Setup**:
 The one-time initialization that creates the first `User` with `Role` `admin` via `/admin/setup`. `Setup` succeeds only after `Verification` is completed, not on `signUp` alone.
