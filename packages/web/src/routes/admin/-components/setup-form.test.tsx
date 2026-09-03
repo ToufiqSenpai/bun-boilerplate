@@ -17,16 +17,6 @@ const LABELS = {
   confirmPassword: "Confirm password"
 } as const
 
-const validationCases = [
-  { label: "Name", value: "", expected: "Name is required" },
-  { label: "Name", value: "a".repeat(65), expected: "Name must be at most 64 characters" },
-  { label: "Email", value: "not-an-email", expected: "Enter a valid email address" },
-  { label: "Email", value: `${"a".repeat(120)}@example.com`, expected: "Email must be at most 128 characters" },
-  { label: "Password", value: "short", expected: "Password must be at least 8 characters" },
-  { label: "Password", value: "a".repeat(129), expected: "Password must be at most 128 characters" },
-  { label: "Confirm password", value: "", expected: "Confirm your password" }
-]
-
 function successSignUp(calls: SetupSignUpInput[] = []) {
   return async (input: SetupSignUpInput) => {
     calls.push(input)
@@ -62,7 +52,15 @@ describe("AdminSetupForm", () => {
     expect(screen.getByRole("button", { name: "Create admin" })).toBeTruthy()
   })
 
-  test.each(validationCases)("shows inline error: $expected", async ({ label, value, expected }) => {
+  test.each([
+    { label: "Name", value: "", expected: "Name is required" },
+    { label: "Name", value: "a".repeat(65), expected: "Name must be at most 64 characters" },
+    { label: "Email", value: "not-an-email", expected: "Enter a valid email address" },
+    { label: "Email", value: `${"a".repeat(120)}@example.com`, expected: "Email must be at most 128 characters" },
+    { label: "Password", value: "short", expected: "Password must be at least 8 characters" },
+    { label: "Password", value: "a".repeat(129), expected: "Password must be at most 128 characters" },
+    { label: "Confirm password", value: "", expected: "Confirm your password" }
+  ])("shows inline error: $expected", async ({ label, value, expected }) => {
     render(<AdminSetupForm onSignUp={successSignUp()} />)
 
     touchField(label, value)
