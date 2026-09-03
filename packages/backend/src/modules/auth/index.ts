@@ -97,7 +97,7 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     resetPasswordTokenExpiresIn: 60 * 30,
     revokeSessionsOnPasswordReset: true,
-    autoSignIn: true,
+    autoSignIn: false,
     password: {
       hash: password => hash(password, ARGON2_OPTIONS),
       verify: ({ password, hash: storedHash }) => verify(storedHash, password, ARGON2_OPTIONS)
@@ -169,7 +169,7 @@ export const auth = betterAuth({
           const [result] = await database.select({ value: count() }).from(users)
 
           if ((result?.value ?? 0) === 1) {
-            await database.update(users).set({ role: "admin", emailVerified: true }).where(eq(users.id, user.id))
+            await database.update(users).set({ role: "admin" }).where(eq(users.id, user.id))
             logger.info({ userId: user.id }, "First user auto-promoted to admin")
           }
         }
@@ -208,7 +208,7 @@ export const authPlugin = new Elysia({ name: "auth", tags: ["Auth"] })
     detail: {
       summary: "Check initial setup status",
       description:
-        "Reports whether the instance still has no accounts. The first registered user is automatically promoted to admin and their email is marked verified."
+        "Reports whether the instance still has no accounts. The first registered user is automatically promoted to admin but must verify their email before a session is established."
     }
   })
   .mount(auth.handler)
@@ -217,6 +217,7 @@ export const authPlugin = new Elysia({ name: "auth", tags: ["Auth"] })
       const session = await auth.api.getSession({ headers })
 
       if (!session) return status(401)
+      if (!session.user.emailVerified) return status(401)
 
       return {
         user: session.user,

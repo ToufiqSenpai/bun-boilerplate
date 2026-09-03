@@ -6,7 +6,7 @@ import { database } from "../src/common/database.js"
 import { emailService } from "../src/common/email.js"
 import { app } from "../src/main.js"
 import { auth } from "../src/modules/auth/index.js"
-import { users } from "../src/modules/auth/tables/auth.table.js"
+import { sessions, users } from "../src/modules/auth/tables/auth.table.js"
 import { createAuthSession } from "./helpers/auth.js"
 
 const api = treaty(app)
@@ -30,7 +30,7 @@ describe("GET /api/auth/setup", () => {
     expect(data).toEqual({ needed: false })
   })
 
-  test("first signup via better-auth becomes admin and makes setup not needed", async () => {
+  test("first signup via better-auth becomes admin but stays unverified without a session", async () => {
     await database.delete(users)
 
     const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
@@ -49,7 +49,11 @@ describe("GET /api/auth/setup", () => {
       const [row] = await database.select().from(users).where(eq(users.id, response.user.id))
 
       expect(row?.role).toBe("admin")
-      expect(row?.emailVerified).toBe(true)
+      expect(row?.emailVerified).toBe(false)
+      expect(response.token).toBeNull()
+
+      const userSessions = await database.select().from(sessions).where(eq(sessions.userId, response.user.id))
+      expect(userSessions).toHaveLength(0)
 
       const { data, status } = await api.api.auth.setup.get()
       expect(status).toBe(200)
@@ -93,5 +97,96 @@ describe("GET /api/auth/setup", () => {
     } finally {
       spy.mockRestore()
     }
+  })
+})
+
+describe("auth macro verification gate", () => {
+  async function createUnverifiedAdminCookie(): Promise<{ cookie: string; userId: string }> {
+    const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
+
+    try {
+      const email = faker.internet.email().toLowerCase()
+      const password = `${faker.internet.password({ length: 12 })}A1!`
+
+      const { response } = await auth.api.signUpEmail({
+        body: { email, password, name: faker.person.fullName() },
+        headers: new Headers(),
+        returnHeaders: true
+      })
+
+      // Real signed session cookie: verify just long enough to sign in, then flip back to unverified.
+      await database.update(users).set({ role: "admin", emailVerified: true }).where(eq(users.id, response.user.id))
+
+      const { headers } = await auth.api.signInEmail({
+        body: { email, password },
+        headers: new Headers(),
+        returnHeaders: true
+      })
+
+      await database.update(users).set({ emailVerified: false }).where(eq(users.id, response.user.id))
+
+      const cookie = headers
+        .getSetCookie()
+        .map(entry => entry.split(";")[0])
+        .join("; ")
+
+      return { cookie, userId: response.user.id }
+    } finally {
+      spy.mockRestore()
+    }
+  }
+
+  function articleCategoryBody() {
+    return {
+      locale: "en" as const,
+      name: faker.lorem.words({ min: 1, max: 3 }),
+      slug: faker.lorem.slug(),
+      description: faker.lorem.sentence()
+    }
+  }
+
+  test("request without a session is rejected with 401", async () => {
+    const { error, status } = await api.api["article-categories"].post(articleCategoryBody())
+
+    expect(status).toBe(401)
+    expect(error).not.toBeNull()
+  })
+
+  test("session of an unverified user is rejected with 401", async () => {
+    const { cookie, userId } = await createUnverifiedAdminCookie()
+
+    // Guard: the session itself resolves, so the 401 below comes from the gate, not a missing session.
+    const resolved = await auth.api.getSession({ headers: new Headers({ cookie }) })
+    expect(resolved?.user.id).toBe(userId)
+
+    const { error, status } = await api.api["article-categories"].post(articleCategoryBody(), {
+      headers: { cookie }
+    })
+
+    expect(status).toBe(401)
+    expect(error).not.toBeNull()
+  })
+
+  test("session of a verified admin still passes the gate", async () => {
+    const { cookie } = await createAuthSession("admin")
+
+    const { data, error, status } = await api.api["article-categories"].post(articleCategoryBody(), {
+      headers: { cookie }
+    })
+
+    expect(status).toBe(201)
+    expect(error).toBeNull()
+    expect(data?.slug).toBeDefined()
+  })
+
+  test("session of a verified non-admin is still rejected with 403", async () => {
+    const { cookie } = await createAuthSession("user")
+
+    const { error, status } = await api.api["article-categories"].post(articleCategoryBody(), {
+      headers: { cookie }
+    })
+
+    expect(status).toBe(403)
+    expect(error).not.toBeNull()
   })
 })
