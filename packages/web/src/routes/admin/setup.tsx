@@ -28,7 +28,7 @@ export const Route = createFileRoute("/admin/setup")({
   component: AdminSetupPage
 })
 
-function AdminSetupPage() {
+export function AdminSetupPage() {
   return (
     <AdminSetupForm
       onSignUp={async input => {
@@ -38,5 +38,3 @@ function AdminSetupPage() {
     />
   )
 }
-
-export { AdminSetupPage }
