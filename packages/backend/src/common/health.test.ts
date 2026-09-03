@@ -1,10 +1,10 @@
 import { Elysia } from "elysia"
 
-import { createHealthPlugin, databaseCheck, isHealthRoute } from "./health.js"
-import type { HealthChecks } from "./health.js"
+import { DatabaseCheck, checkReadiness, healthPlugin, isHealthRoute } from "./health.js"
+import type { HealthCheck } from "./health.js"
 
-function buildApp(checks: HealthChecks) {
-  return new Elysia().use(createHealthPlugin(checks))
+function fakeCheck(name: string, run: () => Promise<boolean>): HealthCheck {
+  return { name, check: run }
 }
 
 interface HealthBody {
@@ -16,11 +16,38 @@ async function readStatus(res: Response): Promise<HealthBody> {
   return (await res.json()) as HealthBody
 }
 
-describe("healthPlugin liveness", () => {
-  test("returns 200 alive regardless of failing checks", async () => {
-    const app = buildApp({
-      database: () => Promise.resolve(false)
-    })
+describe("checkReadiness", () => {
+  test("returns true when all checks pass", async () => {
+    await expect(checkReadiness([fakeCheck("database", () => Promise.resolve(true))])).resolves.toBe(true)
+  })
+
+  test("returns false when a check resolves false", async () => {
+    await expect(checkReadiness([fakeCheck("database", () => Promise.resolve(false))])).resolves.toBe(false)
+  })
+
+  test("returns false when a check throws", async () => {
+    await expect(
+      checkReadiness([fakeCheck("database", () => Promise.reject(new Error("connection refused")))])
+    ).resolves.toBe(false)
+  })
+
+  test("returns false when a check never resolves (deadline)", async () => {
+    await expect(checkReadiness([fakeCheck("database", () => new Promise<boolean>(() => {}))])).resolves.toBe(false)
+  }, 10000)
+
+  test("returns false when any of several checks fails", async () => {
+    await expect(
+      checkReadiness([
+        fakeCheck("cache", () => Promise.resolve(true)),
+        fakeCheck("database", () => Promise.resolve(false))
+      ])
+    ).resolves.toBe(false)
+  })
+})
+
+describe("healthPlugin", () => {
+  test("liveness returns 200 alive", async () => {
+    const app = new Elysia().use(healthPlugin)
 
     const res = await app.handle(new Request("http://localhost/health/live"))
     const body = await readStatus(res)
@@ -28,13 +55,9 @@ describe("healthPlugin liveness", () => {
     expect(res.status).toBe(200)
     expect(body).toEqual({ status: "alive" })
   })
-})
 
-describe("healthPlugin readiness", () => {
-  test("returns 200 ready when all checks pass", async () => {
-    const app = buildApp({
-      database: () => Promise.resolve(true)
-    })
+  test("readiness returns 200 ready against the test-time database", async () => {
+    const app = new Elysia().use(healthPlugin)
 
     const res = await app.handle(new Request("http://localhost/health/ready"))
     const body = await readStatus(res)
@@ -42,60 +65,15 @@ describe("healthPlugin readiness", () => {
     expect(res.status).toBe(200)
     expect(body).toEqual({ status: "ready" })
   })
-
-  test("returns 503 unavailable when a check resolves false", async () => {
-    const app = buildApp({
-      database: () => Promise.resolve(false)
-    })
-
-    const res = await app.handle(new Request("http://localhost/health/ready"))
-    const body = await readStatus(res)
-
-    expect(res.status).toBe(503)
-    expect(body).toEqual({ status: "unavailable" })
-  })
-
-  test("returns 503 unavailable when a check throws", async () => {
-    const app = buildApp({
-      database: () => Promise.reject(new Error("connection refused"))
-    })
-
-    const res = await app.handle(new Request("http://localhost/health/ready"))
-    const body = await readStatus(res)
-
-    expect(res.status).toBe(503)
-    expect(body).toEqual({ status: "unavailable" })
-  })
-
-  test("returns 503 unavailable when a check never resolves (deadline)", async () => {
-    const app = buildApp({
-      database: () => new Promise<boolean>(() => {})
-    })
-
-    const res = await app.handle(new Request("http://localhost/health/ready"))
-    const body = await readStatus(res)
-
-    expect(res.status).toBe(503)
-    expect(body).toEqual({ status: "unavailable" })
-  }, 10000)
-
-  test("returns 503 unavailable when any of several checks fails", async () => {
-    const app = buildApp({
-      cache: () => Promise.resolve(true),
-      database: () => Promise.resolve(false)
-    })
-
-    const res = await app.handle(new Request("http://localhost/health/ready"))
-    const body = await readStatus(res)
-
-    expect(res.status).toBe(503)
-    expect(body).toEqual({ status: "unavailable" })
-  })
 })
 
-describe("databaseCheck", () => {
+describe("DatabaseCheck", () => {
+  test("is named database", () => {
+    expect(new DatabaseCheck().name).toBe("database")
+  })
+
   test("passes against the test-time database", async () => {
-    await expect(databaseCheck()).resolves.toBe(true)
+    await expect(new DatabaseCheck().check()).resolves.toBe(true)
   })
 })
 

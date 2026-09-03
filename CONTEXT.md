@@ -71,5 +71,5 @@ Whether the backend can serve traffic right now, probed at `GET /health/ready` w
 _Avoid_: Liveness, Healthcheck
 
 **Check**:
-A named zero-arg async predicate registered on the health plugin; resolving `true` means pass, while rejecting, resolving `false`, or exceeding the deadline means fail. The only built-in `Check` is the database round-trip.
+An object implementing the `HealthCheck` interface (`name` plus an async `check()` predicate) listed in the health plugin's `healthChecks` registry; resolving `true` means pass, while rejecting, resolving `false`, or exceeding the deadline means fail. The built-in `Check` is `DatabaseCheck`, the database round-trip.
 _Avoid_: Probe, Ping, Healthcheck
