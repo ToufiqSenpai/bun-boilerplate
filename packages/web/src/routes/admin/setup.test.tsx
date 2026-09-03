@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 
-import { AdminSetupPage, requireSetupNeeded } from "src/routes/admin/setup"
+import { AdminSetupPage, requireSetup } from "src/routes/admin/setup"
 
 interface GuardInput {
   readonly data: { readonly needed: boolean } | null | undefined
@@ -10,16 +10,16 @@ interface GuardInput {
 
 function isSetupRejected(result: GuardInput): boolean {
   try {
-    requireSetupNeeded(result)
+    requireSetup(result)
     return false
   } catch {
     return true
   }
 }
 
-describe("requireSetupNeeded", () => {
+describe("requireSetup", () => {
   test("returns the status when setup is needed", () => {
-    expect(requireSetupNeeded({ data: { needed: true }, error: null, status: 200 })).toEqual({ needed: true })
+    expect(requireSetup({ data: { needed: true }, error: null, status: 200 })).toEqual({ needed: true })
   })
 
   test("throws when setup is no longer needed", () => {

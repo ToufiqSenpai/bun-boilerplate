@@ -12,7 +12,7 @@ interface SetupStatusResult {
   readonly status: number
 }
 
-export function requireSetupNeeded(result: SetupStatusResult): SetupStatus {
+export function requireSetup(result: SetupStatusResult): SetupStatus {
   const { data, error, status } = result
 
   if (error !== null || status !== 200 || !data?.needed) throw notFound()
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/admin/setup")({
   head: () => ({
     meta: [{ title: "Admin Setup" }]
   }),
-  loader: async () => requireSetupNeeded(await api.auth.setup.get()),
+  loader: async () => requireSetup(await api.auth.setup.get()),
   component: AdminSetupPage
 })
 
