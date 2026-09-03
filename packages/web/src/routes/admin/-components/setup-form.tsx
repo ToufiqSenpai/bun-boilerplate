@@ -49,6 +49,25 @@ function fieldValidator(schema: z.ZodType<string>) {
   }
 }
 
+interface ConfirmPasswordFieldApi {
+  readonly form: {
+    getFieldValue(field: string): string
+  }
+}
+
+function confirmPasswordValidator({
+  value,
+  fieldApi
+}: {
+  value: string
+  fieldApi: ConfirmPasswordFieldApi
+}): string | undefined {
+  if (value.length === 0) return i18n.t("admin.setup.error.confirmPassword.required")
+  const password = fieldApi.form.getFieldValue("password")
+  if (value !== password) return i18n.t("admin.setup.error.password.mismatch")
+  return undefined
+}
+
 interface FieldChromeProps {
   readonly id: string
   readonly label: string
@@ -66,6 +85,28 @@ function FieldChrome({ id, label, touched, messages, children }: FieldChromeProp
     </Field>
   )
 }
+
+interface PasswordFieldConfig {
+  readonly name: "password" | "confirmPassword"
+  readonly label: string
+  readonly showLabel: string
+  readonly hideLabel: string
+}
+
+const passwordFieldConfigs: readonly PasswordFieldConfig[] = [
+  {
+    name: "password",
+    label: i18n.t("admin.setup.password.label"),
+    showLabel: i18n.t("admin.setup.password.show"),
+    hideLabel: i18n.t("admin.setup.password.hide")
+  },
+  {
+    name: "confirmPassword",
+    label: i18n.t("admin.setup.confirmPassword.label"),
+    showLabel: i18n.t("admin.setup.confirmPassword.show"),
+    hideLabel: i18n.t("admin.setup.confirmPassword.hide")
+  }
+]
 
 function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
   const [serverError, setServerError] = useState<string | null>(null)
@@ -162,62 +203,41 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                 )}
               </form.Field>
 
-              <form.Field name="password" validators={{ onChange: fieldValidator(setupSchema.shape.password) }}>
-                {field => (
-                  <FieldChrome
-                    id={field.name}
-                    label={i18n.t("admin.setup.password.label")}
-                    touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(error => String(error))}
-                  >
-                    <PasswordInput
-                      id={field.name}
-                      name={field.name}
-                      showPasswordLabel={i18n.t("admin.setup.password.show")}
-                      hidePasswordLabel={i18n.t("admin.setup.password.hide")}
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={e => {
-                        field.handleChange(e.target.value)
-                      }}
-                    />
-                  </FieldChrome>
-                )}
-              </form.Field>
-
-              <form.Field
-                name="confirmPassword"
-                validators={{
-                  onChangeListenTo: ["password"],
-                  onChange: ({ value, fieldApi }) => {
-                    if (value.length === 0) return i18n.t("admin.setup.error.confirmPassword.required")
-                    const password = fieldApi.form.getFieldValue("password")
-                    if (value !== password) return i18n.t("admin.setup.error.password.mismatch")
-                    return undefined
+              {passwordFieldConfigs.map(config => (
+                <form.Field
+                  key={config.name}
+                  name={config.name}
+                  validators={
+                    config.name === "password"
+                      ? { onChange: fieldValidator(setupSchema.shape.password) }
+                      : {
+                          onChangeListenTo: ["password"],
+                          onChange: confirmPasswordValidator
+                        }
                   }
-                }}
-              >
-                {field => (
-                  <FieldChrome
-                    id={field.name}
-                    label={i18n.t("admin.setup.confirmPassword.label")}
-                    touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(error => String(error))}
-                  >
-                    <PasswordInput
+                >
+                  {field => (
+                    <FieldChrome
                       id={field.name}
-                      name={field.name}
-                      showPasswordLabel={i18n.t("admin.setup.confirmPassword.show")}
-                      hidePasswordLabel={i18n.t("admin.setup.confirmPassword.hide")}
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={e => {
-                        field.handleChange(e.target.value)
-                      }}
-                    />
-                  </FieldChrome>
-                )}
-              </form.Field>
+                      label={config.label}
+                      touched={field.state.meta.isTouched}
+                      messages={field.state.meta.errors.map(error => String(error))}
+                    >
+                      <PasswordInput
+                        id={field.name}
+                        name={field.name}
+                        showPasswordLabel={config.showLabel}
+                        hidePasswordLabel={config.hideLabel}
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={e => {
+                          field.handleChange(e.target.value)
+                        }}
+                      />
+                    </FieldChrome>
+                  )}
+                </form.Field>
+              ))}
 
               {serverError && (
                 <Alert variant="destructive">
