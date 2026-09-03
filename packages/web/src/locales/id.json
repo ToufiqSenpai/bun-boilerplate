@@ -3,5 +3,40 @@
     "kicker": "TanStack Start Base Template",
     "title": "Mulai sederhana, rilis dengan cepat.",
     "description": "Base starter ini sengaja dibuat ringan: satu route home, struktur bersih, dan hal-hal esensial untuk membangun dari nol."
+  },
+  "admin": {
+    "setup": {
+      "title": "Penyiapan Admin",
+      "description": "Buat akun administrator pertama untuk memulai.",
+      "name": {
+        "label": "Nama"
+      },
+      "email": {
+        "label": "Email"
+      },
+      "password": {
+        "label": "Password",
+        "show": "Tampilkan password",
+        "hide": "Sembunyikan password"
+      },
+      "confirmPassword": {
+        "label": "Konfirmasi password",
+        "show": "Tampilkan password",
+        "hide": "Sembunyikan password"
+      },
+      "submit": "Buat admin",
+      "submitting": "Membuat…",
+      "error": {
+        "nameRequired": "Nama wajib diisi",
+        "nameTooLong": "Nama maksimal 64 karakter",
+        "emailInvalid": "Masukkan alamat email yang valid",
+        "emailTooLong": "Email maksimal 128 karakter",
+        "passwordTooShort": "Password minimal 8 karakter",
+        "passwordTooLong": "Password maksimal 128 karakter",
+        "confirmPasswordRequired": "Konfirmasi password Anda",
+        "passwordMismatch": "Password tidak sama",
+        "serverGeneric": "Terjadi kesalahan. Silakan coba lagi."
+      }
+    }
   }
 }

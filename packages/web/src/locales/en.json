@@ -3,5 +3,40 @@
     "kicker": "TanStack Start Base Template",
     "title": "Start simple, ship quickly.",
     "description": "This base starter intentionally keeps things light: a single home route, clean structure, and the essentials you need to build from scratch."
+  },
+  "admin": {
+    "setup": {
+      "title": "Admin Setup",
+      "description": "Create the first administrator account to get started.",
+      "name": {
+        "label": "Name"
+      },
+      "email": {
+        "label": "Email"
+      },
+      "password": {
+        "label": "Password",
+        "show": "Show password",
+        "hide": "Hide password"
+      },
+      "confirmPassword": {
+        "label": "Confirm password",
+        "show": "Show password",
+        "hide": "Hide password"
+      },
+      "submit": "Create admin",
+      "submitting": "Creating…",
+      "error": {
+        "nameRequired": "Name is required",
+        "nameTooLong": "Name must be at most 64 characters",
+        "emailInvalid": "Enter a valid email address",
+        "emailTooLong": "Email must be at most 128 characters",
+        "passwordTooShort": "Password must be at least 8 characters",
+        "passwordTooLong": "Password must be at most 128 characters",
+        "confirmPasswordRequired": "Confirm your password",
+        "passwordMismatch": "Passwords do not match",
+        "serverGeneric": "Something went wrong. Please try again."
+      }
+    }
   }
 }
