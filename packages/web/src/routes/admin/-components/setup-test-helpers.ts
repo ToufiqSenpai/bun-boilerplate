@@ -1,5 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react"
 
+import type { SetupSignUpInput } from "src/routes/admin/-components/setup-form"
+
 interface SetupFieldLabels {
   readonly name: string
   readonly email: string
@@ -36,5 +38,12 @@ function touchSetupField(label: string, value: string): void {
   fireEvent.blur(input)
 }
 
-export { VALID_SETUP_VALUES, fillValidSetupForm, touchSetupField }
+function successSignUp(calls: SetupSignUpInput[] = []) {
+  return async (input: SetupSignUpInput) => {
+    calls.push(input)
+    return { error: null }
+  }
+}
+
+export { VALID_SETUP_VALUES, fillValidSetupForm, successSignUp, touchSetupField }
 export type { SetupFieldLabels, ValidSetupValues }
