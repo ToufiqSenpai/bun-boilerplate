@@ -19,11 +19,11 @@ An active authenticated period for a User, identified by a token with expiry and
 _Avoid_: Token, Login
 
 **Verification**:
-A time-bound proof used to confirm an identifier or action. Every `User` including the first `User` with `Role` `admin` must complete `Verification` before a `Session` is established; no auto-verified bypass.
+A time-bound proof used to confirm an identifier or action. Every `User` including the first `User` with `Role` `superadmin` must complete `Verification` before a `Session` is established; no auto-verified bypass.
 _Avoid_: OTP, Challenge, Code
 
 **Role**:
-A comma-separated capability label on a User (e.g. `superadmin`, `admin`).
+A static capability label on a User. Exactly three exist: `superadmin` (system owner: user management plus content), `admin` (content only), `user` (nothing). The matrix lives once in code next to the auth module; there are no runtime-created roles.
 _Avoid_: Group, Privilege
 
 **Permission**:
@@ -31,7 +31,7 @@ A resource-action grant checked against a Role (e.g. `articleCategory:create`).
 _Avoid_: Privilege
 
 **Setup**:
-The one-time initialization that creates the first `User` with `Role` `admin` via `/admin/setup`. `Setup` succeeds only after `Verification` is completed, not on `signUp` alone.
+The one-time initialization that creates the first `User` with `Role` `superadmin` via `/admin/setup`. `Setup` succeeds only after `Verification` is completed, not on `signUp` alone.
 _Avoid_: Onboarding, Bootstrap, Install
 
 ### Content

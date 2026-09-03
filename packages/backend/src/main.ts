@@ -39,8 +39,8 @@ export const app = Sentry.withElysia(new Elysia({ name: "app" }))
             "",
             "## Authentication",
             "- Session authentication uses the better-auth session cookie (`better-auth.session_token`).",
-            "- Endpoints marked admin-only require a session whose user has the `admin` role.",
-            "- Email verification is required for new accounts; the first registered user is automatically promoted to `admin`.",
+            "- Protected endpoints require a session whose user holds the documented permission (`superadmin` holds all permissions, `admin` holds content permissions, `user` holds none).",
+            "- Email verification is required for new accounts; the first registered user is automatically promoted to `superadmin`.",
             "- The better-auth endpoints mounted under `/api/auth` (sign-in, sign-up, sessions, etc.) are documented by better-auth's own OpenAPI reference, which is enabled in development."
           ].join("\n")
         },

@@ -30,7 +30,7 @@ describe("GET /api/auth/setup", () => {
     expect(data).toEqual({ needed: false })
   })
 
-  test("first signup via better-auth becomes admin but stays unverified without a session", async () => {
+  test("first signup via better-auth becomes superadmin but stays unverified without a session", async () => {
     await database.delete(users)
 
     const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
@@ -48,7 +48,7 @@ describe("GET /api/auth/setup", () => {
 
       const [row] = await database.select().from(users).where(eq(users.id, response.user.id))
 
-      expect(row?.role).toBe("admin")
+      expect(row?.role).toBe("superadmin")
       expect(row?.emailVerified).toBe(false)
       expect(response.token).toBeNull()
 
@@ -63,7 +63,7 @@ describe("GET /api/auth/setup", () => {
     }
   })
 
-  test("second user is not promoted to admin", async () => {
+  test("second user keeps the default role", async () => {
     await database.delete(users)
 
     const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
@@ -92,8 +92,8 @@ describe("GET /api/auth/setup", () => {
       const [row1] = await database.select().from(users).where(eq(users.id, r1.user.id))
       const [row2] = await database.select().from(users).where(eq(users.id, r2.user.id))
 
-      expect(row1?.role).toBe("admin")
-      expect(row2?.role).not.toBe("admin")
+      expect(row1?.role).toBe("superadmin")
+      expect(row2?.role).toBe("user")
     } finally {
       spy.mockRestore()
     }
@@ -101,7 +101,7 @@ describe("GET /api/auth/setup", () => {
 })
 
 describe("auth macro verification gate", () => {
-  async function createUnverifiedAdminCookie(): Promise<{ cookie: string; userId: string }> {
+  async function createUnverifiedSuperadminCookie(): Promise<{ cookie: string; userId: string }> {
     const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
 
     try {
@@ -115,7 +115,10 @@ describe("auth macro verification gate", () => {
       })
 
       // Real signed session cookie: verify just long enough to sign in, then flip back to unverified.
-      await database.update(users).set({ role: "admin", emailVerified: true }).where(eq(users.id, response.user.id))
+      await database
+        .update(users)
+        .set({ role: "superadmin", emailVerified: true })
+        .where(eq(users.id, response.user.id))
 
       const { headers } = await auth.api.signInEmail({
         body: { email, password },
@@ -153,7 +156,7 @@ describe("auth macro verification gate", () => {
   })
 
   test("session of an unverified user is rejected with 401", async () => {
-    const { cookie, userId } = await createUnverifiedAdminCookie()
+    const { cookie, userId } = await createUnverifiedSuperadminCookie()
 
     // Guard: the session itself resolves, so the 401 below comes from the gate, not a missing session.
     const resolved = await auth.api.getSession({ headers: new Headers({ cookie }) })
@@ -188,5 +191,61 @@ describe("auth macro verification gate", () => {
 
     expect(status).toBe(403)
     expect(error).not.toBeNull()
+  })
+
+  test("session of a verified superadmin passes the permission check", async () => {
+    const { cookie } = await createAuthSession("superadmin")
+
+    const { data, error, status } = await api.api["article-categories"].post(articleCategoryBody(), {
+      headers: { cookie }
+    })
+
+    expect(status).toBe(201)
+    expect(error).toBeNull()
+    expect(data?.slug).toBeDefined()
+  })
+
+  test("a demoted admin loses write access on the very next request", async () => {
+    const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
+
+    try {
+      const email = faker.internet.email().toLowerCase()
+      const password = `${faker.internet.password({ length: 12 })}A1!`
+
+      const { response } = await auth.api.signUpEmail({
+        body: { email, password, name: faker.person.fullName() },
+        headers: new Headers(),
+        returnHeaders: true
+      })
+
+      await database.update(users).set({ role: "admin", emailVerified: true }).where(eq(users.id, response.user.id))
+
+      const { headers } = await auth.api.signInEmail({
+        body: { email, password },
+        headers: new Headers(),
+        returnHeaders: true
+      })
+
+      const cookie = headers
+        .getSetCookie()
+        .map(entry => entry.split(";")[0])
+        .join("; ")
+
+      const before = await api.api["article-categories"].post(articleCategoryBody(), {
+        headers: { cookie }
+      })
+      expect(before.status).toBe(201)
+
+      await database.update(users).set({ role: "user" }).where(eq(users.id, response.user.id))
+
+      const { error, status } = await api.api["article-categories"].post(articleCategoryBody(), {
+        headers: { cookie }
+      })
+
+      expect(status).toBe(403)
+      expect(error).not.toBeNull()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
