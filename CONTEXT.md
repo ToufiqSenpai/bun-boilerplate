@@ -59,3 +59,17 @@ _Avoid_: Permalink, Path, Handle
 **Locale**:
 A supported language/region code (e.g. `en`) that scopes all translations.
 _Avoid_: Language, Lang
+
+### Health
+
+**Liveness**:
+Whether the backend process itself is responsive, probed at `GET /health/live` which answers `200 {"status":"alive"}` without consulting any dependency.
+_Avoid_: Readiness, Healthcheck
+
+**Readiness**:
+Whether the backend can serve traffic right now, probed at `GET /health/ready` which runs every registered `Check` in parallel under a per-check deadline and answers `200 {"status":"ready"}` or `503 {"status":"unavailable"}`.
+_Avoid_: Liveness, Healthcheck
+
+**Check**:
+A named zero-arg async predicate registered on the health plugin; resolving `true` means pass, while rejecting, resolving `false`, or exceeding the deadline means fail. The only built-in `Check` is the database round-trip.
+_Avoid_: Probe, Ping, Healthcheck
