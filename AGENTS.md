@@ -74,6 +74,6 @@ Single-context — one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents
 
 When invoking `/implement` (or implementing any ticket/issue):
 
-1. Before code: `git fetch origin` and ensure working tree clean (`git status`), then `git switch main && git pull` and `git switch -c feat/<issue-number>-<slug>` (e.g. `feat/11-backend-verification-gate`). If branch exists, `git switch` to it.
+1. Before code: `git fetch origin` and ensure working tree clean (`git status`), then `git switch main && git pull` and `git switch -c <type>/<slug>` (e.g. `feat/backend-verification-gate`, `fix/login-null-token`). `<type>` follows conventional-commit types (`feat`, `fix`, `chore`, `docs`, `refactor`, `test`, etc.) chosen to match the ticket — do not default to `feat`. `<slug>` is free-form kebab-case, no ticket number required. If branch exists, `git switch` to it.
 2. Do the work via `/tdd` at the pre-agreed seams, committing in small steps to **that branch** only. Never commit directly to `main`.
 3. After `/code-review` passes: `git push -u origin HEAD` then `gh pr create --title "<issue>: <title>" --body "Fixes #<number>" --base main`. Keep `ready-for-agent` on the issue; PR gets review label.
