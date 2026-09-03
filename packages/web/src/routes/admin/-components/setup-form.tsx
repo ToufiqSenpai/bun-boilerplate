@@ -1,6 +1,8 @@
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
 import { useState } from "react"
+import type { ReactNode } from "react"
+import { z } from "zod"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
@@ -8,7 +10,6 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "src/components/ui/fie
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
-import { z } from "zod"
 
 interface SetupSignUpInput {
   readonly name: string
@@ -46,6 +47,24 @@ function fieldValidator(schema: z.ZodType<string>) {
     if (result.success) return undefined
     return result.error.issues[0]?.message
   }
+}
+
+interface FieldChromeProps {
+  readonly id: string
+  readonly label: string
+  readonly touched: boolean
+  readonly messages: readonly string[]
+  readonly children: ReactNode
+}
+
+function FieldChrome({ id, label, touched, messages, children }: FieldChromeProps) {
+  return (
+    <Field data-invalid={messages.length > 0}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {children}
+      {touched && messages.length > 0 && <FieldError errors={messages.map(message => ({ message }))} />}
+    </Field>
+  )
 }
 
 function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
@@ -102,8 +121,12 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
             <FieldGroup>
               <form.Field name="name" validators={{ onChange: fieldValidator(setupSchema.shape.name) }}>
                 {field => (
-                  <Field data-invalid={field.state.meta.errors.length > 0}>
-                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.name.label")}</FieldLabel>
+                  <FieldChrome
+                    id={field.name}
+                    label={i18n.t("admin.setup.name.label")}
+                    touched={field.state.meta.isTouched}
+                    messages={field.state.meta.errors.map(error => String(error))}
+                  >
                     <Input
                       id={field.name}
                       name={field.name}
@@ -113,17 +136,18 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                         field.handleChange(e.target.value)
                       }}
                     />
-                    {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                      <FieldError errors={field.state.meta.errors.map(msg => ({ message: String(msg) }))} />
-                    )}
-                  </Field>
+                  </FieldChrome>
                 )}
               </form.Field>
 
               <form.Field name="email" validators={{ onChange: fieldValidator(setupSchema.shape.email) }}>
                 {field => (
-                  <Field data-invalid={field.state.meta.errors.length > 0}>
-                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.email.label")}</FieldLabel>
+                  <FieldChrome
+                    id={field.name}
+                    label={i18n.t("admin.setup.email.label")}
+                    touched={field.state.meta.isTouched}
+                    messages={field.state.meta.errors.map(error => String(error))}
+                  >
                     <Input
                       id={field.name}
                       name={field.name}
@@ -134,17 +158,18 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                         field.handleChange(e.target.value)
                       }}
                     />
-                    {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                      <FieldError errors={field.state.meta.errors.map(msg => ({ message: String(msg) }))} />
-                    )}
-                  </Field>
+                  </FieldChrome>
                 )}
               </form.Field>
 
               <form.Field name="password" validators={{ onChange: fieldValidator(setupSchema.shape.password) }}>
                 {field => (
-                  <Field data-invalid={field.state.meta.errors.length > 0}>
-                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.password.label")}</FieldLabel>
+                  <FieldChrome
+                    id={field.name}
+                    label={i18n.t("admin.setup.password.label")}
+                    touched={field.state.meta.isTouched}
+                    messages={field.state.meta.errors.map(error => String(error))}
+                  >
                     <PasswordInput
                       id={field.name}
                       name={field.name}
@@ -156,10 +181,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                         field.handleChange(e.target.value)
                       }}
                     />
-                    {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                      <FieldError errors={field.state.meta.errors.map(msg => ({ message: String(msg) }))} />
-                    )}
-                  </Field>
+                  </FieldChrome>
                 )}
               </form.Field>
 
@@ -176,8 +198,12 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                 }}
               >
                 {field => (
-                  <Field data-invalid={field.state.meta.errors.length > 0}>
-                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.confirmPassword.label")}</FieldLabel>
+                  <FieldChrome
+                    id={field.name}
+                    label={i18n.t("admin.setup.confirmPassword.label")}
+                    touched={field.state.meta.isTouched}
+                    messages={field.state.meta.errors.map(error => String(error))}
+                  >
                     <PasswordInput
                       id={field.name}
                       name={field.name}
@@ -189,10 +215,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                         field.handleChange(e.target.value)
                       }}
                     />
-                    {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                      <FieldError errors={field.state.meta.errors.map(msg => ({ message: String(msg) }))} />
-                    )}
-                  </Field>
+                  </FieldChrome>
                 )}
               </form.Field>
 
