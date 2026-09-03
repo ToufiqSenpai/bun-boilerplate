@@ -8,6 +8,7 @@ import { z } from "zod"
 
 import { config } from "./common/config.js"
 import { errorPlugin } from "./common/error.js"
+import { healthPlugin } from "./common/health.js"
 import { localePlugin } from "./common/i18n.js"
 import { logger } from "./common/logger.js"
 import { articlePlugin, articleTags } from "./modules/article/index.js"
@@ -82,6 +83,7 @@ export const app = Sentry.withElysia(new Elysia({ name: "app" }))
   )
   .use(errorPlugin)
   .use(localePlugin)
+  .use(healthPlugin)
   .group("/api", app => app.use(authPlugin).use(articlePlugin))
 
 if (import.meta.main && config.app.environment !== "test") {
