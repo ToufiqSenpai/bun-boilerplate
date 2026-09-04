@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react"
-
 import { AdminSetupPage, isEmailTakenError, requireSetup } from "src/routes/admin/setup"
 interface GuardInput {
   readonly data: { readonly needed: boolean } | null | undefined

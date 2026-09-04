@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-
 import { i18n } from "src/i18n"
 
 await i18n.changeLanguage("id")
@@ -8,7 +7,11 @@ const { VerificationPendingCard } = await import("src/routes/admin/-components/v
 describe("VerificationPendingCard (Locale id)", () => {
   test("renders the pending alert in Indonesian with email and 30-minute expiry", () => {
     render(
-      <VerificationPendingCard email="admin@example.com" onResend={async () => ({ error: null })} onBackToLogin={() => {}} />
+      <VerificationPendingCard
+        email="admin@example.com"
+        onResend={async () => ({ error: null })}
+        onBackToLogin={() => {}}
+      />
     )
 
     const alert = screen.getByRole("alert")
