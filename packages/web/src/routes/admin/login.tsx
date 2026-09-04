@@ -22,7 +22,9 @@ export const Route = createFileRoute("/admin/login")({
   head: () => ({
     meta: [{ title: "Admin Login" }]
   }),
-  loader: async () => requireSetupComplete(await api.auth.setup.get()),
+  loader: async () => {
+    requireSetupComplete(await api.auth.setup.get())
+  },
   component: AdminLoginPage
 })
 

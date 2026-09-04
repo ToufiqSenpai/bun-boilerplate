@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react"
-
 import { AdminLoginPage, requireSetupComplete } from "src/routes/admin/login"
 
 interface GuardInput {

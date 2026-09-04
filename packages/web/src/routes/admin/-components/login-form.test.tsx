@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-
 import { AdminLoginForm, type SignInInput } from "src/routes/admin/-components/login-form"
 
 const LABELS = {

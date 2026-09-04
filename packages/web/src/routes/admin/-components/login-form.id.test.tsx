@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-
 import { i18n } from "src/i18n"
 
 await i18n.changeLanguage("id")
