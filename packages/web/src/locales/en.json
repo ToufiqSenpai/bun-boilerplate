@@ -47,6 +47,29 @@
           "generic": "Something went wrong. Please try again."
         }
       }
+    },
+    "login": {
+      "title": "Admin Login",
+      "description": "Sign in to access the admin dashboard.",
+      "email": {
+        "label": "Email"
+      },
+      "password": {
+        "label": "Password",
+        "show": "Show password",
+        "hide": "Hide password"
+      },
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "error": {
+        "email": {
+          "invalid": "Enter a valid email address"
+        },
+        "password": {
+          "required": "Password is required"
+        },
+        "invalidCredentials": "Email or password is incorrect"
+      }
     }
   }
 }

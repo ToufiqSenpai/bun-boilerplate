@@ -47,6 +47,29 @@
           "generic": "Terjadi kesalahan. Silakan coba lagi."
         }
       }
+    },
+    "login": {
+      "title": "Login Admin",
+      "description": "Masuk untuk mengakses dasbor admin.",
+      "email": {
+        "label": "Email"
+      },
+      "password": {
+        "label": "Password",
+        "show": "Tampilkan password",
+        "hide": "Sembunyikan password"
+      },
+      "submit": "Masuk",
+      "submitting": "Masuk…",
+      "error": {
+        "email": {
+          "invalid": "Masukkan alamat email yang valid"
+        },
+        "password": {
+          "required": "Password wajib diisi"
+        },
+        "invalidCredentials": "Email atau password salah"
+      }
     }
   }
 }
