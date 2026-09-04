@@ -22,8 +22,10 @@ export function requireSetup(result: SetupStatusResult): SetupStatus {
   return data
 }
 
+export const EMAIL_TAKEN_MESSAGE_PATTERN = /already (taken|exists)/i
+
 export function isEmailTakenError(message: string | undefined | null): boolean {
-  return message !== undefined && message !== null && /already (taken|exists)/i.test(message)
+  return message !== undefined && message !== null && EMAIL_TAKEN_MESSAGE_PATTERN.test(message)
 }
 
 export const Route = createFileRoute("/admin/setup")({
