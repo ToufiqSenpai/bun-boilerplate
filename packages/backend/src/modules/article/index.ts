@@ -77,7 +77,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return status(201, await articleCategoryService.create(body))
     },
     {
-      admin: true,
+      permissions: { articleCategory: ["create"] },
       body: createArticleCategorySchema.describe("Category fields including the first translation"),
       response: {
         201: articleCategorySchema.describe("The created article category with its first translation")
@@ -97,7 +97,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return status(created ? 201 : 200, translation)
     },
     {
-      admin: true,
+      permissions: { articleCategory: ["update"] },
       params: articleCategoryTranslationParamsSchema,
       body: upsertArticleCategoryTranslationSchema.describe("Translation fields for the locale in the path"),
       response: {
@@ -119,7 +119,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return status(204, undefined)
     },
     {
-      admin: true,
+      permissions: { articleCategory: ["delete"] },
       params: deleteArticleCategoryParamsSchema,
       response: {
         204: deleteArticleCategoryNoContentSchema,

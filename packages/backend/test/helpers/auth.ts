@@ -6,16 +6,44 @@ import { emailService } from "../../src/common/email.js"
 import { auth } from "../../src/modules/auth/index.js"
 import { users } from "../../src/modules/auth/tables/auth.table.js"
 
-export async function createAuthSession(role: string): Promise<Record<string, string>> {
+export interface UnverifiedSignUp {
+  userId: string
+  token: string | null
+}
+
+export interface VerifiedUser {
+  userId: string
+  cookie: string
+}
+
+export async function signUpUnverified(): Promise<UnverifiedSignUp> {
+  const email = faker.internet.email().toLowerCase()
+  const password = `${faker.internet.password({ length: 12 })}A1!`
+
   const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
 
   try {
-    const email = faker.internet.email().toLowerCase()
-    const password = `${faker.internet.password({ length: 12 })}A1!`
-    const name = faker.person.fullName()
-
     const { response } = await auth.api.signUpEmail({
-      body: { email, password, name },
+      body: { email, password, name: faker.person.fullName() },
+      headers: new Headers(),
+      returnHeaders: true
+    })
+
+    return { userId: response.user.id, token: response.token }
+  } finally {
+    spy.mockRestore()
+  }
+}
+
+export async function createVerifiedUser(role: string): Promise<VerifiedUser> {
+  const email = faker.internet.email().toLowerCase()
+  const password = `${faker.internet.password({ length: 12 })}A1!`
+
+  const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
+
+  try {
+    const { response } = await auth.api.signUpEmail({
+      body: { email, password, name: faker.person.fullName() },
       headers: new Headers(),
       returnHeaders: true
     })
@@ -30,11 +58,17 @@ export async function createAuthSession(role: string): Promise<Record<string, st
 
     const cookie = headers
       .getSetCookie()
-      .map(cookie => cookie.split(";")[0])
+      .map(entry => entry.split(";")[0])
       .join("; ")
 
-    return { cookie }
+    return { userId: response.user.id, cookie }
   } finally {
     spy.mockRestore()
   }
+}
+
+export async function createAuthSession(role: string): Promise<Record<string, string>> {
+  const { cookie } = await createVerifiedUser(role)
+
+  return { cookie }
 }

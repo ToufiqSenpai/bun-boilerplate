@@ -11,12 +11,12 @@ import { database } from "../../common/database.js"
 import { emailService } from "../../common/email.js"
 import { logger } from "../../common/logger.js"
 import type { OpenApiTag } from "../../common/openapi.js"
+import { ac, isKnownRole, roles, type PermissionRequirement } from "./permissions.js"
 import { authSetupResponseSchema } from "./schemas/auth.schema.js"
 import { AuthService } from "./services/auth.service.js"
 import { accounts, sessions, users, verifications } from "./tables/auth.table.js"
 import { ResetPasswordTemplate } from "./templates/reset-password.template.js"
 import { VerifyEmailTemplate } from "./templates/verify-email.template.js"
-import { hasRole } from "./utils/role.js"
 
 // OWASP Password Storage Cheat Sheet recommendation for Argon2id
 // Source: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
@@ -149,7 +149,7 @@ export const auth = betterAuth({
       logger.info({ userId: user.id }, "Email verified successfully")
     }
   },
-  plugins: [admin(), ...(config.app.environment === "development" ? [openAPI()] : [])],
+  plugins: [admin({ ac, roles }), ...(config.app.environment === "development" ? [openAPI()] : [])],
   databaseHooks: {
     session: {
       create: {
@@ -169,8 +169,8 @@ export const auth = betterAuth({
           const [result] = await database.select({ value: count() }).from(users)
 
           if ((result?.value ?? 0) === 1) {
-            await database.update(users).set({ role: "admin" }).where(eq(users.id, user.id))
-            logger.info({ userId: user.id }, "First user auto-promoted to admin")
+            await database.update(users).set({ role: "superadmin" }).where(eq(users.id, user.id))
+            logger.info({ userId: user.id }, "First user auto-promoted to superadmin")
           }
         }
       },
@@ -208,28 +208,30 @@ export const authPlugin = new Elysia({ name: "auth", tags: ["Auth"] })
     detail: {
       summary: "Check initial setup status",
       description:
-        "Reports whether the instance still has no accounts. The first registered user is automatically promoted to admin but must verify their email before a session is established."
+        "Reports whether the instance still has no accounts. The first registered user is automatically promoted to superadmin but must verify their email before a session is established."
     }
   })
   .mount(auth.handler)
-  .macro("auth", {
+  .macro("permissions", (requirement: PermissionRequirement) => ({
     async resolve({ status, request: { headers } }) {
       const session = await auth.api.getSession({ headers })
 
       if (!session) return status(401)
       if (!session.user.emailVerified) return status(401)
 
+      const callerRole = session.user.role
+
+      if (!callerRole || !isKnownRole(callerRole)) return status(403)
+
+      const check = await auth.api.userHasPermission({
+        body: { role: callerRole, permissions: requirement }
+      })
+
+      if (!check.success) return status(403)
+
       return {
         user: session.user,
         session: session.session
       }
     }
-  })
-  .macro("admin", {
-    auth: true,
-    resolve: ({ status, user }) => {
-      if (!hasRole(user, "admin")) return status(403)
-
-      return { user }
-    }
-  })
+  }))
