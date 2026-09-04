@@ -1,42 +1,38 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { Button } from "src/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
-import { Field, FieldGroup, FieldLabel } from "src/components/ui/field"
-import { Input } from "src/components/ui/input"
+import { createFileRoute, redirect } from "@tanstack/react-router"
+import { AdminLoginForm } from "src/routes/admin/-components/login-form"
+import { api, authClient } from "src/utils/client"
+
+interface SetupStatus {
+  readonly needed: boolean
+}
+
+interface SetupStatusResult {
+  readonly data: SetupStatus | null | undefined
+  readonly error: unknown
+  readonly status: number
+}
+
+export function requireSetupComplete(result: SetupStatusResult): void {
+  const { data, error, status } = result
+
+  if (error === null && status === 200 && data?.needed) throw redirect({ to: "/admin/setup" })
+}
 
 export const Route = createFileRoute("/admin/login")({
   head: () => ({
     meta: [{ title: "Admin Login" }]
   }),
+  loader: async () => requireSetupComplete(await api.auth.setup.get()),
   component: AdminLoginPage
 })
 
-function AdminLoginPage() {
+export function AdminLoginPage() {
   return (
-    <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Admin Login</CardTitle>
-          <CardDescription>Sign in to access the admin dashboard.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
-              <Input id="email" name="email" type="email" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="password">Password</FieldLabel>
-              <Input id="password" name="password" type="password" />
-            </Field>
-          </FieldGroup>
-        </CardContent>
-        <CardFooter>
-          <Button type="button" className="w-full">
-            Sign in
-          </Button>
-        </CardFooter>
-      </Card>
-    </main>
+    <AdminLoginForm
+      onSignIn={async input => {
+        const { error } = await authClient.signIn.email(input)
+        return { error }
+      }}
+    />
   )
 }
