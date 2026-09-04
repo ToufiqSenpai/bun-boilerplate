@@ -1,12 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { AdminLoginForm, AdminLoginPage, requireSetupComplete, type SignInInput } from "src/routes/admin/login"
+import { AdminLoginPage, requireSetupComplete } from "src/routes/admin/login"
 
 interface GuardInput {
   readonly data: { readonly needed: boolean } | null | undefined
   readonly error: unknown
   readonly status: number
 }
-
 function redirectsToSetup(result: GuardInput): boolean {
   try {
     requireSetupComplete(result)
@@ -56,9 +55,9 @@ function touchField(label: string, value: string) {
   fireEvent.blur(input)
 }
 
-describe("AdminLoginForm", () => {
+describe("AdminLoginPage", () => {
   test("renders header copy and localized labels", () => {
-    render(<AdminLoginForm onSignIn={async () => ({ error: null })} />)
+    render(<AdminLoginPage onSignIn={async () => ({ error: null })} />)
 
     expect(screen.getByText("Admin Login")).toBeTruthy()
     expect(screen.getByText("Sign in to access the admin dashboard.")).toBeTruthy()
@@ -71,7 +70,7 @@ describe("AdminLoginForm", () => {
     { label: LABELS.email, value: "not-an-email", expected: "Enter a valid email address" },
     { label: LABELS.password, value: "", expected: "Password is required" }
   ])("shows inline validation error: $expected", async ({ label, value, expected }) => {
-    render(<AdminLoginForm onSignIn={async () => ({ error: null })} />)
+    render(<AdminLoginPage onSignIn={async () => ({ error: null })} />)
 
     touchField(label, value)
 
@@ -79,7 +78,7 @@ describe("AdminLoginForm", () => {
   })
 
   test("toggles password visibility with an accessible mask button", () => {
-    render(<AdminLoginForm onSignIn={async () => ({ error: null })} />)
+    render(<AdminLoginPage onSignIn={async () => ({ error: null })} />)
 
     const passwordInput = screen.getByLabelText(LABELS.password)
     expect(passwordInput.getAttribute("type")).toBe("password")
@@ -92,7 +91,7 @@ describe("AdminLoginForm", () => {
   })
 
   test("shows a single generic destructive alert on any sign-in failure", async () => {
-    render(<AdminLoginForm onSignIn={async () => ({ error: { message: "User not found" } })} />)
+    render(<AdminLoginPage onSignIn={async () => ({ error: { message: "User not found" } })} />)
 
     fillValidForm()
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }))
@@ -104,9 +103,9 @@ describe("AdminLoginForm", () => {
   })
 
   test("sends the entered credentials to the sign-in seam exactly once", async () => {
-    const calls: SignInInput[] = []
+    const calls: { email: string; password: string }[] = []
     render(
-      <AdminLoginForm
+      <AdminLoginPage
         onSignIn={async input => {
           calls.push(input)
           return { error: null }
@@ -127,7 +126,7 @@ describe("AdminLoginForm", () => {
       release = resolve
     })
     render(
-      <AdminLoginForm
+      <AdminLoginPage
         onSignIn={async () => {
           await gate
           return { error: null }

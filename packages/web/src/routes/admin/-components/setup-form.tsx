@@ -5,10 +5,10 @@ import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
 import { FieldGroup } from "src/components/ui/field"
+import { FieldChrome, fieldValidator } from "src/components/ui/field-chrome"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
-import { FieldChrome, fieldValidator } from "src/routes/admin/-components/field-chrome"
 import { z } from "zod"
 
 interface SetupSignUpInput {

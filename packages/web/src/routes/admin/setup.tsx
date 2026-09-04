@@ -1,7 +1,16 @@
 import { createFileRoute, notFound } from "@tanstack/react-router"
 import { AdminSetupForm } from "src/routes/admin/-components/setup-form"
-import type { SetupStatus, SetupStatusResult } from "src/routes/admin/-components/setup-status"
 import { api, authClient } from "src/utils/client"
+
+export interface SetupStatus {
+  readonly needed: boolean
+}
+
+export interface SetupStatusResult {
+  readonly data: SetupStatus | null | undefined
+  readonly error: unknown
+  readonly status: number
+}
 
 export function requireSetup(result: SetupStatusResult): SetupStatus {
   const { data, error, status } = result

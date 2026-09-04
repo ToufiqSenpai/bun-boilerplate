@@ -6,25 +6,20 @@ import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
 import { FieldGroup } from "src/components/ui/field"
+import { FieldChrome, fieldValidator } from "src/components/ui/field-chrome"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
-import { FieldChrome, fieldValidator } from "src/routes/admin/-components/field-chrome"
-import type { SetupStatusResult } from "src/routes/admin/-components/setup-status"
+import type { SetupStatusResult } from "src/routes/admin/setup"
 import { api, authClient } from "src/utils/client"
 import { z } from "zod"
-
-interface SignInInput {
-  readonly email: string
-  readonly password: string
-}
 
 interface SignInResult {
   readonly error: { readonly message?: string | undefined } | null
 }
 
-interface AdminLoginFormProps {
-  readonly onSignIn: (input: SignInInput) => Promise<SignInResult>
+interface AdminLoginPageProps {
+  readonly onSignIn?: (input: { readonly email: string; readonly password: string }) => Promise<SignInResult>
 }
 
 const loginSchema = z.object({
@@ -48,7 +43,13 @@ export const Route = createFileRoute("/admin/login")({
   component: AdminLoginPage
 })
 
-export function AdminLoginForm({ onSignIn }: AdminLoginFormProps) {
+export function AdminLoginPage({ onSignIn }: AdminLoginPageProps = {}) {
+  const signIn =
+    onSignIn ??
+    (async input => {
+      const { error } = await authClient.signIn.email(input)
+      return { error }
+    })
   const [serverError, setServerError] = useState<string | null>(null)
 
   const form = useForm({
@@ -67,7 +68,7 @@ export function AdminLoginForm({ onSignIn }: AdminLoginFormProps) {
         return
       }
 
-      const { error } = await onSignIn({ email: parsed.data.email, password: parsed.data.password })
+      const { error } = await signIn({ email: parsed.data.email, password: parsed.data.password })
 
       if (error) {
         setServerError(i18n.t("admin.login.error.invalidCredentials"))
@@ -161,15 +162,4 @@ export function AdminLoginForm({ onSignIn }: AdminLoginFormProps) {
   )
 }
 
-export function AdminLoginPage() {
-  return (
-    <AdminLoginForm
-      onSignIn={async input => {
-        const { error } = await authClient.signIn.email(input)
-        return { error }
-      }}
-    />
-  )
-}
-
-export type { AdminLoginFormProps, SignInInput, SignInResult }
+export type { SignInResult }
