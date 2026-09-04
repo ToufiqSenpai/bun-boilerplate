@@ -1,14 +1,14 @@
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
 import { useState } from "react"
-import type { ReactNode } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
-import { Field, FieldError, FieldGroup, FieldLabel } from "src/components/ui/field"
+import { FieldGroup } from "src/components/ui/field"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
+import { FieldChrome, fieldValidator } from "src/routes/admin/-components/field-chrome"
 import { z } from "zod"
 
 interface SetupSignUpInput {
@@ -41,14 +41,6 @@ const setupSchema = z
     path: ["confirmPassword"]
   })
 
-function fieldValidator(schema: z.ZodType<string>) {
-  return ({ value }: { value: string }): string | undefined => {
-    const result = schema.safeParse(value)
-    if (result.success) return undefined
-    return result.error.issues[0]?.message
-  }
-}
-
 interface ConfirmPasswordFieldApi {
   readonly form: {
     getFieldValue(field: string): string
@@ -66,24 +58,6 @@ function confirmPasswordValidator({
   const password = fieldApi.form.getFieldValue("password")
   if (value !== password) return i18n.t("admin.setup.error.password.mismatch")
   return undefined
-}
-
-interface FieldChromeProps {
-  readonly id: string
-  readonly label: string
-  readonly touched: boolean
-  readonly messages: readonly string[]
-  readonly children: ReactNode
-}
-
-function FieldChrome({ id, label, touched, messages, children }: FieldChromeProps) {
-  return (
-    <Field data-invalid={messages.length > 0}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      {children}
-      {touched && messages.length > 0 && <FieldError errors={messages.map(message => ({ message }))} />}
-    </Field>
-  )
 }
 
 interface PasswordFieldConfig {
