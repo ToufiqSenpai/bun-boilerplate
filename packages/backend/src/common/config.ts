@@ -82,7 +82,8 @@ export const configSchema = z
 export const config = configSchema.parse({
   app: {
     environment: process.env.NODE_ENV,
-    port: defaultEnvironment({ production: 80 })
+    port: defaultEnvironment({ production: 80 }),
+    origins: defaultEnvironment({ development: ["http://localhost:3000"] })
   },
   auth: {
     secret: process.env.BETTER_AUTH_SECRET,
