@@ -44,7 +44,7 @@ export function AdminSetupPage() {
     return (
       <VerificationPendingCard
         email={pendingEmail}
-        onResend={async () => {
+        onSend={async () => {
           const { error } = await authClient.sendVerificationEmail({ email: pendingEmail })
           return { error }
         }}

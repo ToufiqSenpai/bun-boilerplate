@@ -4,20 +4,20 @@ import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardFooter } from "src/components/ui/card"
 import { i18n } from "src/i18n"
 
-const RESEND_COOLDOWN_SECONDS = 60
+const SEND_COOLDOWN_SECONDS = 60
 
-interface ResendResult {
+interface SendResult {
   readonly error: { readonly status?: number | undefined; readonly message?: string | undefined } | null
 }
 
 interface VerificationPendingCardProps {
   readonly email: string
-  readonly onResend: () => Promise<ResendResult>
+  readonly onSend: () => Promise<SendResult>
   readonly onBackToLogin: () => void
 }
 
-function VerificationPendingCard({ email, onResend, onBackToLogin }: VerificationPendingCardProps) {
-  const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS)
+function VerificationPendingCard({ email, onSend, onBackToLogin }: VerificationPendingCardProps) {
+  const [cooldown, setCooldown] = useState(SEND_COOLDOWN_SECONDS)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,18 +31,18 @@ function VerificationPendingCard({ email, onResend, onBackToLogin }: Verificatio
     }
   }, [])
 
-  const resend = async () => {
+  const send = async () => {
     setSending(true)
     setError(null)
 
-    const { error: resendError } = await onResend()
+    const { error: sendError } = await onSend()
 
     setSending(false)
-    setCooldown(RESEND_COOLDOWN_SECONDS)
+    setCooldown(SEND_COOLDOWN_SECONDS)
 
-    if (resendError) {
+    if (sendError) {
       setError(
-        resendError.status === 429
+        sendError.status === 429
           ? i18n.t("admin.setup.success.error.rateLimited")
           : i18n.t("admin.setup.error.server.generic")
       )
@@ -68,14 +68,14 @@ function VerificationPendingCard({ email, onResend, onBackToLogin }: Verificatio
               className="w-full"
               disabled={cooldown > 0 || sending}
               onClick={() => {
-                void resend()
+                void send()
               }}
             >
-              {i18n.t("admin.setup.success.resend")}
+              {i18n.t("admin.setup.success.send")}
             </Button>
             {cooldown > 0 && (
               <p className="text-xs text-muted-foreground">
-                {i18n.t("admin.setup.success.resendCooldown", { seconds: cooldown })}
+                {i18n.t("admin.setup.success.sendCooldown", { seconds: cooldown })}
               </p>
             )}
           </div>
@@ -91,4 +91,4 @@ function VerificationPendingCard({ email, onResend, onBackToLogin }: Verificatio
 }
 
 export { VerificationPendingCard }
-export type { ResendResult, VerificationPendingCardProps }
+export type { SendResult, VerificationPendingCardProps }

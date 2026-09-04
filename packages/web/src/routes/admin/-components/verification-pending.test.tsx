@@ -1,15 +1,15 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { VerificationPendingCard } from "src/routes/admin/-components/verification-pending"
 
-interface ResendResult {
+interface SendResult {
   readonly error: { readonly status?: number | undefined; readonly message?: string | undefined } | null
 }
 
-function renderPending(onResend?: () => Promise<ResendResult>) {
+function renderPending(onSend?: () => Promise<SendResult>) {
   return render(
     <VerificationPendingCard
       email="admin@example.com"
-      onResend={onResend ?? (async () => ({ error: null }))}
+      onSend={onSend ?? (async () => ({ error: null }))}
       onBackToLogin={() => {}}
     />
   )
@@ -26,21 +26,21 @@ describe("VerificationPendingCard", () => {
     expect(alert.dataset.slot).toBe("alert")
     expect(alert.className).not.toContain("text-destructive")
 
-    expect(screen.getByRole("button", { name: "Resend email" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send email" })).toBeTruthy()
     expect(screen.getByText("Back to login")).toBeTruthy()
 
     // The pending card replaces the setup form entirely.
     expect(container.querySelector("form")).toBeNull()
   })
 
-  test("disables resend during the 60s cooldown with a countdown label", () => {
+  test("disables send during the 60s cooldown with a countdown label", () => {
     renderPending()
 
-    expect(screen.getByRole("button", { name: "Resend email" }).hasAttribute("disabled")).toBe(true)
-    expect(screen.getByText("Resend available in 60s")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send email" }).hasAttribute("disabled")).toBe(true)
+    expect(screen.getByText("Available again in 60s")).toBeTruthy()
   })
 
-  test("enables resend after the cooldown and re-arms it on click", async () => {
+  test("enables send after the cooldown and re-arms it on click", async () => {
     vi.useFakeTimers()
     try {
       const calls: number[] = []
@@ -53,20 +53,20 @@ describe("VerificationPendingCard", () => {
         await vi.advanceTimersByTimeAsync(60_000)
       })
 
-      const resend = screen.getByRole("button", { name: "Resend email" })
-      expect(resend.hasAttribute("disabled")).toBe(false)
+      const send = screen.getByRole("button", { name: "Send email" })
+      expect(send.hasAttribute("disabled")).toBe(false)
 
-      fireEvent.click(resend)
+      fireEvent.click(send)
       await act(async () => {})
 
       expect(calls).toEqual([1])
-      expect(screen.getByRole("button", { name: "Resend email" }).hasAttribute("disabled")).toBe(true)
+      expect(screen.getByRole("button", { name: "Send email" }).hasAttribute("disabled")).toBe(true)
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(60_000)
       })
 
-      expect(screen.getByRole("button", { name: "Resend email" }).hasAttribute("disabled")).toBe(false)
+      expect(screen.getByRole("button", { name: "Send email" }).hasAttribute("disabled")).toBe(false)
       expect(calls).toEqual([1])
     } finally {
       vi.useRealTimers()
@@ -82,7 +82,7 @@ describe("VerificationPendingCard", () => {
         await vi.advanceTimersByTimeAsync(60_000)
       })
 
-      fireEvent.click(screen.getByRole("button", { name: "Resend email" }))
+      fireEvent.click(screen.getByRole("button", { name: "Send email" }))
       await act(async () => {})
 
       const alert = screen.getByText("Too many attempts. Please wait a minute and try again.")
@@ -92,7 +92,7 @@ describe("VerificationPendingCard", () => {
     }
   })
 
-  test("shows the generic fallback alert as destructive on other resend failures", async () => {
+  test("shows the generic fallback alert as destructive on other send failures", async () => {
     vi.useFakeTimers()
     try {
       renderPending(async () => ({ error: { message: "SMTP down" } }))
@@ -101,7 +101,7 @@ describe("VerificationPendingCard", () => {
         await vi.advanceTimersByTimeAsync(60_000)
       })
 
-      fireEvent.click(screen.getByRole("button", { name: "Resend email" }))
+      fireEvent.click(screen.getByRole("button", { name: "Send email" }))
       await act(async () => {})
 
       expect(screen.getByText("Something went wrong. Please try again.")).toBeTruthy()

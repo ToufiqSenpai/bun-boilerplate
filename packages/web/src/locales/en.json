@@ -50,12 +50,12 @@
       "success": {
         "title": "Check your email",
         "description": "We sent a verification link to {{email}}. It expires in 30 minutes.",
-        "resend": "Resend email",
-        "resendCooldown": "Resend available in {{seconds}}s",
         "backToLogin": "Back to login",
         "error": {
           "rateLimited": "Too many attempts. Please wait a minute and try again."
-        }
+        },
+        "send": "Send email",
+        "sendCooldown": "Available again in {{seconds}}s"
       }
     },
     "login": {
