@@ -100,7 +100,7 @@ describe("GET /api/auth/setup", () => {
   })
 })
 
-describe("auth macro verification gate", () => {
+describe("session verification gate", () => {
   async function createUnverifiedSuperadminCookie(): Promise<{ cookie: string; userId: string }> {
     const spy = vi.spyOn(emailService, "send").mockResolvedValue(undefined)
 

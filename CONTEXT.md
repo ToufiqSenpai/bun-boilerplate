@@ -15,7 +15,7 @@ A provider linkage for a User (e.g. OAuth provider, password credential) storing
 _Avoid_: ProviderAccount, OAuthAccount, Connection
 
 **Session**:
-An active authenticated period for a User, identified by a token with expiry and optional impersonation. A `Session` is only valid after `Verification` is complete (`emailVerified`), enforced in the `auth` macro; no `Session` is created on `signUp` alone when `requireEmailVerification` is true.
+An active authenticated period for a User, identified by a token with expiry and optional impersonation. A `Session` is only valid after `Verification` is complete (`emailVerified`), enforced in the `permissions` macro; no `Session` is created on `signUp` alone when `requireEmailVerification` is true.
 _Avoid_: Token, Login
 
 **Verification**:
