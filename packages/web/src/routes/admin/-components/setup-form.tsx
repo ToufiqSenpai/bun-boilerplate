@@ -2,7 +2,6 @@ import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
 import { useState } from "react"
 import type { ReactNode } from "react"
-import { z } from "zod"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
@@ -10,6 +9,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "src/components/ui/fie
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
+import { z } from "zod"
 
 interface SetupSignUpInput {
   readonly name: string
@@ -226,6 +226,7 @@ function AdminSetupForm({ onSignUp, onSetupComplete }: AdminSetupFormProps) {
                       <PasswordInput
                         id={field.name}
                         name={field.name}
+                        autoComplete="new-password"
                         showPasswordLabel={config.showLabel}
                         hidePasswordLabel={config.hideLabel}
                         value={field.state.value}

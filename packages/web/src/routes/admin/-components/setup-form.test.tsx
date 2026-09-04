@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-
 import { AdminSetupForm } from "src/routes/admin/-components/setup-form"
 import type { SetupSignUpInput } from "src/routes/admin/-components/setup-form"
 
@@ -87,6 +86,8 @@ describe("AdminSetupForm", () => {
     const confirmInput = screen.getByLabelText(LABELS.confirmPassword)
 
     expect(passwordInput.getAttribute("type")).toBe("password")
+    expect(passwordInput.getAttribute("autocomplete")).toBe("new-password")
+    expect(confirmInput.getAttribute("autocomplete")).toBe("new-password")
 
     for (const toggle of toggles) fireEvent.click(toggle)
 
