@@ -2,11 +2,11 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 import { AdminSetupForm } from "src/routes/admin/-components/setup-form"
 import { api, authClient } from "src/utils/client"
 
-interface SetupStatus {
+export interface SetupStatus {
   readonly needed: boolean
 }
 
-interface SetupStatusResult {
+export interface SetupStatusResult {
   readonly data: SetupStatus | null | undefined
   readonly error: unknown
   readonly status: number
