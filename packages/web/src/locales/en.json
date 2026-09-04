@@ -46,6 +46,16 @@
         "server": {
           "generic": "Something went wrong. Please try again."
         }
+      },
+      "success": {
+        "title": "Check your email",
+        "description": "We sent a verification link to {{email}}. It expires in 30 minutes.",
+        "backToLogin": "Back to login",
+        "error": {
+          "rateLimited": "Too many attempts. Please wait a minute and try again."
+        },
+        "send": "Send email",
+        "sendCooldown": "Available again in {{seconds}}s"
       }
     },
     "login": {

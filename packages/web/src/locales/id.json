@@ -46,6 +46,16 @@
         "server": {
           "generic": "Terjadi kesalahan. Silakan coba lagi."
         }
+      },
+      "success": {
+        "title": "Cek email Anda",
+        "description": "Kami mengirim tautan verifikasi ke {{email}}. Tautan berlaku 30 menit.",
+        "backToLogin": "Kembali ke login",
+        "error": {
+          "rateLimited": "Terlalu banyak percobaan. Tunggu satu menit lalu coba lagi."
+        },
+        "send": "Kirim email",
+        "sendCooldown": "Tersedia lagi dalam {{seconds}} detik"
       }
     },
     "login": {

@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react"
-import { AdminSetupPage, requireSetup } from "src/routes/admin/setup"
-
+import { AdminSetupPage, isEmailTakenError, requireSetup } from "src/routes/admin/setup"
 interface GuardInput {
   readonly data: { readonly needed: boolean } | null | undefined
   readonly error: unknown
@@ -27,6 +26,20 @@ describe("requireSetup", () => {
 
   test("throws on backend error status", () => {
     expect(isSetupRejected({ data: null, error: { message: "boom" }, status: 500 })).toBe(true)
+  })
+})
+
+describe("isEmailTakenError", () => {
+  test("matches duplicate-email server messages", () => {
+    expect(isEmailTakenError("User already exists")).toBe(true)
+    expect(isEmailTakenError("Email already taken")).toBe(true)
+    expect(isEmailTakenError("EMAIL ALREADY TAKEN")).toBe(true)
+  })
+
+  test("rejects other server messages", () => {
+    expect(isEmailTakenError("Enter a valid email address")).toBe(false)
+    expect(isEmailTakenError("Password too weak")).toBe(false)
+    expect(isEmailTakenError(undefined)).toBe(false)
   })
 })
 
