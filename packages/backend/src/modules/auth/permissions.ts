@@ -21,11 +21,6 @@ export const roles = {
     user: [],
     session: [],
     articleCategory: ["create", "update", "delete"]
-  }),
-  user: ac.newRole({
-    user: [],
-    session: [],
-    articleCategory: []
   })
 }
 

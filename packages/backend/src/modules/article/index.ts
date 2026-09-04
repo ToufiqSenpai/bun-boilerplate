@@ -77,7 +77,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return status(201, await articleCategoryService.create(body))
     },
     {
-      requirePermission: { articleCategory: ["create"] },
+      permissions: { articleCategory: ["create"] },
       body: createArticleCategorySchema.describe("Category fields including the first translation"),
       response: {
         201: articleCategorySchema.describe("The created article category with its first translation")
@@ -85,7 +85,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       detail: {
         summary: "Create an article category",
         description:
-          "Requires the articleCategory:create permission. Creates a new article category together with its first translation in the given locale. The slug is slugified before being stored and must be unique per locale."
+          "Admin only. Creates a new article category together with its first translation in the given locale. The slug is slugified before being stored and must be unique per locale."
       }
     }
   )
@@ -97,7 +97,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return status(created ? 201 : 200, translation)
     },
     {
-      requirePermission: { articleCategory: ["update"] },
+      permissions: { articleCategory: ["update"] },
       params: articleCategoryTranslationParamsSchema,
       body: upsertArticleCategoryTranslationSchema.describe("Translation fields for the locale in the path"),
       response: {
@@ -108,7 +108,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       detail: {
         summary: "Create or replace a category translation",
         description:
-          "Requires the articleCategory:update permission. Upserts the translation of an existing article category for the given locale. Returns 201 when the translation was created and 200 when an existing one was replaced."
+          "Admin only. Upserts the translation of an existing article category for the given locale. Returns 201 when the translation was created and 200 when an existing one was replaced."
       }
     }
   )
@@ -119,7 +119,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return status(204, undefined)
     },
     {
-      requirePermission: { articleCategory: ["delete"] },
+      permissions: { articleCategory: ["delete"] },
       params: deleteArticleCategoryParamsSchema,
       response: {
         204: deleteArticleCategoryNoContentSchema,
@@ -128,7 +128,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       detail: {
         summary: "Delete an article category",
         description:
-          "Requires the articleCategory:delete permission. Permanently removes the article category and all of its translations. Articles that referenced the category keep existing but their category becomes unset. Returns 204 with no response body."
+          "Admin only. Permanently removes the article category and all of its translations. Articles that referenced the category keep existing but their category becomes unset. Returns 204 with no response body."
       }
     }
   )

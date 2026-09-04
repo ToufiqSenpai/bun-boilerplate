@@ -25,12 +25,7 @@ const matrixCases: MatrixCase[] = [
   { role: "admin", permissions: { user: ["set-role"] }, expected: false },
   { role: "admin", permissions: { user: ["ban"] }, expected: false },
   { role: "admin", permissions: { session: ["list"] }, expected: false },
-  { role: "admin", permissions: { session: ["revoke"] }, expected: false },
-  // A freshly registered user owns nothing.
-  { role: "user", permissions: { articleCategory: ["create"] }, expected: false },
-  { role: "user", permissions: { articleCategory: ["delete"] }, expected: false },
-  { role: "user", permissions: { user: ["list"] }, expected: false },
-  { role: "user", permissions: { session: ["list"] }, expected: false }
+  { role: "admin", permissions: { session: ["revoke"] }, expected: false }
 ]
 
 describe("access control matrix", () => {
@@ -40,11 +35,11 @@ describe("access control matrix", () => {
 })
 
 describe("isKnownRole", () => {
-  test.each(["superadmin", "admin", "user"])("accepts the static role %s", role => {
+  test.each(["superadmin", "admin"])("accepts the static role %s", role => {
     expect(isKnownRole(role)).toBe(true)
   })
 
-  test.each(["root", "", "Admin", "superadmin,admin"])("rejects the unknown role %s", role => {
+  test.each(["root", "", "Admin", "user", "superadmin,admin"])("rejects the unknown role %s", role => {
     expect(isKnownRole(role)).toBe(false)
   })
 })

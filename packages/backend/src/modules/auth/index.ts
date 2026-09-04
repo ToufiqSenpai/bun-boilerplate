@@ -198,20 +198,6 @@ export const auth = betterAuth({
 
 const authService = new AuthService(database)
 
-// Single source for the session gate shared by the auth and requirePermission macros:
-// a session is only valid when it resolves and its user completed verification.
-async function resolveSession(headers: Headers) {
-  const session = await auth.api.getSession({ headers })
-
-  if (!session) return null
-  if (!session.user.emailVerified) return null
-
-  return {
-    user: session.user,
-    session: session.session
-  }
-}
-
 export const authTags: OpenApiTag[] = [
   { name: "Auth", description: "Session-based authentication (better-auth) and setup status" }
 ]
@@ -228,22 +214,27 @@ export const authPlugin = new Elysia({ name: "auth", tags: ["Auth"] })
   .mount(auth.handler)
   .macro("auth", {
     async resolve({ status, request: { headers } }) {
-      const resolved = await resolveSession(headers)
+      const session = await auth.api.getSession({ headers })
 
-      if (!resolved) return status(401)
+      if (!session) return status(401)
+      if (!session.user.emailVerified) return status(401)
 
-      return resolved
+      return {
+        user: session.user,
+        session: session.session
+      }
     }
   })
-  .macro("requirePermission", (requirement: PermissionRequirement) => ({
+  .macro("permissions", (requirement: PermissionRequirement) => ({
     async resolve({ status, request: { headers } }) {
-      const resolved = await resolveSession(headers)
+      const session = await auth.api.getSession({ headers })
 
-      if (!resolved) return status(401)
+      if (!session) return status(401)
+      if (!session.user.emailVerified) return status(401)
 
-      const callerRole = resolved.user.role ?? "user"
+      const callerRole = session.user.role
 
-      if (!isKnownRole(callerRole)) return status(403)
+      if (!callerRole || !isKnownRole(callerRole)) return status(403)
 
       const check = await auth.api.userHasPermission({
         body: { role: callerRole, permissions: requirement }
@@ -251,6 +242,9 @@ export const authPlugin = new Elysia({ name: "auth", tags: ["Auth"] })
 
       if (!check.success) return status(403)
 
-      return resolved
+      return {
+        user: session.user,
+        session: session.session
+      }
     }
   }))

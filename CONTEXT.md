@@ -23,7 +23,7 @@ A time-bound proof used to confirm an identifier or action. Every `User` includi
 _Avoid_: OTP, Challenge, Code
 
 **Role**:
-A static capability label on a User. Exactly three exist: `superadmin` (system owner: user management plus content), `admin` (content only), `user` (nothing). The matrix lives once in code next to the auth module; there are no runtime-created roles.
+A static capability label on a User. The matrix defines two roles: `superadmin` (system owner: user management plus content) and `admin` (content only). The default `user` label on accounts holds no `Permission` and is not part of the matrix. The matrix lives once in code next to the auth module; there are no runtime-created roles.
 _Avoid_: Group, Privilege
 
 **Permission**:
