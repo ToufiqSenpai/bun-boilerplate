@@ -73,6 +73,28 @@ describe("VerificationPendingCard", () => {
     }
   })
 
+  test("keeps send retryable when the send fails, rate-limited or not", async () => {
+    vi.useFakeTimers()
+    try {
+      for (const failure of [{ status: 429 }, { message: "SMTP down" }]) {
+        const view = renderPending(async () => ({ error: failure }))
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(60_000)
+        })
+
+        fireEvent.click(screen.getByRole("button", { name: "Send email" }))
+        await act(async () => {})
+
+        expect(screen.getByRole("button", { name: "Send email" }).hasAttribute("disabled")).toBe(false)
+
+        view.unmount()
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("shows the localized rate-limited alert as destructive on 429", async () => {
     vi.useFakeTimers()
     try {
