@@ -132,7 +132,7 @@ export class ArticleCategoryService {
         description: translation.description ?? undefined
       }
     } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "23505") throw this.slugConflictError(data)
+      if (this.isUniqueViolation(error)) throw this.slugConflictError(data)
       throw error
     }
   }
@@ -195,7 +195,7 @@ export class ArticleCategoryService {
         }
       })
     } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "23505") throw this.slugConflictError(data)
+      if (this.isUniqueViolation(error)) throw this.slugConflictError(data)
       throw error
     }
   }
@@ -218,6 +218,15 @@ export class ArticleCategoryService {
       slug: row.slug,
       description: row.description ?? undefined
     }
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    let current: unknown = error
+    while (current instanceof Error) {
+      if ("code" in current && current.code === "23505") return true
+      current = current.cause
+    }
+    return false
   }
 
   private slugConflictError(data: UpsertArticleCategoryTranslationBody): ValidationError {

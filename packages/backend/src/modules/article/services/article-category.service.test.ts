@@ -403,6 +403,39 @@ describe("ArticleCategoryService", () => {
       }
     })
 
+    test("maps a drizzle-wrapped 23505 unique violation to ValidationError", async () => {
+      const database = mockDeep<Database>()
+      const categoryRow = createCategoryRow()
+      const input = createCategoryInput()
+      const translationRow = createTranslationRow({
+        locale: input.locale,
+        name: input.name,
+        slug: input.slug,
+        description: input.description
+      })
+
+      const category = buildCategoryChain(categoryRow)
+      const translation = buildTranslationChain(translationRow)
+
+      const txMock = {
+        insert: vi
+          .fn<(table: unknown) => Chain>()
+          .mockReturnValueOnce(category.chain)
+          .mockReturnValueOnce(translation.chain)
+      }
+
+      mockTransaction(database, txMock)
+      translation.returning.mockRejectedValue(
+        new Error("Failed query: insert into article_category_translations", {
+          cause: Object.assign(new Error("duplicate key value"), { code: "23505" })
+        })
+      )
+
+      const service = new ArticleCategoryService(database)
+
+      await expect(service.create(input)).rejects.toBeInstanceOf(ValidationError)
+    })
+
     test("calls insert with empty values for category", async () => {
       const database = mockDeep<Database>()
       const categoryRow = createCategoryRow()
