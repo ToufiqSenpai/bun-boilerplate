@@ -1,23 +1,11 @@
 import { DEFAULT_LOCALE, isLocale, LOCALES, type Locale } from "@bun-boilerplate/i18n"
-import { createI18n } from "@bun-boilerplate/i18n"
 import { Elysia } from "elysia"
-import type { TFunction } from "i18next"
 import Negotiator from "negotiator"
 import { z } from "zod"
 
-import en from "../locales/en.json" with { type: "json" }
-import id from "../locales/id.json" with { type: "json" }
+import { getTranslator } from "./translator.js"
 
-const i18n = await createI18n({
-  resources: {
-    en: { translation: en },
-    id: { translation: id }
-  }
-})
-
-export function getTranslator(locale: Locale): TFunction {
-  return i18n.getFixedT(locale)
-}
+export { getTranslator }
 
 export function resolveLocale(headers: Record<string, string | undefined>): Locale {
   const xLocale = headers["x-locale"]?.trim().toLowerCase()

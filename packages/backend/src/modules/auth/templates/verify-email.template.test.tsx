@@ -3,7 +3,7 @@ import { faker } from "@faker-js/faker"
 import { JSDOM } from "jsdom"
 import { renderToReadableStream } from "react-dom/server"
 
-import { getTranslator } from "../../../common/i18n.js"
+import { getTranslator } from "../../../common/translator.js"
 import VerifyEmail, { type VerifyEmailProps, verifyEmailOptions } from "./verify-email.template.js"
 
 function createProps(locale: Locale = DEFAULT_LOCALE): VerifyEmailProps {

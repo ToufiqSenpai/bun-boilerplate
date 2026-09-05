@@ -3,7 +3,7 @@ import { faker } from "@faker-js/faker"
 import { JSDOM } from "jsdom"
 import { renderToReadableStream } from "react-dom/server"
 
-import { getTranslator } from "../../../common/i18n.js"
+import { getTranslator } from "../../../common/translator.js"
 import ResetPassword, { type ResetPasswordProps, resetPasswordOptions } from "./reset-password.template.js"
 
 function createProps(locale: Locale = DEFAULT_LOCALE): ResetPasswordProps {

@@ -1,6 +1,6 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 
-import { getTranslator } from "../../../common/i18n.js"
+import { getTranslator } from "../../../common/translator.js"
 import { ActionEmail, EmailLayout } from "./email-layout.js"
 
 export interface VerifyEmailProps {
