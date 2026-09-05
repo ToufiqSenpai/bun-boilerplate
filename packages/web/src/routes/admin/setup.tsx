@@ -6,25 +6,16 @@ import { Card, CardContent, CardFooter } from "src/components/ui/card"
 import { i18n } from "src/i18n"
 import { AdminSetupForm, type SetupSignUpInput, type SetupSignUpResult } from "src/routes/admin/-components/setup-form"
 import { VerificationPendingCard, type SendResult } from "src/routes/admin/-components/verification-pending"
+import type { AdminSetupResult } from "src/routes/admin/-lib/access"
 import { api, authClient } from "src/utils/client"
 import { z } from "zod"
-
-export interface SetupStatus {
-  readonly needed: boolean
-}
-
-export interface SetupStatusResult {
-  readonly data: SetupStatus | null | undefined
-  readonly error: unknown
-  readonly status: number
-}
 
 export type SetupPageState =
   | { readonly status: "form" }
   | { readonly status: "pending"; readonly email: string }
   | { readonly status: "outage" }
 
-export function resolveSetupState(setup: SetupStatusResult, email: string | null | undefined): SetupPageState {
+export function resolveSetupState(setup: AdminSetupResult, email: string | null | undefined): SetupPageState {
   const { data, error, status } = setup
 
   if (error === null && status === 200 && data?.needed) return { status: "form" }
@@ -39,10 +30,8 @@ export function resolveSetupState(setup: SetupStatusResult, email: string | null
   return { status: "outage" }
 }
 
-export const EMAIL_TAKEN_MESSAGE_PATTERN = /already (taken|exists)/i
-
 export function isEmailTakenError(message: string | undefined | null): boolean {
-  return message !== undefined && message !== null && EMAIL_TAKEN_MESSAGE_PATTERN.test(message)
+  return message !== undefined && message !== null && /already (taken|exists)/i.test(message)
 }
 
 const setupSearchSchema = z.object({
@@ -64,13 +53,8 @@ export const Route = createFileRoute("/admin/setup")({
 
 function AdminSetupRoute() {
   const state = Route.useLoaderData()
-  const navigate = useNavigate()
 
-  const backToLogin = () => {
-    void navigate({ to: "/admin/login" })
-  }
-
-  return <AdminSetupPage state={state} onBackToLogin={backToLogin} />
+  return <AdminSetupPage state={state} />
 }
 
 export interface AdminSetupPageProps {

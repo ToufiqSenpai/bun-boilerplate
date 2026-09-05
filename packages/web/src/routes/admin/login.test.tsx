@@ -1,12 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import type { AdminSetupResult } from "src/routes/admin/-lib/access"
 import { AdminLoginPage, requireSetupComplete, type AdminLoginPageProps } from "src/routes/admin/login"
 
-interface GuardInput {
-  readonly data: { readonly needed: boolean } | null | undefined
-  readonly error: unknown
-  readonly status: number
-}
-function redirectsToSetup(result: GuardInput): boolean {
+function redirectsToSetup(result: AdminSetupResult): boolean {
   try {
     requireSetupComplete(result)
     return false

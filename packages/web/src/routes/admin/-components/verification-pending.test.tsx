@@ -1,9 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { VerificationPendingCard } from "src/routes/admin/-components/verification-pending"
-
-interface SendResult {
-  readonly error: { readonly status?: number | undefined; readonly message?: string | undefined } | null
-}
+import { VerificationPendingCard, type SendResult } from "src/routes/admin/-components/verification-pending"
 
 function renderPending(onSend?: () => Promise<SendResult>) {
   return render(

@@ -10,9 +10,13 @@ import { FieldChrome, fieldValidator } from "src/components/ui/field-chrome"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
-import { classifySignInError, resolveAdminAccess, sanitizeReturnAddress } from "src/routes/admin/-lib/access"
+import {
+  classifySignInError,
+  resolveAdminAccess,
+  sanitizeReturnAddress,
+  type AdminSetupResult
+} from "src/routes/admin/-lib/access"
 import { readAdminSession } from "src/routes/admin/-lib/session-reader"
-import type { SetupStatusResult } from "src/routes/admin/setup"
 import { api, authClient } from "src/utils/client"
 import { z } from "zod"
 
@@ -36,7 +40,7 @@ const loginSchema = z.object({
   password: z.string().min(1, i18n.t("admin.login.error.password.required"))
 })
 
-export function requireSetupComplete(result: SetupStatusResult): void {
+export function requireSetupComplete(result: AdminSetupResult): void {
   const { data, error, status } = result
 
   if (error === null && status === 200 && data?.needed) throw redirect({ to: "/admin/setup" })

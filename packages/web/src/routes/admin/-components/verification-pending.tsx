@@ -23,7 +23,7 @@ function VerificationPendingCard({ email, onSend, onBackToLogin }: VerificationP
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCooldown(current => (current > 0 ? current - 1 : current))
+      setCooldown(current => Math.max(0, current - 1))
     }, 1000)
 
     return () => {

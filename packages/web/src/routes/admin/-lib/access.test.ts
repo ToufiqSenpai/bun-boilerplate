@@ -1,28 +1,18 @@
-import { classifySignInError, resolveAdminAccess, sanitizeReturnAddress } from "src/routes/admin/-lib/access"
+import {
+  classifySignInError,
+  resolveAdminAccess,
+  sanitizeReturnAddress,
+  type AdminSessionResult,
+  type AdminSessionUser,
+  type AdminSetupResult
+} from "src/routes/admin/-lib/access"
 
-interface SetupInput {
-  readonly data: { readonly needed: boolean } | null | undefined
-  readonly error: unknown
-  readonly status: number
-}
-
-interface SessionInput {
-  readonly data:
-    | { readonly user: { readonly email: string; readonly emailVerified: boolean; readonly role: string | null } }
-    | null
-    | undefined
-  readonly error: unknown
-}
-
-interface SessionUser {
-  readonly email: string
-  readonly emailVerified: boolean
-  readonly role: string | null
-}
-
-const okSetup = (needed: boolean): SetupInput => ({ data: { needed }, error: null, status: 200 })
-const failedSetup = (): SetupInput => ({ data: null, error: { message: "boom" }, status: 500 })
-const sessionFor = (user: SessionUser | null): SessionInput => ({ data: user === null ? null : { user }, error: null })
+const okSetup = (needed: boolean): AdminSetupResult => ({ data: { needed }, error: null, status: 200 })
+const failedSetup = (): AdminSetupResult => ({ data: null, error: { message: "boom" }, status: 500 })
+const sessionFor = (user: AdminSessionUser | null): AdminSessionResult => ({
+  data: user === null ? null : { user },
+  error: null
+})
 
 const verifiedAdmin = { email: "admin@example.com", emailVerified: true, role: "admin" } as const
 
