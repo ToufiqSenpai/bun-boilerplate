@@ -3,6 +3,7 @@
 ## Monorepo
 
 Bun workspaces (`workspaces: ["packages/*"]`). Packages:
+
 - `packages/backend` — Elysia API (`src/main.ts`), Drizzle + PGlite/Neon, better-auth. Workspace name `@bun-boilerplate/backend`.
 - `packages/web` — TanStack Start (SSR) + Vite + Nitro + Tailwind + shadcn/Base UI. Workspace name `@bun-boilerplate/web`.
 - `packages/i18n` — Shared i18n lib (`@bun-boilerplate/i18n`).
@@ -24,6 +25,7 @@ bun run format:check       # oxfmt . --check
 ```
 
 Per-package (from package dir):
+
 - `packages/backend`: `bun --bun vitest run` (unit), `bun --bun vitest run --config vitest.e2e.config.ts` (e2e); `bun run db:generate|db:migrate|db:push|db:studio` (drizzle-kit, schema `src/modules/**/*.table.ts`, out `migrations/`)
 - `packages/web`: `bun run generate-routes` (tsr generate, output `src/routeTree.gen.ts` — do not hand-edit), `bun run typecheck` (clean; web `src/i18next.d.ts` must merge backend `src/locales/en.json` keys because eden's `import type { App }` pulls backend templates into the web program), `bun run build` (`bun --bun vite build`), `bun run package` (build + `bun build --compile` standalone exe at `dist/web.exe`; requires nitro options `serveStatic:"inline"`, `noExternals`, `inlineDynamicImports` in `vite.config.ts` so `.output/server/index.mjs` is self-contained — public assets inline as base64, no `--asset` needed); all web scripts run on Bun (vite, vitest, nitro preset `bun`)
 - `packages/i18n`: `bun run test`

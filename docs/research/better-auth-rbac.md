@@ -62,17 +62,17 @@ Konvensi di bawah: **"Kata docs/source"** = klaim faktual dengan sitasi; **"Inte
 
 ## Sumber primer yang dipakai
 
-| # | Sumber | Yang diambil |
-|---|--------|--------------|
-| 1 | `https://www.better-auth.com/docs/plugins/admin` (resmi) | Roles multi-koma, defaultRole/adminRoles/adminUserIds, semua endpoint `/admin/*`, access control + `hasPermission`/`checkRolePermission`, schema + `customSyntheticUser`, CLI `create-admin` |
-| 2 | `node_modules/better-auth/dist/plugins/admin/admin.mjs` (v1.7.1, terinstall) | Default opsi, validasi `adminRoles`, `databaseHooks` user-create-before + session-create-before (ban gate + auto-unban) |
-| 3 | `node_modules/better-auth/dist/plugins/admin/routes.mjs` | `adminMiddleware` (`getAuthoritativeSessionFromCtx`), `parseRoles`, cek `hasPermission` per-endpoint, proteksi `impersonate-admins` (`:587-593`), `banUser` |
-| 4 | `node_modules/better-auth/dist/plugins/admin/has-permission.mjs` | `hasPermission`: `adminUserIds` shortcut, `split(",")`, loop `authorize` |
-| 5 | `node_modules/better-auth/dist/plugins/admin/access/statement.mjs` | `defaultStatements`, `adminAc` (tanpa `impersonate-admins`), `userAc` kosong |
-| 6 | `node_modules/better-auth/dist/plugins/admin/schema.mjs` | Field `user.role/banned/banReason/banExpires`, `session.impersonatedBy` |
-| 7 | `node_modules/better-auth/dist/api/routes/session.mjs` | Jalur cookie-cache `getSession` vs `findSession` DB; `isStateful` + `getAuthoritativeSessionFromCtx` (`:236-281`) |
-| 8 | `node_modules/better-auth/dist/api/routes/sign-in.mjs` | Gate `requireEmailVerification` (`:339-356`) |
-| 9 | `node_modules/better-auth/dist/api/routes/sign-up.mjs` | Skip auto-sign-in + generic duplicate saat verification-required (`:163-164`), kirim verification (`:250-260`) |
-| 10 | `https://elysiajs.com/patterns/macro.html` (resmi) | Definisi macro, `return status()` untuk error, `resolve`, extension, dedup |
-| 11 | `https://elysiajs.com/essential/plugin.html` (resmi) | `guard`, grouped guard, scope `local/scoped/global` |
-| 12 | `https://www.better-auth.com/docs/concepts/users-accounts` (resmi) | Konteks user/account management (pelengkap; bukan sumber klaim RBAC) |
+| #   | Sumber                                                                       | Yang diambil                                                                                                                                                                                 |
+| --- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `https://www.better-auth.com/docs/plugins/admin` (resmi)                     | Roles multi-koma, defaultRole/adminRoles/adminUserIds, semua endpoint `/admin/*`, access control + `hasPermission`/`checkRolePermission`, schema + `customSyntheticUser`, CLI `create-admin` |
+| 2   | `node_modules/better-auth/dist/plugins/admin/admin.mjs` (v1.7.1, terinstall) | Default opsi, validasi `adminRoles`, `databaseHooks` user-create-before + session-create-before (ban gate + auto-unban)                                                                      |
+| 3   | `node_modules/better-auth/dist/plugins/admin/routes.mjs`                     | `adminMiddleware` (`getAuthoritativeSessionFromCtx`), `parseRoles`, cek `hasPermission` per-endpoint, proteksi `impersonate-admins` (`:587-593`), `banUser`                                  |
+| 4   | `node_modules/better-auth/dist/plugins/admin/has-permission.mjs`             | `hasPermission`: `adminUserIds` shortcut, `split(",")`, loop `authorize`                                                                                                                     |
+| 5   | `node_modules/better-auth/dist/plugins/admin/access/statement.mjs`           | `defaultStatements`, `adminAc` (tanpa `impersonate-admins`), `userAc` kosong                                                                                                                 |
+| 6   | `node_modules/better-auth/dist/plugins/admin/schema.mjs`                     | Field `user.role/banned/banReason/banExpires`, `session.impersonatedBy`                                                                                                                      |
+| 7   | `node_modules/better-auth/dist/api/routes/session.mjs`                       | Jalur cookie-cache `getSession` vs `findSession` DB; `isStateful` + `getAuthoritativeSessionFromCtx` (`:236-281`)                                                                            |
+| 8   | `node_modules/better-auth/dist/api/routes/sign-in.mjs`                       | Gate `requireEmailVerification` (`:339-356`)                                                                                                                                                 |
+| 9   | `node_modules/better-auth/dist/api/routes/sign-up.mjs`                       | Skip auto-sign-in + generic duplicate saat verification-required (`:163-164`), kirim verification (`:250-260`)                                                                               |
+| 10  | `https://elysiajs.com/patterns/macro.html` (resmi)                           | Definisi macro, `return status()` untuk error, `resolve`, extension, dedup                                                                                                                   |
+| 11  | `https://elysiajs.com/essential/plugin.html` (resmi)                         | `guard`, grouped guard, scope `local/scoped/global`                                                                                                                                          |
+| 12  | `https://www.better-auth.com/docs/concepts/users-accounts` (resmi)           | Konteks user/account management (pelengkap; bukan sumber klaim RBAC)                                                                                                                         |
