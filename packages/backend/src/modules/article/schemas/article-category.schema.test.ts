@@ -34,13 +34,13 @@ describe("createArticleCategorySchema", () => {
   describe("slug", () => {
     test("slugifies the provided slug", async () => {
       const rawSlug = faker.lorem.words({ min: 1, max: 3 }).toUpperCase()
-      const data = await parseData(createInput({ slug: rawSlug }))
+      const data = parseData(createInput({ slug: rawSlug }))
 
       expect(data.slug).toBe(slugify(rawSlug))
     })
 
     test("rejects an empty slug", async () => {
-      const issues = await parseIssues(createInput({ slug: "" }))
+      const issues = parseIssues(createInput({ slug: "" }))
 
       expect(issues).toEqual([
         expect.objectContaining({
@@ -51,7 +51,7 @@ describe("createArticleCategorySchema", () => {
     })
 
     test("rejects a slug that slugifies to an empty string", async () => {
-      const issues = await parseIssues(createInput({ slug: "---" }))
+      const issues = parseIssues(createInput({ slug: "---" }))
 
       expect(issues).toEqual([
         expect.objectContaining({
@@ -62,7 +62,7 @@ describe("createArticleCategorySchema", () => {
     })
 
     test("rejects a slug exceeding the max length", async () => {
-      const issues = await parseIssues(createInput({ slug: "a".repeat(256) }))
+      const issues = parseIssues(createInput({ slug: "a".repeat(256) }))
 
       expect(issues).toEqual([
         expect.objectContaining({
@@ -73,7 +73,7 @@ describe("createArticleCategorySchema", () => {
     })
 
     test("rejects a non-string slug", async () => {
-      const issues = await parseIssues(createInput({ slug: faker.number.int() }))
+      const issues = parseIssues(createInput({ slug: faker.number.int() }))
 
       expect(issues).toEqual([
         expect.objectContaining({
@@ -85,7 +85,7 @@ describe("createArticleCategorySchema", () => {
 
     test("rejects a missing slug", async () => {
       const { slug: _ignored, ...withoutSlug } = createInput()
-      const issues = await parseIssues(withoutSlug)
+      const issues = parseIssues(withoutSlug)
 
       expect(issues).toEqual([
         expect.objectContaining({
@@ -96,7 +96,7 @@ describe("createArticleCategorySchema", () => {
     })
 
     test("rejects a slug that looks like a category id", async () => {
-      const issues = await parseIssues(createInput({ slug: faker.string.uuid({ version: 7 }) }))
+      const issues = parseIssues(createInput({ slug: faker.string.uuid({ version: 7 }) }))
 
       expect(issues).toEqual([
         expect.objectContaining({
@@ -109,7 +109,7 @@ describe("createArticleCategorySchema", () => {
 
   describe("name", () => {
     test("rejects an empty name", async () => {
-      const issues = await parseIssues(createInput({ name: "" }))
+      const issues = parseIssues(createInput({ name: "" }))
 
       expect(issues).toEqual([
         expect.objectContaining({
