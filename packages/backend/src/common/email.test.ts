@@ -42,17 +42,17 @@ describe("EmailService.send", () => {
     const template = new FakeTemplate("en", { entityId: faker.internet.url() })
     const to = faker.internet.email()
 
-    await service.send(template, { to })
+    await service.send(template, to)
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(1)
     const calls = vi.mocked(resend.emails.send).mock.calls
     // SAFETY: called once, first call exists
     const opts = calls[0]![1] as { idempotencyKey: string }
-    const expectedHash = CryptoHasher.hash("sha256", template.getEntityId(), "hex")
-    expect(opts.idempotencyKey).toBe(`fake/${expectedHash}`)
+    const expectedHash = CryptoHasher.hash("sha256", `${template.subjectKey()}/${template.getEntityId()}`, "hex")
+    expect(opts.idempotencyKey).toBe(expectedHash)
   })
 
-  test("idempotencyKey is derived from constructor name and hashed entityId", async () => {
+  test("idempotencyKey is derived from subjectKey and entityId", async () => {
     const resend = createResendMock()
     vi.mocked(resend.emails.send).mockResolvedValue({ data: { id: faker.string.uuid() }, error: null, headers: null })
 
@@ -60,13 +60,13 @@ describe("EmailService.send", () => {
     const entityId = `https://example.com/verify?token=${faker.string.alphanumeric(32)}`
     const template = new FakeTemplate("en", { entityId })
 
-    await service.send(template, { to: faker.internet.email() })
+    await service.send(template, faker.internet.email())
 
     const calls = vi.mocked(resend.emails.send).mock.calls
     // SAFETY: called once
     const opts = calls[0]![1] as { idempotencyKey: string }
-    const expectedHash = CryptoHasher.hash("sha256", entityId, "hex")
-    expect(opts.idempotencyKey).toBe(`fake/${expectedHash}`)
+    const expectedHash = CryptoHasher.hash("sha256", `${template.subjectKey()}/${entityId}`, "hex")
+    expect(opts.idempotencyKey).toBe(expectedHash)
     expect(opts.idempotencyKey.length).toBeLessThanOrEqual(256)
   })
 
@@ -84,7 +84,7 @@ describe("EmailService.send", () => {
     const service = new EmailService(resend)
     const template = new FakeTemplate("en", { entityId: faker.internet.url() })
 
-    const promise = service.send(template, { to: faker.internet.email() })
+    const promise = service.send(template, faker.internet.email())
     await vi.advanceTimersByTimeAsync(9000)
     await promise
 
@@ -109,9 +109,7 @@ describe("EmailService.send", () => {
       .mockResolvedValueOnce({ data: { id: dataId }, error: null, headers: null })
 
     const service = new EmailService(resend)
-    const promise = service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), {
-      to: faker.internet.email()
-    })
+    const promise = service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
     await vi.advanceTimersByTimeAsync(9000)
     await promise
 
@@ -127,9 +125,7 @@ describe("EmailService.send", () => {
     })
 
     const service = new EmailService(resend)
-    await service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), {
-      to: faker.internet.email()
-    })
+    await service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(1)
   })
@@ -143,9 +139,7 @@ describe("EmailService.send", () => {
     })
 
     const service = new EmailService(resend)
-    await service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), {
-      to: faker.internet.email()
-    })
+    await service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(1)
   })
@@ -159,41 +153,11 @@ describe("EmailService.send", () => {
     })
 
     const service = new EmailService(resend)
-    const promise = service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), {
-      to: faker.internet.email()
-    })
+    const promise = service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
 
     await vi.advanceTimersByTimeAsync(9000)
     await promise
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(3)
-  })
-
-  test("forwards cc/bcc/attachments/headers/scheduledAt to payload", async () => {
-    const resend = createResendMock()
-    vi.mocked(resend.emails.send).mockResolvedValue({ data: { id: faker.string.uuid() }, error: null, headers: null })
-
-    const service = new EmailService(resend)
-    const options = {
-      to: faker.internet.email(),
-      cc: [faker.internet.email()],
-      bcc: [faker.internet.email()],
-      replyTo: faker.internet.email(),
-      headers: { "X-Custom": faker.lorem.word() },
-      scheduledAt: new Date(Date.now() + 3600000).toISOString(),
-      attachments: [{ filename: "test.txt", content: Buffer.from("hi") }]
-    }
-
-    await service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), options)
-
-    const calls = vi.mocked(resend.emails.send).mock.calls
-    const payload = calls[0]![0]
-
-    expect(payload.cc).toEqual(options.cc)
-    expect(payload.bcc).toEqual(options.bcc)
-    expect(payload.replyTo).toEqual(options.replyTo)
-    expect(payload.headers).toEqual(options.headers)
-    expect(payload.scheduledAt).toEqual(options.scheduledAt)
-    expect(payload.attachments).toEqual(options.attachments)
   })
 })

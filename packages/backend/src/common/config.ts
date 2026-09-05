@@ -36,11 +36,6 @@ export const configSchema = z
       .describe("Authentication configuration"),
     database: z
       .object({
-        // host: z.hostname().max(64).describe("Database hostname"),
-        // port: z.uint32().min(1).max(65535).describe("Database port (1-65535)").default(5432),
-        // username: z.string().min(1).max(64).describe("Database username"),
-        // password: z.string().min(1).max(128).describe("Database password"),
-        // name: z.string().min(1).max(64).describe("Database name")
         url: z.url()
       })
       .strict()
@@ -93,11 +88,6 @@ export const config = configSchema.parse({
     }
   },
   database: {
-    // host: process.env.DATABASE_HOST,
-    // port: process.env.DATABASE_PORT,
-    // username: process.env.DATABASE_USERNAME,
-    // password: process.env.DATABASE_PASSWORD,
-    // name: process.env.DATABASE_NAME
     url: process.env.DATABASE_URL
   },
   email: {

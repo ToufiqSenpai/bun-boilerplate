@@ -111,9 +111,7 @@ export const auth = betterAuth({
             resetUrl: url,
             expiresInMinutes: 30
           }),
-          {
-            to: user.email
-          }
+          user.email
         )
         .catch(() => {})
     },
@@ -134,9 +132,7 @@ export const auth = betterAuth({
             verificationUrl: url,
             expiresInMinutes: 30
           }),
-          {
-            to: user.email
-          }
+          user.email
         )
         .catch(() => {})
     },

@@ -4,45 +4,27 @@ import { CryptoHasher } from "bun"
 import type { TFunction } from "i18next"
 import type { ReactNode } from "react"
 import { Body, Head, Html, Tailwind } from "react-email"
-import { Resend, type Attachment, type CreateEmailOptions } from "resend"
+import { Resend, type CreateEmailOptions } from "resend"
 
 import { config } from "./config.js"
 import { getTranslator } from "./i18n.js"
 import { logger } from "./logger.js"
-
-interface SendEmailOptions {
-  to: string
-  cc?: string[]
-  bcc?: string[]
-  replyTo?: string
-  attachments?: Attachment[]
-  headers?: Record<string, string>
-  scheduledAt?: string
-}
 
 export class EmailService {
   private readonly MAX_RETRIES = 3
 
   public constructor(private readonly resend: Resend) {}
 
-  public async send(template: EmailTemplate<unknown>, options: SendEmailOptions): Promise<void> {
-    const eventType = this.toEventType(template.constructor.name, template.subjectKey())
-    const entityId = CryptoHasher.hash("sha256", template.getEntityId(), "hex")
-    const idempotencyKey = `${eventType}/${entityId}`
+  public async send(template: EmailTemplate<unknown>, to: string): Promise<void> {
+    const idempotencyKey = CryptoHasher.hash("sha256", `${template.subjectKey()}/${template.getEntityId()}`, "hex")
 
     const payload: CreateEmailOptions = {
-      to: [options.to],
+      to,
       from: config.email.from,
-      replyTo: options.replyTo ?? config.email.replyTo,
-      react: await template.getTemplate(),
-      subject: await template.getSubject()
+      replyTo: config.email.replyTo,
+      react: template.getTemplate(),
+      subject: template.getSubject()
     }
-
-    if (options.cc !== undefined) payload.cc = options.cc
-    if (options.bcc !== undefined) payload.bcc = options.bcc
-    if (options.attachments !== undefined) payload.attachments = options.attachments
-    if (options.headers !== undefined) payload.headers = options.headers
-    if (options.scheduledAt !== undefined) payload.scheduledAt = options.scheduledAt
 
     let lastError: { statusCode?: number | null; message: string } | undefined
 
@@ -65,31 +47,16 @@ export class EmailService {
     }
 
     logger.error({ statusCode: lastError?.statusCode, error: lastError?.message }, "Email send failed")
-    const toHash = CryptoHasher.hash("sha256", options.to.toLowerCase().trim(), "hex").slice(0, 16)
+    const toHash = CryptoHasher.hash("sha256", to.toLowerCase().trim(), "hex").slice(0, 16)
     Sentry.captureException(new Error(`Email send failed: ${lastError?.message}`), {
       level: "error",
       tags: { component: "email" },
       extra: { statusCode: lastError?.statusCode, toHash }
     })
   }
-
-  private toEventType(constructorName: string, fallbackSubjectKey: string): string {
-    const source =
-      constructorName && constructorName !== "Object"
-        ? constructorName
-        : (fallbackSubjectKey.split(".")[1] ?? fallbackSubjectKey)
-    return source
-      .replace(/Template$/u, "")
-      .replace(/([a-z0-9])([A-Z])/gu, "$1-$2")
-      .replace(/[^a-zA-Z0-9]+/gu, "-")
-      .toLowerCase()
-      .replace(/^-|-$/gu, "")
-  }
 }
 
-const resend = new Resend(config.email.resendAPIKey)
-
-export const emailService = new EmailService(resend)
+export const emailService = new EmailService(new Resend(config.email.resendAPIKey))
 
 export abstract class EmailTemplate<TProps> {
   public constructor(
@@ -101,7 +68,7 @@ export abstract class EmailTemplate<TProps> {
   public abstract buildTemplate(t: TFunction, props: TProps): ReactNode
   public abstract getEntityId(): string
 
-  public async getSubject(): Promise<string> {
+  public getSubject(): string {
     const key = this.subjectKey()
 
     // subjectKey is a dynamic identifier, so use the defaultValue overload: a typed-escape hatch
@@ -109,7 +76,7 @@ export abstract class EmailTemplate<TProps> {
     return getTranslator(this.locale)(key, { defaultValue: key })
   }
 
-  public async getTemplate(): Promise<ReactNode> {
+  public getTemplate(): ReactNode {
     const t = getTranslator(this.locale)
 
     return (

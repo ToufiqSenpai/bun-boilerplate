@@ -1,6 +1,6 @@
 import { Elysia } from "elysia"
 
-import { DatabaseCheck, checkReadiness, healthPlugin, isHealthRoute } from "./health.js"
+import { checkReadiness, healthChecks, healthPlugin, isHealthRoute } from "./health.js"
 import type { HealthCheck } from "./health.js"
 
 function fakeCheck(name: string, run: () => Promise<boolean>): HealthCheck {
@@ -67,13 +67,15 @@ describe("healthPlugin", () => {
   })
 })
 
-describe("DatabaseCheck", () => {
-  test("is named database", () => {
-    expect(new DatabaseCheck().name).toBe("database")
+describe("healthChecks", () => {
+  test("contains the database check", () => {
+    expect(healthChecks.map(check => check.name)).toContain("database")
   })
 
-  test("passes against the test-time database", async () => {
-    await expect(new DatabaseCheck().check()).resolves.toBe(true)
+  test("database check passes against the test-time database", async () => {
+    const dbCheck = healthChecks.find(check => check.name === "database")
+    // SAFETY: prior test asserts it exists
+    await expect(dbCheck!.check()).resolves.toBe(true)
   })
 })
 

@@ -49,17 +49,17 @@ describe("ResetPasswordTemplate", () => {
   })
 
   describe("getSubject", () => {
-    test("resolves the translated subject for the en locale", async () => {
+    test("resolves the translated subject for the en locale", () => {
       const template = new ResetPasswordTemplate("en", createProps())
-      const subject = await template.getSubject()
+      const subject = template.getSubject()
 
       expect(subject).toBe(getTranslator("en")("email.resetPassword.subject"))
       expect(subject).not.toBe("email.resetPassword.subject")
     })
 
-    test("resolves the translated subject for the id locale", async () => {
+    test("resolves the translated subject for the id locale", () => {
       const template = new ResetPasswordTemplate("id", createProps())
-      const subject = await template.getSubject()
+      const subject = template.getSubject()
 
       expect(subject).toBe(getTranslator("id")("email.resetPassword.subject"))
       expect(subject).not.toBe("email.resetPassword.subject")

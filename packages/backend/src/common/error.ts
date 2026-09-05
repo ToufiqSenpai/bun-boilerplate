@@ -52,13 +52,7 @@ export const errorPlugin = new Elysia({ name: "error" })
     }
 
     if (code === "UNKNOWN" && error instanceof Error) {
-      const path = (() => {
-        try {
-          return new URL(request.url).pathname
-        } catch {
-          return request.url
-        }
-      })()
+      const path = new URL(request.url).pathname
 
       logger.error({ err: error, path, exception: error.name }, error.message)
 

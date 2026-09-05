@@ -2,7 +2,6 @@ import { sql } from "drizzle-orm"
 import { Elysia } from "elysia"
 
 import { database } from "./database.js"
-import type { Database } from "./database.js"
 import { logger } from "./logger.js"
 
 export const CHECK_TIMEOUT_MS = 1500
@@ -12,42 +11,19 @@ export interface HealthCheck {
   check(): Promise<boolean>
 }
 
-export class DatabaseCheck implements HealthCheck {
-  public readonly name = "database"
-
-  public constructor(private readonly db: Database = database) {}
-
-  public async check(): Promise<boolean> {
-    await this.db.execute(sql`SELECT 1`)
-    return true
-  }
-}
-
-export const healthChecks: HealthCheck[] = [new DatabaseCheck()]
-
-export function isHealthRoute(value: string): boolean {
-  const path = toPathname(value)
-  return path === "/health/live" || path === "/health/ready"
-}
-
-function toPathname(value: string): string {
-  const trimmed = value.trim()
-  const spaceIndex = trimmed.lastIndexOf(" ")
-  const route = spaceIndex === -1 ? trimmed : trimmed.slice(spaceIndex + 1)
-  if (route.startsWith("http://") || route.startsWith("https://")) {
-    try {
-      return new URL(route).pathname
-    } catch {
-      return route
+export const healthChecks: HealthCheck[] = [
+  {
+    name: "database",
+    check: async () => {
+      await database.execute(sql`SELECT 1`)
+      return true
     }
   }
-  const queryIndex = route.indexOf("?")
-  const hashIndex = route.indexOf("#")
-  const ends: number[] = []
-  if (queryIndex !== -1) ends.push(queryIndex)
-  if (hashIndex !== -1) ends.push(hashIndex)
-  if (ends.length === 0) return route
-  return route.slice(0, Math.min(...ends))
+]
+
+export function isHealthRoute(value: string): boolean {
+  // ponytail: regex-only route match; a literal path like "GET/health/ready" would false-positive — swap for real URL parsing if that matters
+  return /\/health\/(live|ready)([?#].*)?$/u.test(value.trim().replace(/^[A-Z]+\s/u, ""))
 }
 
 async function runCheck(check: HealthCheck): Promise<boolean> {
