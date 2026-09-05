@@ -1,6 +1,6 @@
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
@@ -10,16 +10,25 @@ import { FieldChrome, fieldValidator } from "src/components/ui/field-chrome"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
+import { classifySignInError, resolveAdminAccess, sanitizeReturnAddress } from "src/routes/admin/-lib/access"
+import { readAdminSession } from "src/routes/admin/-lib/session-reader"
 import type { SetupStatusResult } from "src/routes/admin/setup"
 import { api, authClient } from "src/utils/client"
 import { z } from "zod"
 
 interface SignInResult {
-  readonly error: { readonly message?: string | undefined } | null
+  readonly error: {
+    readonly code?: string | undefined
+    readonly status?: number | undefined
+    readonly message?: string | undefined
+  } | null
 }
 
-interface AdminLoginPageProps {
+export interface AdminLoginPageProps {
   readonly onSignIn?: (input: { readonly email: string; readonly password: string }) => Promise<SignInResult>
+  readonly onSignedIn: (returnTo: string) => void
+  readonly onGoToPending: (email: string) => void
+  readonly returnTo?: string | undefined
 }
 
 const loginSchema = z.object({
@@ -33,17 +42,51 @@ export function requireSetupComplete(result: SetupStatusResult): void {
   if (error === null && status === 200 && data?.needed) throw redirect({ to: "/admin/setup" })
 }
 
+const loginSearchSchema = z.object({
+  redirect: z
+    .string()
+    .optional()
+    .transform(raw => (raw === undefined ? undefined : sanitizeReturnAddress(raw)))
+})
+
 export const Route = createFileRoute("/admin/login")({
+  validateSearch: loginSearchSchema,
   head: () => ({
     meta: [{ title: "Admin Login" }]
   }),
-  loader: async () => {
-    requireSetupComplete(await api.auth.setup.get())
+  beforeLoad: async ({ location }) => {
+    const setup = await api.auth.setup.get()
+    requireSetupComplete(setup)
+
+    const access = resolveAdminAccess(setup, await readAdminSession())
+
+    if (access === "allowed") {
+      // SAFETY: the router has already validated location.search through loginSearchSchema, so `redirect` is either a sanitized admin path or absent.
+      const requested = (location.search as { redirect?: string | undefined }).redirect
+      throw redirect({ href: sanitizeReturnAddress(requested) })
+    }
   },
-  component: AdminLoginPage
+  component: AdminLoginRoute
 })
 
-export function AdminLoginPage({ onSignIn }: AdminLoginPageProps = {}) {
+function AdminLoginRoute() {
+  const navigate = useNavigate()
+  const { redirect } = Route.useSearch()
+
+  return (
+    <AdminLoginPage
+      returnTo={redirect}
+      onSignedIn={target => {
+        void navigate({ href: target })
+      }}
+      onGoToPending={email => {
+        void navigate({ to: "/admin/setup", search: { email } })
+      }}
+    />
+  )
+}
+
+export function AdminLoginPage({ onSignIn, onSignedIn, onGoToPending, returnTo }: AdminLoginPageProps) {
   const signIn =
     onSignIn ??
     (async input => {
@@ -70,9 +113,20 @@ export function AdminLoginPage({ onSignIn }: AdminLoginPageProps = {}) {
 
       const { error } = await signIn({ email: parsed.data.email, password: parsed.data.password })
 
-      if (error) {
-        setServerError(i18n.t("admin.login.error.invalidCredentials"))
+      if (!error) {
+        onSignedIn(sanitizeReturnAddress(returnTo))
+        return
       }
+
+      const failure = classifySignInError(error)
+
+      if (failure.reason === "pending-verification") {
+        onGoToPending(parsed.data.email)
+        return
+      }
+
+      console.warn("admin sign-in failed", failure)
+      setServerError(i18n.t("admin.login.error.invalidCredentials"))
     }
   })
 

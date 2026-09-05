@@ -59,7 +59,16 @@ export interface SignInFailure {
   readonly status: number | undefined
 }
 
-export function classifySignInError(error: { readonly code?: string; readonly status?: number } | null | undefined): SignInFailure {
+export function classifySignInError(
+  error:
+    | {
+        readonly code?: string | undefined
+        readonly status?: number | undefined
+        readonly message?: string | undefined
+      }
+    | null
+    | undefined
+): SignInFailure {
   if (error?.code === "EMAIL_NOT_VERIFIED") return { reason: "pending-verification", status: error.status }
   if (error?.status === 429) return { reason: "rate-limited", status: error.status }
   if (error?.code === "INVALID_EMAIL_OR_PASSWORD") return { reason: "bad-credentials", status: error.status }

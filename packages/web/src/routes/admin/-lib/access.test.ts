@@ -7,7 +7,10 @@ interface SetupInput {
 }
 
 interface SessionInput {
-  readonly data: { readonly user: { readonly email: string; readonly emailVerified: boolean; readonly role: string | null } } | null | undefined
+  readonly data:
+    | { readonly user: { readonly email: string; readonly emailVerified: boolean; readonly role: string | null } }
+    | null
+    | undefined
   readonly error: unknown
 }
 
