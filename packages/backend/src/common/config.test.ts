@@ -1,6 +1,34 @@
 import { faker } from "@faker-js/faker"
 
-import { defaultEnvironment } from "./config.js"
+import { configSchema, defaultEnvironment } from "./config.js"
+
+const requiredAuthConfig = {
+  secret: faker.string.alphanumeric(32),
+  google: {
+    clientId: faker.string.alphanumeric(16),
+    clientSecret: faker.string.alphanumeric(16)
+  }
+}
+
+describe("configSchema.auth.emailTokenTtlSeconds", () => {
+  test("defaults to 1800 seconds when not provided", () => {
+    const parsed = configSchema.shape.auth.parse(requiredAuthConfig)
+
+    expect(parsed.emailTokenTtlSeconds).toBe(1800)
+  })
+
+  test("accepts a custom positive value", () => {
+    const ttl = faker.number.int({ min: 60, max: 86_400 })
+    const parsed = configSchema.shape.auth.parse({ ...requiredAuthConfig, emailTokenTtlSeconds: ttl })
+
+    expect(parsed.emailTokenTtlSeconds).toBe(ttl)
+  })
+
+  test("rejects zero and negative values", () => {
+    expect(() => configSchema.shape.auth.parse({ ...requiredAuthConfig, emailTokenTtlSeconds: 0 })).toThrow()
+    expect(() => configSchema.shape.auth.parse({ ...requiredAuthConfig, emailTokenTtlSeconds: -1 })).toThrow()
+  })
+})
 
 describe("defaultEnvironment", () => {
   const originalNodeEnv = process.env.NODE_ENV
