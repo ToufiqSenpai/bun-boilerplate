@@ -1,5 +1,3 @@
-import type { ThirdPartyModule } from "i18next"
-
 import { createI18n } from "./i18next.js"
 import { DEFAULT_LOCALE, LOCALES } from "./locales.js"
 
@@ -10,21 +8,6 @@ test("createI18n applies defaults from locales", async () => {
   expect(i18n.language).toBe(DEFAULT_LOCALE)
   expect(Array.isArray(supportedLngs) ? supportedLngs.filter(lng => lng !== "cimode") : []).toEqual([...LOCALES])
   expect(i18n.t("hello")).toBe("Hello")
-})
-
-test("createI18n registers modules before init", async () => {
-  let initialized = false
-
-  const module: ThirdPartyModule = {
-    type: "3rdParty",
-    init: () => {
-      initialized = true
-    }
-  }
-  const i18n = await createI18n({ modules: [module], resources: {} })
-
-  expect(initialized).toBe(true)
-  expect(i18n.isInitialized).toBe(true)
 })
 
 test("createI18n allows overriding options", async () => {

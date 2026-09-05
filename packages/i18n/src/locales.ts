@@ -1,25 +1,20 @@
 export type TextDirection = "ltr" | "rtl"
 
-interface LocaleRegistry {
-  locale: string
-  textDirection: TextDirection
-}
+export const LOCALES = ["en", "id"] as const
 
-const LOCALE_REGISTRY = [
-  { locale: "en", textDirection: "ltr" },
-  { locale: "id", textDirection: "ltr" }
-] as const satisfies readonly LocaleRegistry[]
+export type Locale = (typeof LOCALES)[number]
 
-export type Locale = (typeof LOCALE_REGISTRY)[number]["locale"]
+const DIRECTIONS = {
+  en: "ltr",
+  id: "ltr"
+} as const satisfies Record<Locale, TextDirection>
 
-export const DEFAULT_LOCALE: Locale = LOCALE_REGISTRY[0].locale
-
-export const LOCALES: Locale[] = LOCALE_REGISTRY.map(entry => entry.locale)
+export const DEFAULT_LOCALE: Locale = LOCALES[0]
 
 export function isLocale(value: string): value is Locale {
-  return LOCALES.some(locale => locale === value)
+  return value in DIRECTIONS
 }
 
 export function getTextDirection(locale: Locale): TextDirection {
-  return LOCALE_REGISTRY.find(entry => entry.locale === locale)?.textDirection ?? LOCALE_REGISTRY[0].textDirection
+  return DIRECTIONS[locale]
 }
