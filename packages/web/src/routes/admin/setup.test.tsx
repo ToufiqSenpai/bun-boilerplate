@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router"
 import { render, screen } from "@testing-library/react"
 import { AdminSetupPage, isEmailTakenError, resolveSetupState } from "src/routes/admin/setup"
 
@@ -16,8 +17,12 @@ describe("resolveSetupState", () => {
   })
 
   test("throws when setup is complete and no usable address is present", () => {
-    expect(() => resolveSetupState({ data: { needed: false }, error: null, status: 200 }, undefined)).toThrow()
-    expect(() => resolveSetupState({ data: { needed: false }, error: null, status: 200 }, "not-an-email")).toThrow()
+    expect(() => resolveSetupState({ data: { needed: false }, error: null, status: 200 }, undefined)).toThrow(
+      notFound()
+    )
+    expect(() => resolveSetupState({ data: { needed: false }, error: null, status: 200 }, "not-an-email")).toThrow(
+      notFound()
+    )
   })
 
   test("reads a failed setup check as an outage instead of a missing page", () => {

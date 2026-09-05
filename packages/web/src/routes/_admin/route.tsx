@@ -1,9 +1,31 @@
-import { Outlet, createFileRoute } from "@tanstack/react-router"
+import { notFound, Outlet, createFileRoute, redirect } from "@tanstack/react-router"
 import { AdminLayout } from "src/components/admin/layout"
 import { Separator } from "src/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "src/components/ui/sidebar"
+import { resolveAdminAccess } from "src/routes/admin/-lib/access"
+import { readAdminSession } from "src/routes/admin/-lib/session-reader"
+import { api } from "src/utils/client"
 
 export const Route = createFileRoute("/_admin")({
+  beforeLoad: async ({ location }) => {
+    const setup = await api.auth.setup.get()
+    const session = await readAdminSession()
+
+    const access = resolveAdminAccess(setup, session)
+
+    if (access === "setup-needed") throw redirect({ to: "/admin/setup" })
+    if (access === "sign-in") throw redirect({ to: "/admin/login", search: { redirect: location.href } })
+
+    if (access === "verification-pending") {
+      const email = session.data?.user.email
+
+      if (email === undefined) throw redirect({ to: "/admin/setup" })
+
+      throw redirect({ to: "/admin/setup", search: { email } })
+    }
+
+    if (access === "forbidden") throw notFound()
+  },
   component: AdminRoute
 })
 

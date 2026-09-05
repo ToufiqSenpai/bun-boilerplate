@@ -3,9 +3,9 @@ import { useState } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardFooter } from "src/components/ui/card"
+import { i18n } from "src/i18n"
 import { AdminSetupForm, type SetupSignUpInput, type SetupSignUpResult } from "src/routes/admin/-components/setup-form"
 import { VerificationPendingCard, type SendResult } from "src/routes/admin/-components/verification-pending"
-import { i18n } from "src/i18n"
 import { api, authClient } from "src/utils/client"
 import { z } from "zod"
 
@@ -54,7 +54,7 @@ export const Route = createFileRoute("/admin/setup")({
   head: () => ({
     meta: [{ title: "Admin Setup" }]
   }),
-  beforeLoad: async ({ location }) => {
+  loader: async ({ location }) => {
     // SAFETY: validateSearch has already normalized location.search through setupSearchSchema, so `email` is either a string or absent.
     const requested = (location.search as { email?: string | undefined }).email
     return resolveSetupState(await api.auth.setup.get(), requested)
@@ -66,14 +66,11 @@ function AdminSetupRoute() {
   const state = Route.useLoaderData()
   const navigate = useNavigate()
 
-  return (
-    <AdminSetupPage
-      state={state}
-      onBackToLogin={() => {
-        void navigate({ to: "/admin/login" })
-      }}
-    />
-  )
+  const backToLogin = () => {
+    void navigate({ to: "/admin/login" })
+  }
+
+  return <AdminSetupPage state={state} onBackToLogin={backToLogin} />
 }
 
 export interface AdminSetupPageProps {
@@ -93,7 +90,11 @@ export function AdminSetupPage({
 }: AdminSetupPageProps) {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null)
   const navigate = useNavigate()
-  const backToLogin = onBackToLogin ?? (() => void navigate({ to: "/admin/login" }))
+  const backToLogin =
+    onBackToLogin ??
+    (() => {
+      void navigate({ to: "/admin/login" })
+    })
   const send = onSend ?? (async (to: string) => authClient.sendVerificationEmail({ email: to }))
   const signUp =
     onSignUp ??
@@ -104,7 +105,11 @@ export function AdminSetupPage({
 
       return { error }
     })
-  const complete = onSetupComplete ?? ((address: string) => setPendingEmail(address))
+  const complete =
+    onSetupComplete ??
+    ((address: string) => {
+      setPendingEmail(address)
+    })
 
   if (state.status === "outage") {
     return (
@@ -128,9 +133,7 @@ export function AdminSetupPage({
   const email = state.status === "pending" ? state.email : pendingEmail
 
   if (email !== null) {
-    return (
-      <VerificationPendingCard email={email} onSend={() => send(email)} onBackToLogin={backToLogin} />
-    )
+    return <VerificationPendingCard email={email} onSend={() => send(email)} onBackToLogin={backToLogin} />
   }
 
   return <AdminSetupForm onSignUp={signUp} onSetupComplete={complete} />
