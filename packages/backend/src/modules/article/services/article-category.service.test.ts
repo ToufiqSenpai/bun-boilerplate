@@ -365,6 +365,44 @@ describe("ArticleCategoryService", () => {
       await expect(service.create(input)).rejects.toThrow(error)
     })
 
+    test("maps a 23505 unique violation race to ValidationError", async () => {
+      const database = mockDeep<Database>()
+      const categoryRow = createCategoryRow()
+      const input = createCategoryInput()
+      const translationRow = createTranslationRow({
+        locale: input.locale,
+        name: input.name,
+        slug: input.slug,
+        description: input.description
+      })
+
+      const category = buildCategoryChain(categoryRow)
+      const translation = buildTranslationChain(translationRow)
+
+      const txMock = {
+        insert: vi
+          .fn<(table: unknown) => Chain>()
+          .mockReturnValueOnce(category.chain)
+          .mockReturnValueOnce(translation.chain)
+      }
+
+      mockTransaction(database, txMock)
+      translation.returning.mockRejectedValue(Object.assign(new Error("duplicate key value"), { code: "23505" }))
+
+      const service = new ArticleCategoryService(database)
+
+      try {
+        await service.create(input)
+        expect.unreachable("should throw ValidationError")
+      } catch (error) {
+        expect(error).toBeInstanceOf(ValidationError)
+        // SAFETY: error is ValidationError per previous expect
+        expect((error as ValidationError).status).toBe(422)
+        // SAFETY: error is ValidationError per previous expect
+        expect((error as ValidationError).message).toContain("Slug already exists")
+      }
+    })
+
     test("calls insert with empty values for category", async () => {
       const database = mockDeep<Database>()
       const categoryRow = createCategoryRow()
@@ -406,12 +444,10 @@ describe("ArticleCategoryService", () => {
       database: Database,
       categoryRows: { id: string; createdAt: Date; updatedAt: Date }[],
       currentRows: { id: string }[],
-      conflictRows: { id: string }[],
       upsert: ReturnType<typeof buildUpsertChain>
     ) {
       const categoryChain = buildSelectLimitChain(categoryRows)
       const currentChain = buildSelectLimitChain(currentRows)
-      const conflictChain = buildSelectLimitChain(conflictRows)
       const txMock = {
         insert: vi
           .fn<(table: unknown) => { values: typeof upsert.values }>()
@@ -420,7 +456,6 @@ describe("ArticleCategoryService", () => {
           .fn<(query: unknown) => { from: unknown }>()
           .mockReturnValueOnce({ from: categoryChain.from })
           .mockReturnValueOnce({ from: currentChain.from })
-          .mockReturnValueOnce({ from: conflictChain.from })
       }
       mockTransaction(database, txMock)
       return txMock
@@ -439,7 +474,7 @@ describe("ArticleCategoryService", () => {
       })
       const upsert = buildUpsertChain(savedRow)
 
-      setupUpsert(database, [categoryRow], [], [], upsert)
+      setupUpsert(database, [categoryRow], [], upsert)
 
       const service = new ArticleCategoryService(database)
       const { translation, created } = await service.upsertTranslation(params, body)
@@ -476,7 +511,7 @@ describe("ArticleCategoryService", () => {
       const savedRow = createTranslationRow({ locale: params.locale, name: body.name, slug: body.slug })
       const upsert = buildUpsertChain(savedRow)
 
-      setupUpsert(database, [categoryRow], [{ id: currentRowId }], [{ id: currentRowId }], upsert)
+      setupUpsert(database, [categoryRow], [{ id: currentRowId }], upsert)
 
       const service = new ArticleCategoryService(database)
       const { created } = await service.upsertTranslation(params, body)
@@ -493,7 +528,7 @@ describe("ArticleCategoryService", () => {
       const savedRow = createTranslationRow({ locale: params.locale, name: body.name, slug: body.slug })
       const upsert = buildUpsertChain(savedRow)
 
-      setupUpsert(database, [categoryRow], [], [], upsert)
+      setupUpsert(database, [categoryRow], [], upsert)
 
       const service = new ArticleCategoryService(database)
       await service.upsertTranslation(params, body)
@@ -517,35 +552,11 @@ describe("ArticleCategoryService", () => {
       const body = createUpsertBody()
       const upsert = buildUpsertChain(createTranslationRow({ locale: params.locale }))
 
-      const txMock = setupUpsert(database, [], [], [], upsert)
+      const txMock = setupUpsert(database, [], [], upsert)
 
       const service = new ArticleCategoryService(database)
 
       await expect(service.upsertTranslation(params, body)).rejects.toBeInstanceOf(NotFoundError)
-      expect(txMock.insert).not.toHaveBeenCalled()
-    })
-
-    test("throws ValidationError when the slug belongs to another row", async () => {
-      const database = mockDeep<Database>()
-      const categoryRow = createCategoryRow()
-      const params = createUpsertParams({ id: categoryRow.id })
-      const body = createUpsertBody()
-      const upsert = buildUpsertChain(createTranslationRow({ locale: params.locale }))
-
-      const txMock = setupUpsert(database, [categoryRow], [], [{ id: faker.string.uuid() }], upsert)
-
-      const service = new ArticleCategoryService(database)
-
-      try {
-        await service.upsertTranslation(params, body)
-        expect.unreachable("should throw ValidationError")
-      } catch (error) {
-        expect(error).toBeInstanceOf(ValidationError)
-        // SAFETY: error is ValidationError per previous expect
-        expect((error as ValidationError).status).toBe(422)
-        // SAFETY: error is ValidationError per previous expect
-        expect((error as ValidationError).message).toContain("Slug already exists")
-      }
       expect(txMock.insert).not.toHaveBeenCalled()
     })
 
@@ -556,7 +567,7 @@ describe("ArticleCategoryService", () => {
       const body = createUpsertBody()
       const upsert = buildUpsertChain(createTranslationRow({ locale: params.locale }))
 
-      setupUpsert(database, [categoryRow], [], [], upsert)
+      setupUpsert(database, [categoryRow], [], upsert)
       upsert.returning.mockRejectedValue(Object.assign(new Error("duplicate key value"), { code: "23505" }))
 
       const service = new ArticleCategoryService(database)

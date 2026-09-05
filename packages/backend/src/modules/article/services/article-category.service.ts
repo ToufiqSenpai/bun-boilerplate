@@ -102,33 +102,38 @@ export class ArticleCategoryService {
   }
 
   public async create(data: CreateArticleCategoryBody): Promise<ArticleCategory> {
-    const { category, translation } = await this.database.transaction(async tx => {
-      const [category] = await tx.insert(articleCategories).values({}).returning()
-      if (!category) throw new Error("Failed to create article category")
+    try {
+      const { category, translation } = await this.database.transaction(async tx => {
+        const [category] = await tx.insert(articleCategories).values({}).returning()
+        if (!category) throw new Error("Failed to create article category")
 
-      const [translation] = await tx
-        .insert(articleCategoryTranslations)
-        .values({
-          categoryId: category.id,
-          locale: data.locale,
-          name: data.name,
-          slug: data.slug,
-          description: data.description
-        })
-        .returning()
-      if (!translation) throw new Error("Failed to create article category translation")
+        const [translation] = await tx
+          .insert(articleCategoryTranslations)
+          .values({
+            categoryId: category.id,
+            locale: data.locale,
+            name: data.name,
+            slug: data.slug,
+            description: data.description
+          })
+          .returning()
+        if (!translation) throw new Error("Failed to create article category translation")
 
-      return { category, translation }
-    })
+        return { category, translation }
+      })
 
-    return {
-      id: category.id,
-      createdAt: category.createdAt,
-      updatedAt: category.updatedAt,
-      locale: translation.locale,
-      name: translation.name,
-      slug: translation.slug,
-      description: translation.description ?? undefined
+      return {
+        id: category.id,
+        createdAt: category.createdAt,
+        updatedAt: category.updatedAt,
+        locale: translation.locale,
+        name: translation.name,
+        slug: translation.slug,
+        description: translation.description ?? undefined
+      }
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "23505") throw this.slugConflictError(data)
+      throw error
     }
   }
 
@@ -159,15 +164,6 @@ export class ArticleCategoryService {
             )
           )
           .limit(1)
-
-        const [conflict] = await tx
-          .select({ id: articleCategoryTranslations.id })
-          .from(articleCategoryTranslations)
-          .where(
-            and(eq(articleCategoryTranslations.locale, params.locale), eq(articleCategoryTranslations.slug, data.slug))
-          )
-          .limit(1)
-        if (conflict && conflict.id !== current?.id) throw this.slugConflictError(data)
 
         const [translation] = await tx
           .insert(articleCategoryTranslations)
