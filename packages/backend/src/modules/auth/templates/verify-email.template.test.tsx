@@ -1,15 +1,14 @@
-import type { Locale } from "@bun-boilerplate/i18n"
+import { DEFAULT_LOCALE, type Locale } from "@bun-boilerplate/i18n"
 import { faker } from "@faker-js/faker"
 import { JSDOM } from "jsdom"
-import type { ReactElement } from "react"
 import { renderToReadableStream } from "react-dom/server"
 
 import { getTranslator } from "../../../common/i18n.js"
-import type { VerifyEmailProps } from "./verify-email.template.js"
-import { VerifyEmailTemplate } from "./verify-email.template.js"
+import VerifyEmail, { type VerifyEmailProps, verifyEmailOptions } from "./verify-email.template.js"
 
-function createProps(): VerifyEmailProps {
+function createProps(locale: Locale = DEFAULT_LOCALE): VerifyEmailProps {
   return {
+    locale,
     name: faker.person.firstName(),
     email: faker.internet.email(),
     verificationUrl: `https://example.com/verify/${faker.string.uuid()}`,
@@ -17,113 +16,60 @@ function createProps(): VerifyEmailProps {
   }
 }
 
-async function renderTemplate(locale: Locale, props: VerifyEmailProps): Promise<Document> {
-  const node = await new VerifyEmailTemplate(locale, props).getTemplate()
-  // SAFETY: EmailTemplate.getTemplate always returns an <Html> React element
-  const stream = await renderToReadableStream(node as ReactElement)
+async function render(props: VerifyEmailProps): Promise<Document> {
+  const stream = await renderToReadableStream(<VerifyEmail {...props} />)
   const html = await new Response(stream).text()
 
   return new JSDOM(html).window.document
 }
 
-function texts(document: Document, selector: string): string[] {
-  return [...document.querySelectorAll(selector)].map(element => element.textContent)
-}
+describe("VerifyEmail", () => {
+  test("renders with the Indonesian translations for the id locale", async () => {
+    const props = createProps("id")
+    const t = getTranslator("id")
+    const document = await render(props)
 
-describe("VerifyEmailTemplate", () => {
-  describe("subjectKey", () => {
-    test("returns the verify email subject key", () => {
-      const template = new VerifyEmailTemplate("en", createProps())
-
-      expect(template.subjectKey()).toBe("email.verifyEmail.subject")
-    })
+    expect(document.documentElement.getAttribute("lang")).toBe("id")
+    expect(document.querySelector("h1")?.textContent).toBe(t("email.verifyEmail.title"))
   })
 
-  describe("getEntityId", () => {
-    test("returns the verification url", () => {
-      const props = createProps()
-      const template = new VerifyEmailTemplate("en", props)
+  test("interpolates name, email, and expiry into the rendered paragraphs", async () => {
+    const props = createProps()
+    const t = getTranslator(props.locale)
+    const document = await render(props)
+    const paragraphTexts = [...document.querySelectorAll("p")].map(element => element.textContent)
 
-      expect(template.getEntityId()).toBe(props.verificationUrl)
-    })
+    expect(paragraphTexts).toContain(t("email.verifyEmail.intro", { name: props.name, email: props.email }))
+    expect(paragraphTexts).toContain(t("email.verifyEmail.expires", { expires: props.expiresInMinutes }))
   })
 
-  describe("getSubject", () => {
-    test("resolves the translated subject for the en locale", () => {
-      const template = new VerifyEmailTemplate("en", createProps())
-      const subject = template.getSubject()
+  test("links the verification url on the CTA button", async () => {
+    const props = createProps()
+    const document = await render(props)
 
-      expect(subject).toBe(getTranslator("en")("email.verifyEmail.subject"))
-      expect(subject).not.toBe("email.verifyEmail.subject")
-    })
+    expect(document.querySelector(`a[href="${props.verificationUrl}"]`)).not.toBeNull()
+  })
+})
 
-    test("resolves the translated subject for the id locale", () => {
-      const template = new VerifyEmailTemplate("id", createProps())
-      const subject = template.getSubject()
+describe("verifyEmailOptions", () => {
+  test("resolves the translated subject per locale", () => {
+    const props = createProps("id")
 
-      expect(subject).toBe(getTranslator("id")("email.verifyEmail.subject"))
-      expect(subject).not.toBe("email.verifyEmail.subject")
-    })
+    expect(verifyEmailOptions(props).subject).toBe(getTranslator("id")("email.verifyEmail.subject"))
   })
 
-  describe("getTemplate", () => {
-    test("sets lang and dir on the html element", async () => {
-      const document = await renderTemplate("en", createProps())
+  test("derives the idempotency key from the email address, not the url", () => {
+    const props = createProps()
+    const expectedKey = `verify-email/${props.email.toLowerCase().trim()}`
 
-      expect(document.documentElement.getAttribute("lang")).toBe("en")
-      expect(document.documentElement.getAttribute("dir")).toBe("ltr")
-    })
+    expect(verifyEmailOptions(props).idempotencyKey).toBe(expectedKey)
+    expect(verifyEmailOptions({ ...props, verificationUrl: faker.internet.url() }).idempotencyKey).toBe(expectedKey)
+  })
 
-    test("exposes the preview text in the title element", async () => {
-      const document = await renderTemplate("en", createProps())
-      const t = getTranslator("en")
+  test("targets the same template props for rendering", () => {
+    const props = createProps()
 
-      expect(document.querySelector("title")?.textContent).toBe(t("email.verifyEmail.preview"))
-    })
-
-    test("has a single h1 heading with the translated title", async () => {
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", createProps())
-      const headings = document.querySelectorAll("h1")
-
-      expect(headings).toHaveLength(1)
-      expect(headings[0]?.textContent).toBe(t("email.verifyEmail.title"))
-    })
-
-    test("interpolates name and email into the intro paragraph", async () => {
-      const props = createProps()
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", props)
-
-      expect(texts(document, "p")).toContain(t("email.verifyEmail.intro", { name: props.name, email: props.email }))
-    })
-
-    test("interpolates the expiry minutes into the expires paragraph", async () => {
-      const props = createProps()
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", props)
-
-      expect(texts(document, "p")).toContain(t("email.verifyEmail.expires", { expires: props.expiresInMinutes }))
-    })
-
-    test("links the verification url on the CTA button and the fallback link", async () => {
-      const props = createProps()
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", props)
-      const links = [...document.querySelectorAll(`a[href="${props.verificationUrl}"]`)]
-
-      expect(links).toHaveLength(2)
-      expect(links[0]?.textContent).toBe(t("email.verifyEmail.cta"))
-      expect(links[1]?.textContent).toBe(props.verificationUrl)
-    })
-
-    test("uses the Indonesian translations and locale attributes for the id locale", async () => {
-      const t = getTranslator("id")
-      const document = await renderTemplate("id", createProps())
-
-      expect(document.documentElement.getAttribute("lang")).toBe("id")
-      expect(document.querySelector("h1")?.textContent).toBe(t("email.verifyEmail.title"))
-      expect(t("email.verifyEmail.title")).not.toBe("email.verifyEmail.title")
-    })
+    expect(verifyEmailOptions(props).react.type).toBe(VerifyEmail)
+    expect(verifyEmailOptions(props).react.props).toEqual(props)
   })
 })

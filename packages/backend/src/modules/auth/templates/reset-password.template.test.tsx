@@ -1,15 +1,14 @@
-import type { Locale } from "@bun-boilerplate/i18n"
+import { DEFAULT_LOCALE, type Locale } from "@bun-boilerplate/i18n"
 import { faker } from "@faker-js/faker"
 import { JSDOM } from "jsdom"
-import type { ReactElement } from "react"
 import { renderToReadableStream } from "react-dom/server"
 
 import { getTranslator } from "../../../common/i18n.js"
-import type { ResetPasswordProps } from "./reset-password.template.js"
-import { ResetPasswordTemplate } from "./reset-password.template.js"
+import ResetPassword, { type ResetPasswordProps, resetPasswordOptions } from "./reset-password.template.js"
 
-function createProps(): ResetPasswordProps {
+function createProps(locale: Locale = DEFAULT_LOCALE): ResetPasswordProps {
   return {
+    locale,
     name: faker.person.firstName(),
     email: faker.internet.email(),
     resetUrl: `https://example.com/reset/${faker.string.uuid()}`,
@@ -17,113 +16,62 @@ function createProps(): ResetPasswordProps {
   }
 }
 
-async function renderTemplate(locale: Locale, props: ResetPasswordProps): Promise<Document> {
-  const node = await new ResetPasswordTemplate(locale, props).getTemplate()
-  // SAFETY: EmailTemplate.getTemplate always returns an <Html> React element
-  const stream = await renderToReadableStream(node as ReactElement)
+async function render(props: ResetPasswordProps): Promise<Document> {
+  const stream = await renderToReadableStream(<ResetPassword {...props} />)
   const html = await new Response(stream).text()
 
   return new JSDOM(html).window.document
 }
 
-function texts(document: Document, selector: string): string[] {
-  return [...document.querySelectorAll(selector)].map(element => element.textContent)
-}
+describe("ResetPassword", () => {
+  test("renders with the Indonesian translations for the id locale", async () => {
+    const props = createProps("id")
+    const t = getTranslator("id")
+    const document = await render(props)
 
-describe("ResetPasswordTemplate", () => {
-  describe("subjectKey", () => {
-    test("returns the reset password subject key", () => {
-      const template = new ResetPasswordTemplate("en", createProps())
-
-      expect(template.subjectKey()).toBe("email.resetPassword.subject")
-    })
+    expect(document.documentElement.getAttribute("lang")).toBe("id")
+    expect(document.querySelector("h1")?.textContent).toBe(t("email.resetPassword.title"))
   })
 
-  describe("getEntityId", () => {
-    test("returns the reset url", () => {
-      const props = createProps()
-      const template = new ResetPasswordTemplate("en", props)
+  test("interpolates name, email, and expiry into the rendered paragraphs", async () => {
+    const props = createProps()
+    const t = getTranslator(props.locale)
+    const document = await render(props)
+    const paragraphTexts = [...document.querySelectorAll("p")].map(element => element.textContent)
 
-      expect(template.getEntityId()).toBe(props.resetUrl)
-    })
+    expect(paragraphTexts).toContain(t("email.resetPassword.intro", { name: props.name, email: props.email }))
+    expect(paragraphTexts).toContain(t("email.resetPassword.expires", { expires: props.expiresInMinutes }))
   })
 
-  describe("getSubject", () => {
-    test("resolves the translated subject for the en locale", () => {
-      const template = new ResetPasswordTemplate("en", createProps())
-      const subject = template.getSubject()
+  test("includes the single-use warning as a footnote", async () => {
+    const props = createProps()
+    const t = getTranslator(props.locale)
+    const document = await render(props)
+    const paragraphTexts = [...document.querySelectorAll("p")].map(element => element.textContent)
 
-      expect(subject).toBe(getTranslator("en")("email.resetPassword.subject"))
-      expect(subject).not.toBe("email.resetPassword.subject")
-    })
-
-    test("resolves the translated subject for the id locale", () => {
-      const template = new ResetPasswordTemplate("id", createProps())
-      const subject = template.getSubject()
-
-      expect(subject).toBe(getTranslator("id")("email.resetPassword.subject"))
-      expect(subject).not.toBe("email.resetPassword.subject")
-    })
+    expect(paragraphTexts).toContain(t("email.resetPassword.once"))
   })
 
-  describe("getTemplate", () => {
-    test("sets lang and dir on the html element", async () => {
-      const document = await renderTemplate("en", createProps())
+  test("links the reset url on the CTA button", async () => {
+    const props = createProps()
+    const document = await render(props)
 
-      expect(document.documentElement.getAttribute("lang")).toBe("en")
-      expect(document.documentElement.getAttribute("dir")).toBe("ltr")
-    })
+    expect(document.querySelector(`a[href="${props.resetUrl}"]`)).not.toBeNull()
+  })
+})
 
-    test("exposes the preview text in the title element", async () => {
-      const document = await renderTemplate("en", createProps())
-      const t = getTranslator("en")
+describe("resetPasswordOptions", () => {
+  test("resolves the translated subject per locale", () => {
+    const props = createProps("id")
 
-      expect(document.querySelector("title")?.textContent).toBe(t("email.resetPassword.preview"))
-    })
+    expect(resetPasswordOptions(props).subject).toBe(getTranslator("id")("email.resetPassword.subject"))
+  })
 
-    test("has a single h1 heading with the translated title", async () => {
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", createProps())
-      const headings = document.querySelectorAll("h1")
+  test("derives the idempotency key from the email address, not the url", () => {
+    const props = createProps()
+    const expectedKey = `reset-password/${props.email.toLowerCase().trim()}`
 
-      expect(headings).toHaveLength(1)
-      expect(headings[0]?.textContent).toBe(t("email.resetPassword.title"))
-    })
-
-    test("interpolates name and email into the intro paragraph", async () => {
-      const props = createProps()
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", props)
-
-      expect(texts(document, "p")).toContain(t("email.resetPassword.intro", { name: props.name, email: props.email }))
-    })
-
-    test("interpolates the expiry minutes into the expires paragraph", async () => {
-      const props = createProps()
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", props)
-
-      expect(texts(document, "p")).toContain(t("email.resetPassword.expires", { expires: props.expiresInMinutes }))
-    })
-
-    test("links the reset url on the CTA button and the fallback link", async () => {
-      const props = createProps()
-      const t = getTranslator("en")
-      const document = await renderTemplate("en", props)
-      const links = [...document.querySelectorAll(`a[href="${props.resetUrl}"]`)]
-
-      expect(links).toHaveLength(2)
-      expect(links[0]?.textContent).toBe(t("email.resetPassword.cta"))
-      expect(links[1]?.textContent).toBe(props.resetUrl)
-    })
-
-    test("uses the Indonesian translations and locale attributes for the id locale", async () => {
-      const t = getTranslator("id")
-      const document = await renderTemplate("id", createProps())
-
-      expect(document.documentElement.getAttribute("lang")).toBe("id")
-      expect(document.querySelector("h1")?.textContent).toBe(t("email.resetPassword.title"))
-      expect(t("email.resetPassword.title")).not.toBe("email.resetPassword.title")
-    })
+    expect(resetPasswordOptions(props).idempotencyKey).toBe(expectedKey)
+    expect(resetPasswordOptions({ ...props, resetUrl: faker.internet.url() }).idempotencyKey).toBe(expectedKey)
   })
 })

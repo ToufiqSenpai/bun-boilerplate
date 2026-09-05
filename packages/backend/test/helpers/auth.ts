@@ -16,7 +16,7 @@ export interface VerifiedUser {
   cookie: string
 }
 
-export async function signUpUnverified(): Promise<UnverifiedSignUp> {
+export async function signUpUnverified(headers: Headers = new Headers()): Promise<UnverifiedSignUp> {
   const email = faker.internet.email().toLowerCase()
   const password = `${faker.internet.password({ length: 12 })}A1!`
 
@@ -25,7 +25,7 @@ export async function signUpUnverified(): Promise<UnverifiedSignUp> {
   try {
     const { response } = await auth.api.signUpEmail({
       body: { email, password, name: faker.person.fullName() },
-      headers: new Headers(),
+      headers,
       returnHeaders: true
     })
 

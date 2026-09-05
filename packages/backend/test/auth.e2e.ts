@@ -48,6 +48,22 @@ describe("GET /api/auth/setup", () => {
     expect(data?.needed).toBe(false)
   })
 
+  test("signup captures the locale from the x-locale header", async () => {
+    const { userId } = await signUpUnverified(new Headers({ "x-locale": "id" }))
+
+    const [row] = await database.select().from(users).where(eq(users.id, userId))
+
+    expect(row?.locale).toBe("id")
+  })
+
+  test("signup falls back to the default locale when no header is sent", async () => {
+    const { userId } = await signUpUnverified()
+
+    const [row] = await database.select().from(users).where(eq(users.id, userId))
+
+    expect(row?.locale).toBe("en")
+  })
+
   test("second user keeps the default role", async () => {
     await database.delete(users)
 

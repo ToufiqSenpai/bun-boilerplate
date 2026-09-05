@@ -1,35 +1,43 @@
-import { getTextDirection, type Locale } from "@bun-boilerplate/i18n"
 import * as Sentry from "@sentry/elysia"
 import { CryptoHasher } from "bun"
-import type { TFunction } from "i18next"
-import type { ReactNode } from "react"
-import { Body, Head, Html, Tailwind } from "react-email"
+import type { ReactElement } from "react"
 import { Resend, type CreateEmailOptions } from "resend"
 
 import { config } from "./config.js"
-import { getTranslator } from "./i18n.js"
 import { logger } from "./logger.js"
+
+export interface EmailRenderOptions {
+  subject: string
+  idempotencyKey: string
+  react: ReactElement
+}
+
+export interface EmailSendOptions extends EmailRenderOptions {
+  to: string
+}
 
 export class EmailService {
   private readonly MAX_RETRIES = 3
 
   public constructor(private readonly resend: Resend) {}
 
-  public async send(template: EmailTemplate<unknown>, to: string): Promise<void> {
-    const idempotencyKey = CryptoHasher.hash("sha256", `${template.subjectKey()}/${template.getEntityId()}`, "hex")
+  public async send({ to, subject, react, idempotencyKey }: EmailSendOptions): Promise<void> {
+    // Hash the caller-provided key (e.g. "verify-email/user@x.com") so the raw recipient never
+    // leaves the process and the key always fits Resend's 256-char limit.
+    const key = CryptoHasher.hash("sha256", idempotencyKey, "hex")
 
     const payload: CreateEmailOptions = {
       to,
       from: config.email.from,
       replyTo: config.email.replyTo,
-      react: template.getTemplate(),
-      subject: template.getSubject()
+      react,
+      subject
     }
 
     let lastError: { statusCode?: number | null; message: string } | undefined
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
-      const { data, error } = await this.resend.emails.send(payload, { idempotencyKey })
+      const { data, error } = await this.resend.emails.send(payload, { idempotencyKey: key })
 
       if (!error) {
         logger.info({ messageId: data.id }, "Email sent")
@@ -57,35 +65,3 @@ export class EmailService {
 }
 
 export const emailService = new EmailService(new Resend(config.email.resendAPIKey))
-
-export abstract class EmailTemplate<TProps> {
-  public constructor(
-    protected readonly locale: Locale,
-    protected readonly props: TProps
-  ) {}
-
-  public abstract subjectKey(): string
-  public abstract buildTemplate(t: TFunction, props: TProps): ReactNode
-  public abstract getEntityId(): string
-
-  public getSubject(): string {
-    const key = this.subjectKey()
-
-    // subjectKey is a dynamic identifier, so use the defaultValue overload: a typed-escape hatch
-    // that also gives a sane fallback when a locale lacks the key.
-    return getTranslator(this.locale)(key, { defaultValue: key })
-  }
-
-  public getTemplate(): ReactNode {
-    const t = getTranslator(this.locale)
-
-    return (
-      <Html lang={this.locale} dir={getTextDirection(this.locale)}>
-        <Head />
-        <Tailwind>
-          <Body className="bg-background font-sans">{this.buildTemplate(t, this.props)}</Body>
-        </Tailwind>
-      </Html>
-    )
-  }
-}

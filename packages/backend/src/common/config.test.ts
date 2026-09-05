@@ -25,8 +25,8 @@ describe("configSchema.auth.emailTokenTtlSeconds", () => {
   })
 
   test("rejects zero and negative values", () => {
-    expect(() => configSchema.shape.auth.parse({ ...requiredAuthConfig, emailTokenTtlSeconds: 0 })).toThrow()
-    expect(() => configSchema.shape.auth.parse({ ...requiredAuthConfig, emailTokenTtlSeconds: -1 })).toThrow()
+    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, emailTokenTtlSeconds: 0 }).success).toBe(false)
+    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, emailTokenTtlSeconds: -1 }).success).toBe(false)
   })
 })
 

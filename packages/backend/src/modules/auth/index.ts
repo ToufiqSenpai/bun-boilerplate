@@ -1,4 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter"
+import { DEFAULT_LOCALE, isLocale, type Locale } from "@bun-boilerplate/i18n"
 import { hash, verify, type Options } from "@node-rs/argon2"
 import { betterAuth } from "better-auth"
 import { admin, openAPI } from "better-auth/plugins"
@@ -9,14 +10,15 @@ import { Elysia } from "elysia"
 import { config } from "../../common/config.js"
 import { database } from "../../common/database.js"
 import { emailService } from "../../common/email.js"
+import { resolveLocale } from "../../common/i18n.js"
 import { logger } from "../../common/logger.js"
 import type { OpenApiTag } from "../../common/openapi.js"
 import { ac, isKnownRole, roles, type PermissionRequirement } from "./permissions.js"
 import { authSetupResponseSchema } from "./schemas/auth.schema.js"
 import { AuthService } from "./services/auth.service.js"
 import { accounts, sessions, users, verifications } from "./tables/auth.table.js"
-import { ResetPasswordTemplate } from "./templates/reset-password.template.js"
-import { VerifyEmailTemplate } from "./templates/verify-email.template.js"
+import { resetPasswordOptions } from "./templates/reset-password.template.js"
+import { verifyEmailOptions } from "./templates/verify-email.template.js"
 
 // OWASP Password Storage Cheat Sheet recommendation for Argon2id
 // Source: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
@@ -26,6 +28,30 @@ const ARGON2_OPTIONS: Options = {
   parallelism: 1, // 1 parallel lane
   outputLen: 32, // 32 byte output
   algorithm: 2 // Argon2id variant (Algorithm.Argon2id)
+}
+
+const emailTokenTtlSeconds = config.auth.emailTokenTtlSeconds
+const emailTokenTtlMinutes = Math.floor(emailTokenTtlSeconds / 60)
+
+function localeFromHeaders(headers: HeadersInit | undefined): Locale {
+  if (!headers) return DEFAULT_LOCALE
+  const request = new Headers(headers)
+
+  return resolveLocale({
+    "x-locale": request.get("x-locale") ?? undefined,
+    "accept-language": request.get("accept-language") ?? undefined
+  })
+}
+
+interface LocaleBearingUser {
+  email: string
+  locale?: string | undefined
+}
+
+function resolveUserLocale(user: LocaleBearingUser): Locale {
+  const locale = user.locale
+
+  return locale && isLocale(locale) ? locale : DEFAULT_LOCALE
 }
 
 export const auth = betterAuth({
@@ -65,6 +91,16 @@ export const auth = betterAuth({
   secret: config.auth.secret,
   baseURL: config.app.baseURL,
   trustedOrigins: config.app.origins,
+  user: {
+    additionalFields: {
+      locale: {
+        type: "string",
+        required: false,
+        defaultValue: DEFAULT_LOCALE,
+        input: false
+      }
+    }
+  },
   socialProviders: {
     google: {
       clientId: config.auth.google.clientId,
@@ -95,7 +131,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
-    resetPasswordTokenExpiresIn: 60 * 30,
+    resetPasswordTokenExpiresIn: emailTokenTtlSeconds,
     revokeSessionsOnPasswordReset: true,
     autoSignIn: false,
     password: {
@@ -104,15 +140,16 @@ export const auth = betterAuth({
     },
     sendResetPassword: async ({ user, url }) => {
       void emailService
-        .send(
-          new ResetPasswordTemplate("en", {
+        .send({
+          to: user.email,
+          ...resetPasswordOptions({
+            locale: resolveUserLocale(user),
             name: user.name,
             email: user.email,
             resetUrl: url,
-            expiresInMinutes: 30
-          }),
-          user.email
-        )
+            expiresInMinutes: emailTokenTtlMinutes
+          })
+        })
         .catch(() => {})
     },
     onPasswordReset: async ({ user }) => {
@@ -125,18 +162,19 @@ export const auth = betterAuth({
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
       void emailService
-        .send(
-          new VerifyEmailTemplate("en", {
+        .send({
+          to: user.email,
+          ...verifyEmailOptions({
+            locale: resolveUserLocale(user),
             name: user.name,
             email: user.email,
             verificationUrl: url,
-            expiresInMinutes: 30
-          }),
-          user.email
-        )
+            expiresInMinutes: emailTokenTtlMinutes
+          })
+        })
         .catch(() => {})
     },
-    expiresIn: 60 * 30,
+    expiresIn: emailTokenTtlSeconds,
     sendOnSignUp: true,
     beforeEmailVerification: async user => {
       logger.debug({ userId: user.id }, "Email verification processed")
@@ -161,6 +199,9 @@ export const auth = betterAuth({
     },
     user: {
       create: {
+        before: async (user, context) => ({
+          data: { ...user, locale: localeFromHeaders(context?.headers) }
+        }),
         after: async user => {
           const [result] = await database.select({ value: count() }).from(users)
 

@@ -1,26 +1,29 @@
 import { faker } from "@faker-js/faker"
 import { CryptoHasher } from "bun"
+import { createElement } from "react"
 import type { Resend } from "resend"
 import { mockDeep } from "vitest-mock-extended"
 
-import { EmailService, EmailTemplate } from "./email.js"
+import { EmailService, type EmailSendOptions } from "./email.js"
 
-class FakeTemplate extends EmailTemplate<{ entityId: string }> {
-  public subjectKey(): string {
-    return "email.test.subject"
-  }
-
-  public getEntityId(): string {
-    return this.props.entityId
-  }
-
-  public buildTemplate(): null {
-    return null
+function createOptions(): EmailSendOptions {
+  return {
+    to: faker.internet.email(),
+    subject: faker.lorem.sentence(),
+    react: createElement("div"),
+    idempotencyKey: `verify-email/${faker.internet.email().toLowerCase()}`
   }
 }
 
 function createResendMock(): Resend {
   return mockDeep<Resend>()
+}
+
+function sentKey(resend: Resend, index: number): string {
+  // SAFETY: test asserts call count before reading
+  const opts = vi.mocked(resend.emails.send).mock.calls[index]![1] as { idempotencyKey: string }
+
+  return opts.idempotencyKey
 }
 
 describe("EmailService.send", () => {
@@ -39,35 +42,28 @@ describe("EmailService.send", () => {
     vi.mocked(resend.emails.send).mockResolvedValue({ data: { id: dataId }, error: null, headers: null })
 
     const service = new EmailService(resend)
-    const template = new FakeTemplate("en", { entityId: faker.internet.url() })
-    const to = faker.internet.email()
+    const options = createOptions()
 
-    await service.send(template, to)
+    await service.send(options)
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(1)
-    const calls = vi.mocked(resend.emails.send).mock.calls
-    // SAFETY: called once, first call exists
-    const opts = calls[0]![1] as { idempotencyKey: string }
-    const expectedHash = CryptoHasher.hash("sha256", `${template.subjectKey()}/${template.getEntityId()}`, "hex")
-    expect(opts.idempotencyKey).toBe(expectedHash)
+    expect(sentKey(resend, 0)).toBe(CryptoHasher.hash("sha256", options.idempotencyKey, "hex"))
   })
 
-  test("idempotencyKey is derived from subjectKey and entityId", async () => {
+  test("idempotencyKey is a hash of the caller key, stable and bounded", async () => {
     const resend = createResendMock()
     vi.mocked(resend.emails.send).mockResolvedValue({ data: { id: faker.string.uuid() }, error: null, headers: null })
 
     const service = new EmailService(resend)
-    const entityId = `https://example.com/verify?token=${faker.string.alphanumeric(32)}`
-    const template = new FakeTemplate("en", { entityId })
+    const options = createOptions()
 
-    await service.send(template, faker.internet.email())
+    await service.send(options)
 
-    const calls = vi.mocked(resend.emails.send).mock.calls
-    // SAFETY: called once
-    const opts = calls[0]![1] as { idempotencyKey: string }
-    const expectedHash = CryptoHasher.hash("sha256", `${template.subjectKey()}/${entityId}`, "hex")
-    expect(opts.idempotencyKey).toBe(expectedHash)
-    expect(opts.idempotencyKey.length).toBeLessThanOrEqual(256)
+    const key = sentKey(resend, 0)
+
+    expect(key).toBe(CryptoHasher.hash("sha256", options.idempotencyKey, "hex"))
+    expect(key.length).toBeLessThanOrEqual(256)
+    expect(key).not.toContain(options.to)
   })
 
   test("retries on 429 and succeeds on second attempt with same idempotencyKey", async () => {
@@ -82,19 +78,12 @@ describe("EmailService.send", () => {
       .mockResolvedValueOnce({ data: { id: dataId }, error: null, headers: null })
 
     const service = new EmailService(resend)
-    const template = new FakeTemplate("en", { entityId: faker.internet.url() })
-
-    const promise = service.send(template, faker.internet.email())
+    const promise = service.send(createOptions())
     await vi.advanceTimersByTimeAsync(9000)
     await promise
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(2)
-    const calls = vi.mocked(resend.emails.send).mock.calls
-    // SAFETY: two calls exist
-    const key1 = (calls[0]![1] as { idempotencyKey: string }).idempotencyKey
-    // SAFETY: two calls exist
-    const key2 = (calls[1]![1] as { idempotencyKey: string }).idempotencyKey
-    expect(key1).toBe(key2)
+    expect(sentKey(resend, 0)).toBe(sentKey(resend, 1))
   })
 
   test("retries on 500 and succeeds", async () => {
@@ -109,7 +98,7 @@ describe("EmailService.send", () => {
       .mockResolvedValueOnce({ data: { id: dataId }, error: null, headers: null })
 
     const service = new EmailService(resend)
-    const promise = service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
+    const promise = service.send(createOptions())
     await vi.advanceTimersByTimeAsync(9000)
     await promise
 
@@ -125,7 +114,7 @@ describe("EmailService.send", () => {
     })
 
     const service = new EmailService(resend)
-    await service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
+    await service.send(createOptions())
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(1)
   })
@@ -139,7 +128,7 @@ describe("EmailService.send", () => {
     })
 
     const service = new EmailService(resend)
-    await service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
+    await service.send(createOptions())
 
     expect(vi.mocked(resend.emails.send)).toHaveBeenCalledTimes(1)
   })
@@ -153,7 +142,7 @@ describe("EmailService.send", () => {
     })
 
     const service = new EmailService(resend)
-    const promise = service.send(new FakeTemplate("en", { entityId: faker.string.uuid() }), faker.internet.email())
+    const promise = service.send(createOptions())
 
     await vi.advanceTimersByTimeAsync(9000)
     await promise
