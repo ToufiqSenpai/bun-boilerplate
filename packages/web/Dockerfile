@@ -9,7 +9,7 @@ COPY package.json bun.lock ./
 COPY packages/web/package.json packages/web/
 COPY packages/backend/package.json packages/backend/
 COPY packages/i18n/package.json packages/i18n/
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 # vite resolves workspace sources: web + i18n code (backend is import-type-only, erased at build)
 COPY tsconfig.json ./
