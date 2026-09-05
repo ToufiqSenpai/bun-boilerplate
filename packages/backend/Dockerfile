@@ -8,9 +8,11 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/backend/package.json packages/backend/
 COPY packages/i18n/package.json packages/i18n/
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY packages/backend/tsconfig.json packages/backend/tsconfig.build.json packages/backend/
+# root tsconfig: tsconfig.build.json extends it — without it tsc loses skipLibCheck and fails (TS5083)
+COPY tsconfig.json ./
 COPY packages/i18n packages/i18n
 COPY packages/backend/src packages/backend/src
 COPY packages/backend/migrations packages/backend/migrations
@@ -19,7 +21,9 @@ COPY packages/backend/migrations packages/backend/migrations
 ARG NODE_ENV=production
 ENV NODE_ENV=$NODE_ENV
 
-# no --asset ./.env here: secrets are provided via runtime env, never baked into the image
+# no --asset ./.env here: secrets are provided via runtime env, never baked into the image.
+# the package build script still stats ./.env as an asset — satisfy it with an empty file
+RUN touch packages/backend/.env
 RUN cd packages/backend && bun run build
 
 # ---- runtime: only the self-contained binary + musl/stdc libs ----
