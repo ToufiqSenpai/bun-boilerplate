@@ -56,6 +56,10 @@ Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --p
 - Web: `vite.config.ts` order matters — `devtools()` → `nitro({ rollupConfig:{external:[/^@sentry\//]}})` → `tailwindcss()` → `tanstackStart()` → `viteReact()` → `babel(reactCompilerPreset)`. `tsr.config.json` + `tsconfig.json` path aliases drive route generation.
 - Infra: `opencode.json` wires oxlint LSP (type-aware) and Infisical MCP (`bun x @infisical/mcp`). No CI workflows / Husky hooks checked in.
 
+## Communication
+
+- Always use English for issues, PRs, comments, etc.
+
 ## Agent Skills
 
 ### Issue tracker
