@@ -1,8 +1,10 @@
+import { DEFAULT_LOCALE } from "@bun-boilerplate/i18n"
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
 import { eq } from "drizzle-orm"
 
 import { database } from "../src/common/database.js"
+import { getTranslator } from "../src/common/translator.js"
 import { app } from "../src/main.js"
 import { auth } from "../src/modules/auth/index.js"
 import { sessions, users } from "../src/modules/auth/tables/auth.table.js"
@@ -46,6 +48,18 @@ describe("GET /api/auth/setup", () => {
     const { data, status } = await api.api.auth.setup.get()
     expect(status).toBe(200)
     expect(data?.needed).toBe(false)
+  })
+
+  test("verification email is resolved in the locale of the signup request", async () => {
+    const { emailOptions } = await signUpUnverified(new Headers({ "x-locale": "id" }))
+
+    expect(emailOptions?.subject).toBe(getTranslator("id")("email.verifyEmail.subject"))
+  })
+
+  test("verification email falls back to the default locale when no header is sent", async () => {
+    const { emailOptions } = await signUpUnverified()
+
+    expect(emailOptions?.subject).toBe(getTranslator(DEFAULT_LOCALE)("email.verifyEmail.subject"))
   })
 
   test("second user keeps the default role", async () => {

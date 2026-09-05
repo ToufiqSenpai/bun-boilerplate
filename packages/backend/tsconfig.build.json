@@ -10,5 +10,14 @@
     "types": ["bun"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx", "test", "node_modules", "dist", "migrations"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "test",
+    "node_modules",
+    "dist",
+    "migrations"
+  ]
 }

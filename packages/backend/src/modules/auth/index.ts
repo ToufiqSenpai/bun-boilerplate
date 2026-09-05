@@ -1,4 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter"
+import { DEFAULT_LOCALE } from "@bun-boilerplate/i18n"
 import { hash, verify, type Options } from "@node-rs/argon2"
 import { betterAuth } from "better-auth"
 import { admin, openAPI } from "better-auth/plugins"
@@ -8,15 +9,16 @@ import { Elysia } from "elysia"
 
 import { config } from "../../common/config.js"
 import { database } from "../../common/database.js"
-import { emailService } from "../../common/email.js"
+import { emailService } from "../../common/email-service.js"
+import { resolveLocale } from "../../common/i18n.js"
 import { logger } from "../../common/logger.js"
 import type { OpenApiTag } from "../../common/openapi.js"
 import { ac, isKnownRole, roles, type PermissionRequirement } from "./permissions.js"
 import { authSetupResponseSchema } from "./schemas/auth.schema.js"
 import { AuthService } from "./services/auth.service.js"
 import { accounts, sessions, users, verifications } from "./tables/auth.table.js"
-import { ResetPasswordTemplate } from "./templates/reset-password.template.js"
-import { VerifyEmailTemplate } from "./templates/verify-email.template.js"
+import { resetPasswordOptions } from "./templates/reset-password.template.js"
+import { verifyEmailOptions } from "./templates/verify-email.template.js"
 
 // OWASP Password Storage Cheat Sheet recommendation for Argon2id
 // Source: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
@@ -95,23 +97,25 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
-    resetPasswordTokenExpiresIn: 60 * 30,
+    resetPasswordTokenExpiresIn: config.auth.email.resetPasswordTtl,
     revokeSessionsOnPasswordReset: true,
     autoSignIn: false,
     password: {
       hash: password => hash(password, ARGON2_OPTIONS),
       verify: ({ password, hash: storedHash }) => verify(storedHash, password, ARGON2_OPTIONS)
     },
-    sendResetPassword: async ({ user, url }) => {
+    sendResetPassword: async ({ user, url }, request) => {
+      const locale = request ? resolveLocale(request.headers) : DEFAULT_LOCALE
+
       void emailService
         .send(
-          new ResetPasswordTemplate("en", {
+          resetPasswordOptions({
+            locale,
             name: user.name,
             email: user.email,
             resetUrl: url,
-            expiresInMinutes: 30
-          }),
-          user.email
+            expiresInMinutes: Math.floor(config.auth.email.resetPasswordTtl / 60)
+          })
         )
         .catch(() => {})
     },
@@ -123,20 +127,22 @@ export const auth = betterAuth({
     }
   },
   emailVerification: {
-    sendVerificationEmail: async ({ user, url }) => {
+    sendVerificationEmail: async ({ user, url }, request) => {
+      const locale = request ? resolveLocale(request.headers) : DEFAULT_LOCALE
+
       void emailService
         .send(
-          new VerifyEmailTemplate("en", {
+          verifyEmailOptions({
+            locale,
             name: user.name,
             email: user.email,
             verificationUrl: url,
-            expiresInMinutes: 30
-          }),
-          user.email
+            expiresInMinutes: Math.floor(config.auth.email.verifyEmailTtl / 60)
+          })
         )
         .catch(() => {})
     },
-    expiresIn: 60 * 30,
+    expiresIn: config.auth.email.verifyEmailTtl,
     sendOnSignUp: true,
     beforeEmailVerification: async user => {
       logger.debug({ userId: user.id }, "Email verification processed")
