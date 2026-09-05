@@ -102,33 +102,38 @@ export class ArticleCategoryService {
   }
 
   public async create(data: CreateArticleCategoryBody): Promise<ArticleCategory> {
-    const { category, translation } = await this.database.transaction(async tx => {
-      const [category] = await tx.insert(articleCategories).values({}).returning()
-      if (!category) throw new Error("Failed to create article category")
+    try {
+      const { category, translation } = await this.database.transaction(async tx => {
+        const [category] = await tx.insert(articleCategories).values({}).returning()
+        if (!category) throw new Error("Failed to create article category")
 
-      const [translation] = await tx
-        .insert(articleCategoryTranslations)
-        .values({
-          categoryId: category.id,
-          locale: data.locale,
-          name: data.name,
-          slug: data.slug,
-          description: data.description
-        })
-        .returning()
-      if (!translation) throw new Error("Failed to create article category translation")
+        const [translation] = await tx
+          .insert(articleCategoryTranslations)
+          .values({
+            categoryId: category.id,
+            locale: data.locale,
+            name: data.name,
+            slug: data.slug,
+            description: data.description
+          })
+          .returning()
+        if (!translation) throw new Error("Failed to create article category translation")
 
-      return { category, translation }
-    })
+        return { category, translation }
+      })
 
-    return {
-      id: category.id,
-      createdAt: category.createdAt,
-      updatedAt: category.updatedAt,
-      locale: translation.locale,
-      name: translation.name,
-      slug: translation.slug,
-      description: translation.description ?? undefined
+      return {
+        id: category.id,
+        createdAt: category.createdAt,
+        updatedAt: category.updatedAt,
+        locale: translation.locale,
+        name: translation.name,
+        slug: translation.slug,
+        description: translation.description ?? undefined
+      }
+    } catch (error) {
+      if (this.isUniqueViolation(error)) throw this.slugConflictError(data)
+      throw error
     }
   }
 
@@ -160,15 +165,6 @@ export class ArticleCategoryService {
           )
           .limit(1)
 
-        const [conflict] = await tx
-          .select({ id: articleCategoryTranslations.id })
-          .from(articleCategoryTranslations)
-          .where(
-            and(eq(articleCategoryTranslations.locale, params.locale), eq(articleCategoryTranslations.slug, data.slug))
-          )
-          .limit(1)
-        if (conflict && conflict.id !== current?.id) throw this.slugConflictError(data)
-
         const [translation] = await tx
           .insert(articleCategoryTranslations)
           .values({
@@ -199,7 +195,7 @@ export class ArticleCategoryService {
         }
       })
     } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "23505") throw this.slugConflictError(data)
+      if (this.isUniqueViolation(error)) throw this.slugConflictError(data)
       throw error
     }
   }
@@ -222,6 +218,15 @@ export class ArticleCategoryService {
       slug: row.slug,
       description: row.description ?? undefined
     }
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    let current: unknown = error
+    while (current instanceof Error) {
+      if ("code" in current && current.code === "23505") return true
+      current = current.cause
+    }
+    return false
   }
 
   private slugConflictError(data: UpsertArticleCategoryTranslationBody): ValidationError {

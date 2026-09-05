@@ -1,10 +1,10 @@
 import { faker } from "@faker-js/faker"
-import type { SQL } from "drizzle-orm"
+import { and, count, eq, isNull, type SQL } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { NotFoundError, ValidationError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
 
-import type { Database } from "../../../common/database.js"
+import { database, type Database } from "../../../common/database.js"
 import type {
   ArticleCategoryTranslationParams,
   CreateArticleCategoryBody,
@@ -12,6 +12,10 @@ import type {
 } from "../schemas/article-category.schema.js"
 import { articleCategories, articleCategoryTranslations } from "../tables/article-category.table.js"
 import { ArticleCategoryService } from "./article-category.service.js"
+
+function duplicateKeyError(): Error {
+  return Object.assign(new Error("duplicate key value"), { code: "23505" })
+}
 
 function createCategoryRow() {
   return {
@@ -365,6 +369,80 @@ describe("ArticleCategoryService", () => {
       await expect(service.create(input)).rejects.toThrow(error)
     })
 
+    test("rejects a sequential duplicate slug with the Slug-conflict shape and leaves no orphan", async () => {
+      const service = new ArticleCategoryService(database)
+      const slug = faker.lorem.slug()
+      const locale = faker.helpers.arrayElement(["en", "id"] as const)
+
+      await service.create(createCategoryInput({ locale, slug }))
+      try {
+        await service.create(createCategoryInput({ locale, slug }))
+        expect.unreachable("should throw ValidationError")
+      } catch (error) {
+        expect(error).toBeInstanceOf(ValidationError)
+        // SAFETY: error is ValidationError per previous expect
+        expect((error as ValidationError).status).toBe(422)
+        // SAFETY: error is ValidationError per previous expect
+        expect((error as ValidationError).message).toContain("Slug already exists")
+      }
+
+      const [categoryCount] = await database
+        .select({ value: count() })
+        .from(articleCategories)
+        .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
+        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
+      const [translationCount] = await database
+        .select({ value: count() })
+        .from(articleCategoryTranslations)
+        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
+      expect(categoryCount?.value).toBe(1)
+      expect(translationCount?.value).toBe(1)
+    })
+
+    test("yields one success and one Slug-conflict for concurrent duplicates with no orphan", async () => {
+      const service = new ArticleCategoryService(database)
+      const slug = faker.lorem.slug()
+      const locale = faker.helpers.arrayElement(["en", "id"] as const)
+
+      const results = await Promise.allSettled([
+        service.create(createCategoryInput({ locale, slug })),
+        service.create(createCategoryInput({ locale, slug }))
+      ])
+      const fulfilled = results.filter(result => result.status === "fulfilled")
+      const rejected = results.filter(result => result.status === "rejected")
+      expect(fulfilled).toHaveLength(1)
+      expect(rejected).toHaveLength(1)
+      // SAFETY: rejected is PromiseRejectedResult per previous filter
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ValidationError)
+
+      const [categoryCount] = await database
+        .select({ value: count() })
+        .from(articleCategories)
+        .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
+        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
+      const [translationCount] = await database
+        .select({ value: count() })
+        .from(articleCategoryTranslations)
+        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
+      const [orphanCount] = await database
+        .select({ value: count() })
+        .from(articleCategories)
+        .leftJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
+        .where(isNull(articleCategoryTranslations.id))
+      expect(categoryCount?.value).toBe(1)
+      expect(translationCount?.value).toBe(1)
+      expect(orphanCount?.value).toBe(0)
+    })
+
+    test("accepts the same slug under a different locale", async () => {
+      const service = new ArticleCategoryService(database)
+      const slug = faker.lorem.slug()
+
+      await service.create(createCategoryInput({ locale: "en", slug }))
+
+      expect(await service.create(createCategoryInput({ locale: "id", slug }))).toMatchObject({ locale: "id", slug })
+    })
+
     test("calls insert with empty values for category", async () => {
       const database = mockDeep<Database>()
       const categoryRow = createCategoryRow()
@@ -406,12 +484,10 @@ describe("ArticleCategoryService", () => {
       database: Database,
       categoryRows: { id: string; createdAt: Date; updatedAt: Date }[],
       currentRows: { id: string }[],
-      conflictRows: { id: string }[],
       upsert: ReturnType<typeof buildUpsertChain>
     ) {
       const categoryChain = buildSelectLimitChain(categoryRows)
       const currentChain = buildSelectLimitChain(currentRows)
-      const conflictChain = buildSelectLimitChain(conflictRows)
       const txMock = {
         insert: vi
           .fn<(table: unknown) => { values: typeof upsert.values }>()
@@ -420,7 +496,6 @@ describe("ArticleCategoryService", () => {
           .fn<(query: unknown) => { from: unknown }>()
           .mockReturnValueOnce({ from: categoryChain.from })
           .mockReturnValueOnce({ from: currentChain.from })
-          .mockReturnValueOnce({ from: conflictChain.from })
       }
       mockTransaction(database, txMock)
       return txMock
@@ -439,7 +514,7 @@ describe("ArticleCategoryService", () => {
       })
       const upsert = buildUpsertChain(savedRow)
 
-      setupUpsert(database, [categoryRow], [], [], upsert)
+      setupUpsert(database, [categoryRow], [], upsert)
 
       const service = new ArticleCategoryService(database)
       const { translation, created } = await service.upsertTranslation(params, body)
@@ -476,7 +551,7 @@ describe("ArticleCategoryService", () => {
       const savedRow = createTranslationRow({ locale: params.locale, name: body.name, slug: body.slug })
       const upsert = buildUpsertChain(savedRow)
 
-      setupUpsert(database, [categoryRow], [{ id: currentRowId }], [{ id: currentRowId }], upsert)
+      setupUpsert(database, [categoryRow], [{ id: currentRowId }], upsert)
 
       const service = new ArticleCategoryService(database)
       const { created } = await service.upsertTranslation(params, body)
@@ -493,7 +568,7 @@ describe("ArticleCategoryService", () => {
       const savedRow = createTranslationRow({ locale: params.locale, name: body.name, slug: body.slug })
       const upsert = buildUpsertChain(savedRow)
 
-      setupUpsert(database, [categoryRow], [], [], upsert)
+      setupUpsert(database, [categoryRow], [], upsert)
 
       const service = new ArticleCategoryService(database)
       await service.upsertTranslation(params, body)
@@ -517,7 +592,7 @@ describe("ArticleCategoryService", () => {
       const body = createUpsertBody()
       const upsert = buildUpsertChain(createTranslationRow({ locale: params.locale }))
 
-      const txMock = setupUpsert(database, [], [], [], upsert)
+      const txMock = setupUpsert(database, [], [], upsert)
 
       const service = new ArticleCategoryService(database)
 
@@ -525,39 +600,15 @@ describe("ArticleCategoryService", () => {
       expect(txMock.insert).not.toHaveBeenCalled()
     })
 
-    test("throws ValidationError when the slug belongs to another row", async () => {
+    test("maps a 23505 unique violation on the upsert insert to ValidationError", async () => {
       const database = mockDeep<Database>()
       const categoryRow = createCategoryRow()
       const params = createUpsertParams({ id: categoryRow.id })
       const body = createUpsertBody()
       const upsert = buildUpsertChain(createTranslationRow({ locale: params.locale }))
 
-      const txMock = setupUpsert(database, [categoryRow], [], [{ id: faker.string.uuid() }], upsert)
-
-      const service = new ArticleCategoryService(database)
-
-      try {
-        await service.upsertTranslation(params, body)
-        expect.unreachable("should throw ValidationError")
-      } catch (error) {
-        expect(error).toBeInstanceOf(ValidationError)
-        // SAFETY: error is ValidationError per previous expect
-        expect((error as ValidationError).status).toBe(422)
-        // SAFETY: error is ValidationError per previous expect
-        expect((error as ValidationError).message).toContain("Slug already exists")
-      }
-      expect(txMock.insert).not.toHaveBeenCalled()
-    })
-
-    test("maps a 23505 unique violation race to ValidationError", async () => {
-      const database = mockDeep<Database>()
-      const categoryRow = createCategoryRow()
-      const params = createUpsertParams({ id: categoryRow.id })
-      const body = createUpsertBody()
-      const upsert = buildUpsertChain(createTranslationRow({ locale: params.locale }))
-
-      setupUpsert(database, [categoryRow], [], [], upsert)
-      upsert.returning.mockRejectedValue(Object.assign(new Error("duplicate key value"), { code: "23505" }))
+      setupUpsert(database, [categoryRow], [], upsert)
+      upsert.returning.mockRejectedValue(duplicateKeyError())
 
       const service = new ArticleCategoryService(database)
 
