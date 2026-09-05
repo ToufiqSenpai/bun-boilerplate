@@ -1,13 +1,10 @@
 import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
 import slugify from "@sindresorhus/slugify"
-import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
-import { database } from "../../../common/database.js"
 import { localeHeadersSchema } from "../../../common/i18n.js"
 import { collectionSchema, omitCollection } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
-import { articleCategoryTranslations } from "../tables/article-category.table.js"
 
 // Shared field schemas
 const slugSchema = z
@@ -58,18 +55,9 @@ export const getArticleCategoryParamsSchema = z.object({
 })
 export const getArticleCategoryHeadersSchema = localeHeadersSchema
 
-// POST /article-categories (body) — slug uniqueness is per locale, matching the UNIQUE(locale, slug) constraint
-export const createArticleCategorySchema = omitCollection(articleCategorySchema).refine(
-  async ({ locale, slug }) => {
-    const [exists] = await database
-      .select({ slug: articleCategoryTranslations.slug })
-      .from(articleCategoryTranslations)
-      .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
-      .limit(1)
-    return !exists
-  },
-  { error: "Slug already exists", path: ["slug"] }
-)
+// POST /article-categories (body) — pure rules only; per-Locale Slug uniqueness is owned by the
+// article category service through the UNIQUE(locale, slug) constraint (23505 → 422 Slug-conflict)
+export const createArticleCategorySchema = omitCollection(articleCategorySchema)
 
 export type CreateArticleCategoryBody = z.output<typeof createArticleCategorySchema>
 
