@@ -4,9 +4,9 @@ import { createElement } from "react"
 import type { Resend } from "resend"
 import { mockDeep } from "vitest-mock-extended"
 
-import { EmailService, type EmailSendOptions } from "./email.js"
+import { EmailService, type SendEmailOptions } from "./email-service.js"
 
-function createOptions(): EmailSendOptions {
+function createOptions(): SendEmailOptions {
   return {
     to: faker.internet.email(),
     subject: faker.lorem.sentence(),

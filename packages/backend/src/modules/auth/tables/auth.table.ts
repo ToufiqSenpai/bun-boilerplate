@@ -1,4 +1,3 @@
-import { DEFAULT_LOCALE } from "@bun-boilerplate/i18n"
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
 
 import { baseColumns } from "../../../common/database.js"
@@ -8,7 +7,6 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
-  locale: text("locale").notNull().default(DEFAULT_LOCALE),
   image: text("image"),
   role: text("role"),
   banned: boolean("banned").default(false),

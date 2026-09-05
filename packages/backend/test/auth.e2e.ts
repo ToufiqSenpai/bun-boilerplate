@@ -1,8 +1,10 @@
+import { DEFAULT_LOCALE } from "@bun-boilerplate/i18n"
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
 import { eq } from "drizzle-orm"
 
 import { database } from "../src/common/database.js"
+import { getTranslator } from "../src/common/translator.js"
 import { app } from "../src/main.js"
 import { auth } from "../src/modules/auth/index.js"
 import { sessions, users } from "../src/modules/auth/tables/auth.table.js"
@@ -48,20 +50,16 @@ describe("GET /api/auth/setup", () => {
     expect(data?.needed).toBe(false)
   })
 
-  test("signup captures the locale from the x-locale header", async () => {
-    const { userId } = await signUpUnverified(new Headers({ "x-locale": "id" }))
+  test("verification email is resolved in the locale of the signup request", async () => {
+    const { emailOptions } = await signUpUnverified(new Headers({ "x-locale": "id" }))
 
-    const [row] = await database.select().from(users).where(eq(users.id, userId))
-
-    expect(row?.locale).toBe("id")
+    expect(emailOptions?.subject).toBe(getTranslator("id")("email.verifyEmail.subject"))
   })
 
-  test("signup falls back to the default locale when no header is sent", async () => {
-    const { userId } = await signUpUnverified()
+  test("verification email falls back to the default locale when no header is sent", async () => {
+    const { emailOptions } = await signUpUnverified()
 
-    const [row] = await database.select().from(users).where(eq(users.id, userId))
-
-    expect(row?.locale).toBe("en")
+    expect(emailOptions?.subject).toBe(getTranslator(DEFAULT_LOCALE)("email.verifyEmail.subject"))
   })
 
   test("second user keeps the default role", async () => {

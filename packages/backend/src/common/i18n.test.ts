@@ -7,51 +7,51 @@ import { localeHeadersSchema, localePlugin, resolveLocale } from "./i18n.js"
 describe("resolveLocale", () => {
   test("returns X-Locale when it is a valid locale", () => {
     const locale = faker.helpers.arrayElement([...LOCALES])
-    expect(resolveLocale({ "x-locale": locale })).toBe(locale)
+    expect(resolveLocale(new Headers({ "x-locale": locale }))).toBe(locale)
   })
 
   test("normalizes X-Locale case and trims whitespace", () => {
-    expect(resolveLocale({ "x-locale": "  EN  " })).toBe("en")
-    expect(resolveLocale({ "x-locale": " Id " })).toBe("id")
+    expect(resolveLocale(new Headers({ "x-locale": "  EN  " }))).toBe("en")
+    expect(resolveLocale(new Headers({ "x-locale": " Id " }))).toBe("id")
   })
 
   test("prefers X-Locale over Accept-Language", () => {
-    expect(resolveLocale({ "x-locale": "id", "accept-language": "en" })).toBe("id")
-    expect(resolveLocale({ "x-locale": "en", "accept-language": "id" })).toBe("en")
+    expect(resolveLocale(new Headers({ "x-locale": "id", "accept-language": "en" }))).toBe("id")
+    expect(resolveLocale(new Headers({ "x-locale": "en", "accept-language": "id" }))).toBe("en")
   })
 
   test("falls back to Accept-Language when X-Locale is missing", () => {
-    expect(resolveLocale({ "accept-language": "id" })).toBe("id")
-    expect(resolveLocale({ "accept-language": "en" })).toBe("en")
+    expect(resolveLocale(new Headers({ "accept-language": "id" }))).toBe("id")
+    expect(resolveLocale(new Headers({ "accept-language": "en" }))).toBe("en")
   })
 
   test("falls back to Accept-Language when X-Locale is invalid", () => {
-    expect(resolveLocale({ "x-locale": "fr", "accept-language": "id" })).toBe("id")
-    expect(resolveLocale({ "x-locale": "xx", "accept-language": "en" })).toBe("en")
+    expect(resolveLocale(new Headers({ "x-locale": "fr", "accept-language": "id" }))).toBe("id")
+    expect(resolveLocale(new Headers({ "x-locale": "xx", "accept-language": "en" }))).toBe("en")
   })
 
   test("handles Accept-Language with quality values", () => {
-    expect(resolveLocale({ "accept-language": "en;q=0.5, id;q=0.9" })).toBe("id")
-    expect(resolveLocale({ "accept-language": "id;q=0.5, en;q=0.9" })).toBe("en")
+    expect(resolveLocale(new Headers({ "accept-language": "en;q=0.5, id;q=0.9" }))).toBe("id")
+    expect(resolveLocale(new Headers({ "accept-language": "id;q=0.5, en;q=0.9" }))).toBe("en")
   })
 
   test("handles regional variants via prefix matching", () => {
-    expect(resolveLocale({ "accept-language": "en-US,en;q=0.9" })).toBe("en")
-    expect(resolveLocale({ "accept-language": "id-ID" })).toBe("id")
+    expect(resolveLocale(new Headers({ "accept-language": "en-US,en;q=0.9" }))).toBe("en")
+    expect(resolveLocale(new Headers({ "accept-language": "id-ID" }))).toBe("id")
   })
 
   test("returns DEFAULT_LOCALE when no header matches", () => {
-    expect(resolveLocale({})).toBe(DEFAULT_LOCALE)
-    expect(resolveLocale({ "accept-language": "fr, de;q=0.9" })).toBe(DEFAULT_LOCALE)
+    expect(resolveLocale(new Headers())).toBe(DEFAULT_LOCALE)
+    expect(resolveLocale(new Headers({ "accept-language": "fr, de;q=0.9" }))).toBe(DEFAULT_LOCALE)
   })
 
   test("returns DEFAULT_LOCALE for empty headers", () => {
-    expect(resolveLocale({ "accept-language": "" })).toBe(DEFAULT_LOCALE)
-    expect(resolveLocale({ "x-locale": "" })).toBe(DEFAULT_LOCALE)
+    expect(resolveLocale(new Headers({ "accept-language": "" }))).toBe(DEFAULT_LOCALE)
+    expect(resolveLocale(new Headers({ "x-locale": "" }))).toBe(DEFAULT_LOCALE)
   })
 
   test("uses negotiator ordering for complex Accept-Language", () => {
-    expect(resolveLocale({ "accept-language": "fr, en;q=0.8, id;q=0.9" })).toBe("id")
+    expect(resolveLocale(new Headers({ "accept-language": "fr, en;q=0.8, id;q=0.9" }))).toBe("id")
   })
 })
 

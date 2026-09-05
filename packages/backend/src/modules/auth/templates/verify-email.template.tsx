@@ -1,10 +1,9 @@
-import type { Locale } from "@bun-boilerplate/i18n"
+import { Button, Container, Heading, Hr, Link, Section, Text } from "react-email"
 
+import { EmailLayout, type BaseEmailProps } from "../../../common/email.js"
 import { getTranslator } from "../../../common/translator.js"
-import { ActionEmail, EmailLayout } from "./email-layout.js"
 
-export interface VerifyEmailProps {
-  locale: Locale
+export interface VerifyEmailProps extends BaseEmailProps {
   name: string
   email: string
   verificationUrl: string
@@ -16,15 +15,31 @@ export default function VerifyEmail(props: VerifyEmailProps) {
 
   return (
     <EmailLayout locale={props.locale} preview={t("email.verifyEmail.preview")}>
-      <ActionEmail
-        heading={t("email.verifyEmail.title")}
-        intro={t("email.verifyEmail.intro", { name: props.name, email: props.email })}
-        expires={t("email.verifyEmail.expires", { expires: props.expiresInMinutes })}
-        ctaLabel={t("email.verifyEmail.cta")}
-        url={props.verificationUrl}
-        footnotes={[t("email.verifyEmail.ignore")]}
-        fallbackLabel={t("email.verifyEmail.fallbackLabel")}
-      />
+      <Container className="mx-auto py-10 px-5 max-w-xl">
+        <Section className="bg-surface rounded p-6">
+          <Heading as="h1" className="text-2xl font-bold text-gray-800">
+            {t("email.verifyEmail.title")}
+          </Heading>
+          <Text className="text-base leading-7 text-gray-800">
+            {t("email.verifyEmail.intro", { name: props.name, email: props.email })}
+          </Text>
+          <Text className="text-base leading-7 text-gray-800">
+            {t("email.verifyEmail.expires", { expires: props.expiresInMinutes })}
+          </Text>
+          <Button
+            href={props.verificationUrl}
+            className="bg-brand-primary text-white px-7 py-3.5 rounded block text-center font-bold my-6 no-underline box-border"
+          >
+            {t("email.verifyEmail.cta")}
+          </Button>
+          <Hr className="border-solid border-gray-200 my-6" />
+          <Text className="text-sm text-gray-500 leading-5">{t("email.verifyEmail.ignore")}</Text>
+          <Text className="text-sm text-gray-500 leading-5">{t("email.verifyEmail.fallbackLabel")}</Text>
+          <Link href={props.verificationUrl} className="text-sm text-brand-secondary break-all">
+            {props.verificationUrl}
+          </Link>
+        </Section>
+      </Container>
     </EmailLayout>
   )
 }
@@ -38,6 +53,7 @@ VerifyEmail.PreviewProps = {
 } satisfies VerifyEmailProps
 
 export const verifyEmailOptions = (props: VerifyEmailProps) => ({
+  to: props.email,
   subject: getTranslator(props.locale)("email.verifyEmail.subject"),
   idempotencyKey: `verify-email/${props.email.toLowerCase().trim()}`,
   react: <VerifyEmail {...props} />

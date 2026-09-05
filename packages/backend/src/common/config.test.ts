@@ -4,29 +4,46 @@ import { configSchema, defaultEnvironment } from "./config.js"
 
 const requiredAuthConfig = {
   secret: faker.string.alphanumeric(32),
+  email: {
+    verifyEmailTtl: faker.number.int({ min: 60, max: 86_400 }),
+    resetPasswordTtl: faker.number.int({ min: 60, max: 86_400 })
+  },
   google: {
     clientId: faker.string.alphanumeric(16),
     clientSecret: faker.string.alphanumeric(16)
   }
 }
 
-describe("configSchema.auth.emailTokenTtlSeconds", () => {
-  test("defaults to 1800 seconds when not provided", () => {
-    const parsed = configSchema.shape.auth.parse(requiredAuthConfig)
+describe("configSchema.auth.email", () => {
+  test("TTLs default to 1800 seconds when not provided", () => {
+    const parsed = configSchema.shape.auth.parse({ ...requiredAuthConfig, email: {} })
 
-    expect(parsed.emailTokenTtlSeconds).toBe(1800)
+    expect(parsed.email.verifyEmailTtl).toBe(1800)
+    expect(parsed.email.resetPasswordTtl).toBe(1800)
   })
 
-  test("accepts a custom positive value", () => {
-    const ttl = faker.number.int({ min: 60, max: 86_400 })
-    const parsed = configSchema.shape.auth.parse({ ...requiredAuthConfig, emailTokenTtlSeconds: ttl })
+  test("accepts custom values per key", () => {
+    const verifyEmailTtl = faker.number.int({ min: 60, max: 86_400 })
+    const resetPasswordTtl = faker.number.int({ min: 60, max: 86_400 })
+    const parsed = configSchema.shape.auth.parse({ ...requiredAuthConfig, email: { verifyEmailTtl, resetPasswordTtl } })
 
-    expect(parsed.emailTokenTtlSeconds).toBe(ttl)
+    expect(parsed.email.verifyEmailTtl).toBe(verifyEmailTtl)
+    expect(parsed.email.resetPasswordTtl).toBe(resetPasswordTtl)
   })
 
   test("rejects zero and negative values", () => {
-    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, emailTokenTtlSeconds: 0 }).success).toBe(false)
-    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, emailTokenTtlSeconds: -1 }).success).toBe(false)
+    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, email: { verifyEmailTtl: 0 } }).success).toBe(
+      false
+    )
+    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, email: { verifyEmailTtl: -1 } }).success).toBe(
+      false
+    )
+    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, email: { resetPasswordTtl: 0 } }).success).toBe(
+      false
+    )
+    expect(configSchema.shape.auth.safeParse({ ...requiredAuthConfig, email: { resetPasswordTtl: -1 } }).success).toBe(
+      false
+    )
   })
 })
 

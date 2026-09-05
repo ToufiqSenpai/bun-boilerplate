@@ -3,15 +3,11 @@ import { Elysia } from "elysia"
 import Negotiator from "negotiator"
 import { z } from "zod"
 
-import { getTranslator } from "./translator.js"
-
-export { getTranslator }
-
-export function resolveLocale(headers: Record<string, string | undefined>): Locale {
-  const xLocale = headers["x-locale"]?.trim().toLowerCase()
+export function resolveLocale(headers: Headers): Locale {
+  const xLocale = headers.get("x-locale")?.trim().toLowerCase()
   if (xLocale && isLocale(xLocale)) return xLocale
 
-  const header = headers["accept-language"]
+  const header = headers.get("accept-language")
   if (!header || header.trim() === "") return DEFAULT_LOCALE
 
   const negotiator = new Negotiator({ headers: { "accept-language": header } })
@@ -35,7 +31,7 @@ export const localeHeadersSchema = z.object({
 })
 
 export const localePlugin = new Elysia({ name: "locale" })
-  .resolve(({ headers }) => ({
-    locale: resolveLocale(headers)
+  .resolve(({ request }) => ({
+    locale: resolveLocale(request.headers)
   }))
   .as("scoped")
