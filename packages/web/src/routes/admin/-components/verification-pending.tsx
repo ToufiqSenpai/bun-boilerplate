@@ -23,7 +23,7 @@ function VerificationPendingCard({ email, onSend, onBackToLogin }: VerificationP
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCooldown(current => (current > 0 ? current - 1 : current))
+      setCooldown(current => Math.max(0, current - 1))
     }, 1000)
 
     return () => {
@@ -38,15 +38,18 @@ function VerificationPendingCard({ email, onSend, onBackToLogin }: VerificationP
     const { error: sendError } = await onSend()
 
     setSending(false)
-    setCooldown(SEND_COOLDOWN_SECONDS)
 
     if (sendError) {
+      // A failed send never starts a fresh cooldown; the control stays immediately retryable.
       setError(
         sendError.status === 429
           ? i18n.t("admin.setup.success.error.rateLimited")
           : i18n.t("admin.setup.error.server.generic")
       )
+      return
     }
+
+    setCooldown(SEND_COOLDOWN_SECONDS)
   }
 
   return (

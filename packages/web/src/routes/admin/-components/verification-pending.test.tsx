@@ -1,9 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { VerificationPendingCard } from "src/routes/admin/-components/verification-pending"
-
-interface SendResult {
-  readonly error: { readonly status?: number | undefined; readonly message?: string | undefined } | null
-}
+import { VerificationPendingCard, type SendResult } from "src/routes/admin/-components/verification-pending"
 
 function renderPending(onSend?: () => Promise<SendResult>) {
   return render(
@@ -68,6 +64,28 @@ describe("VerificationPendingCard", () => {
 
       expect(screen.getByRole("button", { name: "Send email" }).hasAttribute("disabled")).toBe(false)
       expect(calls).toEqual([1])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("keeps send retryable when the send fails, rate-limited or not", async () => {
+    vi.useFakeTimers()
+    try {
+      for (const failure of [{ status: 429 }, { message: "SMTP down" }]) {
+        const view = renderPending(async () => ({ error: failure }))
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(60_000)
+        })
+
+        fireEvent.click(screen.getByRole("button", { name: "Send email" }))
+        await act(async () => {})
+
+        expect(screen.getByRole("button", { name: "Send email" }).hasAttribute("disabled")).toBe(false)
+
+        view.unmount()
+      }
     } finally {
       vi.useRealTimers()
     }
