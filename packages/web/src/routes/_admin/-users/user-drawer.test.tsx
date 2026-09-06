@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import type { AdminUser } from "src/routes/_admin/-users/map-record"
 import { UserDetailDrawer, type UserDetailDrawerProps } from "src/routes/_admin/-users/user-drawer"
-import type { AdminUser } from "src/routes/_admin/-users/users-page"
 
 const user: AdminUser = {
   id: "u1",

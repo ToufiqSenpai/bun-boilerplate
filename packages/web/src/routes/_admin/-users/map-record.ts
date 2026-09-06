@@ -1,5 +1,23 @@
-import type { AdminSessionInfo } from "src/routes/_admin/-users/user-drawer"
-import type { AdminUser } from "src/routes/_admin/-users/users-page"
+export interface AdminUser {
+  readonly id: string
+  readonly name: string
+  readonly email: string
+  readonly role: string | null
+  readonly emailVerified: boolean
+  readonly createdAt: string
+  readonly banned: boolean
+  readonly banReason: string | null
+  readonly banExpires: string | null
+}
+
+export interface AdminSessionInfo {
+  readonly id: string
+  readonly expiresAt: string
+  readonly ipAddress: string | null
+  readonly userAgent: string | null
+}
+
+export type QueryStatus = "pending" | "error" | "success"
 
 export interface RawUserRecord {
   readonly id: string

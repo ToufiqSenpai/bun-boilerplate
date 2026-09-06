@@ -25,7 +25,9 @@ function isStateUpdater(value: boolean | ((open: boolean) => boolean)): value is
   return value instanceof Function
 }
 
-function isTooltipContent(value: string | React.ComponentProps<typeof TooltipContent>): value is React.ComponentProps<typeof TooltipContent> {
+function isTooltipContent(
+  value: string | React.ComponentProps<typeof TooltipContent>
+): value is React.ComponentProps<typeof TooltipContent> {
   return value instanceof Object
 }
 

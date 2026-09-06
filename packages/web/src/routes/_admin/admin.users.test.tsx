@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import type { AdminUser } from "src/routes/_admin/-users/users-page"
-import { UsersPage, type UsersPageProps } from "src/routes/_admin/-users/users-page"
+import type { AdminUser } from "src/routes/_admin/-users/map-record"
+import { UsersPage, type UsersPageProps } from "src/routes/_admin/admin.users"
 
 const users: AdminUser[] = [
   {

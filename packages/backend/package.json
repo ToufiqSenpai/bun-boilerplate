@@ -6,7 +6,7 @@
   "main": "src/main.ts",
   "exports": {
     ".": "./src/main.ts",
-    "./auth/permissions": "./src/modules/auth/permissions.ts"
+    "./auth": "./src/modules/auth/permissions.ts"
   },
   "scripts": {
     "dev": "bun src/main.ts",

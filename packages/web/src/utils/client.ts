@@ -1,5 +1,5 @@
 import type { App } from "@bun-boilerplate/backend"
-import { ac } from "@bun-boilerplate/backend/auth/permissions"
+import { ac } from "@bun-boilerplate/backend/auth"
 import { treaty } from "@elysiajs/eden"
 import { adminClient } from "better-auth/client/plugins"
 import { createAuthClient } from "better-auth/react"

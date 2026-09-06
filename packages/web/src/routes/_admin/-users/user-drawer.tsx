@@ -5,20 +5,62 @@ import { Separator } from "src/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "src/components/ui/sheet"
 import { Skeleton } from "src/components/ui/skeleton"
 import { i18n } from "src/i18n"
-import { BanBadge, VerificationBadge, type AdminUser, type QueryStatus } from "src/routes/_admin/-users/users-page"
-
-export interface AdminSessionInfo {
-  readonly id: string
-  readonly expiresAt: string
-  readonly ipAddress: string | null
-  readonly userAgent: string | null
-}
+import type { AdminSessionInfo, AdminUser, QueryStatus } from "src/routes/_admin/-users/map-record"
+import { BanBadge, VerificationBadge } from "src/routes/_admin/-users/status-badges"
 
 export interface UserDetailDrawerProps {
   readonly user: AdminUser | null
   readonly status: QueryStatus
   readonly sessions: readonly AdminSessionInfo[]
   readonly onClose: () => void
+}
+
+const sessionSkeletonKeys = [0, 1, 2] as const
+
+function SessionsSection({
+  status,
+  sessions
+}: {
+  readonly status: QueryStatus
+  readonly sessions: readonly AdminSessionInfo[]
+}) {
+  if (status === "error") {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{i18n.t("admin.users.error.generic")}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (status === "pending") {
+    return (
+      <div className="flex flex-col gap-2">
+        {sessionSkeletonKeys.map(key => (
+          <Skeleton key={key} className="h-10 w-full" />
+        ))}
+      </div>
+    )
+  }
+
+  if (sessions.length === 0) {
+    return <p className="text-sm text-muted-foreground">{i18n.t("admin.users.drawer.sessionsEmpty")}</p>
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {sessions.map(session => (
+        <li key={session.id} className="flex flex-col gap-1 rounded-lg border p-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span>{session.userAgent ?? i18n.t("admin.users.drawer.unknownDevice")}</span>
+            <span className="text-muted-foreground">{session.ipAddress ?? "—"}</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {i18n.t("admin.users.drawer.expires")} {session.expiresAt.slice(0, 10)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 export function UserDetailDrawer({ user, status, sessions, onClose }: UserDetailDrawerProps) {
@@ -58,33 +100,7 @@ export function UserDetailDrawer({ user, status, sessions, onClose }: UserDetail
           <Separator />
           <div className="flex flex-col gap-2">
             <h3 className="font-heading text-sm font-medium">{i18n.t("admin.users.drawer.sessions")}</h3>
-            {status === "error" ? (
-              <Alert variant="destructive">
-                <AlertDescription>{i18n.t("admin.users.error.generic")}</AlertDescription>
-              </Alert>
-            ) : status === "pending" ? (
-              <div className="flex flex-col gap-2">
-                {Array.from({ length: 3 }, (_, index) => (
-                  <Skeleton key={index} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : sessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{i18n.t("admin.users.drawer.sessionsEmpty")}</p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {sessions.map(session => (
-                  <li key={session.id} className="flex flex-col gap-1 rounded-lg border p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span>{session.userAgent ?? i18n.t("admin.users.drawer.unknownDevice")}</span>
-                      <span className="text-muted-foreground">{session.ipAddress ?? "—"}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {i18n.t("admin.users.drawer.expires")} {session.expiresAt.slice(0, 10)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <SessionsSection status={status} sessions={sessions} />
           </div>
         </div>
         <SheetFooter>
