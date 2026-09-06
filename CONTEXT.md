@@ -30,6 +30,14 @@ _Avoid_: Group, Privilege
 A resource-action grant checked against a Role (e.g. `articleCategory:create`).
 _Avoid_: Privilege
 
+**Ban**:
+A restriction on a User that blocks sign-in and revokes existing Sessions. A `Ban` carries an optional reason and optional expiry; expiry restores access automatically. Lifting a `Ban` before expiry is an Unban. Only a `User` with `Role` `superadmin` may ban or unban.
+_Avoid_: Suspend, Block, Disable
+
+**Remove**:
+The permanent deletion of a User together with linked Accounts and Sessions. A removed email may sign up again as a new `User`. Only a `User` with `Role` `superadmin` may remove. Impersonation is out of scope and never exposed in UI.
+_Avoid_: Delete, Erase, Deactivate
+
 **Setup**:
 The one-time initialization that creates the first `User` with `Role` `superadmin` via `/admin/setup`. `Setup` succeeds only after `Verification` is completed, not on `signUp` alone.
 _Avoid_: Onboarding, Bootstrap, Install
@@ -51,6 +59,18 @@ _Avoid_: Translation, LocalizedArticle
 **ArticleCategoryTranslation**:
 Per-Locale localized fields for an ArticleCategory: name, slug, description.
 _Avoid_: CategoryTranslation, Translation, LocalizedCategory
+
+**ArticleContent**:
+The TipTap JSON document held by the content field of an ArticleTranslation, stored as-is with only envelope validation.
+_Avoid_: Block, RichBlock, ProseMirror
+
+**NodeImage**:
+An image embedded in ArticleContent by reference to its stored key, never to a host; the key is resolved to its host at query time.
+_Avoid_: Image, Attachment, Media
+
+**CoverImage**:
+The required hero image of an Article. A `CoverImage` belongs to the Article, never to a Locale.
+_Avoid_: Thumbnail, Banner, Hero
 
 **Status**:
 Lifecycle of an Article: `draft`, `published`, or `archived`.

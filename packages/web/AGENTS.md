@@ -31,6 +31,7 @@ Single test: `bun --bun vitest run src/path/file.test.ts`.
 
 ### Locale Rule for Component Tests
 
+- When adding UI copy, always ship both `src/locales/en.json` and `src/locales/id.json` values. The rule below is about tests only, not about skipping translations.
 - Do not create component tests for different locales. Use only one locale: `en`.
 - Do not parametrize component tests over locales (e.g. `test.each(["en", "id"])`), do not switch `i18n.changeLanguage` per test, and do not duplicate assertions against `id.json` strings.
 - Assert rendered copy against `en.json` values only (e.g. `"Admin Login"`, `"Sign in"`, `"Enter a valid email address"`).
