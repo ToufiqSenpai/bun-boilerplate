@@ -21,6 +21,14 @@ const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
+function isStateUpdater(value: boolean | ((open: boolean) => boolean)): value is (open: boolean) => boolean {
+  return value instanceof Function
+}
+
+function isTooltipContent(value: string | React.ComponentProps<typeof TooltipContent>): value is React.ComponentProps<typeof TooltipContent> {
+  return value instanceof Object
+}
+
 interface SidebarContextProps {
   state: "expanded" | "collapsed"
   open: boolean
@@ -64,7 +72,7 @@ function SidebarProvider({
   const open = openProp ?? _open
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === "function" ? value(open) : value
+      const openState = isStateUpdater(value) ? value(open) : value
       if (setOpenProp) {
         setOpenProp(openState)
       } else {
@@ -506,7 +514,7 @@ function SidebarMenuButton({
     return comp
   }
 
-  if (typeof tooltip === "string") {
+  if (!isTooltipContent(tooltip)) {
     tooltip = {
       children: tooltip
     }

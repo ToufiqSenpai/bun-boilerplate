@@ -219,17 +219,6 @@ export default defineConfig({
       }
     },
     {
-      // Vendored shadcn/Base UI components: keep upstream patterns intact.
-      files: ["packages/web/src/components/ui/**"],
-      rules: {
-        // setState updater discrimination and string|object prop APIs in upstream code.
-        "anti-slop/no-runtime-typeof": "off",
-        // Generic Label/FieldGroup primitives wire htmlFor/role via props spread.
-        "jsx-a11y/label-has-associated-control": "off",
-        "jsx-a11y/prefer-tag-over-role": "off"
-      }
-    },
-    {
       files: ["packages/web/src/routes/**"],
       rules: {
         "react/only-export-components": "off"
