@@ -1,6 +1,6 @@
 export const USERS_PAGE_SIZE = 20
 
-export type UsersSortField = "name" | "createdAt"
+export type UsersSortField = "name" | "email" | "createdAt"
 
 export interface UsersListState {
   readonly page: number
