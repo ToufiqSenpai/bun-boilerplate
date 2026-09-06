@@ -3,6 +3,12 @@ import { useNavigate } from "@tanstack/react-router"
 import { createFileRoute, notFound } from "@tanstack/react-router"
 import { Suspense, useState } from "react"
 import { buildListUsersQuery, type UsersListState } from "src/routes/_admin/-users/list-query"
+import {
+  toAdminUser,
+  toSessionInfo,
+  type RawSessionRecord,
+  type RawUserRecord
+} from "src/routes/_admin/-users/map-record"
 import { UserDetailDrawer, type AdminSessionInfo } from "src/routes/_admin/-users/user-drawer"
 import { UsersPage, type AdminUser, type QueryStatus } from "src/routes/_admin/-users/users-page"
 import { resolveAdminAccess } from "src/routes/admin/-lib/access"
@@ -22,51 +28,9 @@ function toListState(search: UsersSearch): UsersListState {
   return { page: search.page, q: search.q, sortBy: search.sortBy, desc: search.desc === "true" }
 }
 
-interface RawUserRecord {
-  readonly id: string
-  readonly name: string
-  readonly email: string
-  readonly emailVerified: boolean
-  readonly createdAt: string
-  readonly role?: string | null
-  readonly banned?: boolean | null
-  readonly banReason?: string | null
-  readonly banExpires?: string | null
-}
-
-interface RawSessionRecord {
-  readonly id: string
-  readonly expiresAt: string
-  readonly ipAddress?: string | null
-  readonly userAgent?: string | null
-}
-
 interface AdminClientResult<T> {
   readonly data: T | null
   readonly error: unknown
-}
-
-function toAdminUser(record: RawUserRecord): AdminUser {
-  return {
-    id: record.id,
-    name: record.name,
-    email: record.email,
-    role: record.role ?? null,
-    emailVerified: record.emailVerified,
-    createdAt: record.createdAt,
-    banned: record.banned ?? false,
-    banReason: record.banReason ?? null,
-    banExpires: record.banExpires ?? null
-  }
-}
-
-function toSessionInfo(record: RawSessionRecord): AdminSessionInfo {
-  return {
-    id: record.id,
-    expiresAt: record.expiresAt,
-    ipAddress: record.ipAddress ?? null,
-    userAgent: record.userAgent ?? null
-  }
 }
 
 interface UsersListData {
