@@ -110,6 +110,13 @@
       },
       "error": {
         "generic": "Something went wrong. Please try again."
+      },
+      "drawer": {
+        "sessions": "Sessions",
+        "sessionsEmpty": "No active Sessions.",
+        "unknownDevice": "Unknown device",
+        "expires": "Expires",
+        "close": "Close"
       }
     }
   }

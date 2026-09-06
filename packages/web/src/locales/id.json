@@ -110,6 +110,13 @@
       },
       "error": {
         "generic": "Terjadi kesalahan. Silakan coba lagi."
+      },
+      "drawer": {
+        "sessions": "Sesi",
+        "sessionsEmpty": "Tidak ada Sesi aktif.",
+        "unknownDevice": "Perangkat tidak dikenal",
+        "expires": "Kedaluwarsa",
+        "close": "Tutup"
       }
     }
   }

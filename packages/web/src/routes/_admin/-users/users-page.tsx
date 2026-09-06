@@ -40,7 +40,23 @@ const sortableColumns = [
   { field: "name", label: "admin.users.columns.name" },
   { field: "email", label: "admin.users.columns.email" },
   { field: "createdAt", label: "admin.users.columns.created" }
-] as const satisfies ReadonlyArray<{ field: UsersSortField; label: string }>
+] as const satisfies readonly { field: UsersSortField; label: string }[]
+
+export function VerificationBadge({ verified }: { readonly verified: boolean }) {
+  return verified ? (
+    <Badge>{i18n.t("admin.users.verification.verified")}</Badge>
+  ) : (
+    <Badge variant="outline">{i18n.t("admin.users.verification.unverified")}</Badge>
+  )
+}
+
+export function BanBadge({ banned }: { readonly banned: boolean }) {
+  return banned ? (
+    <Badge variant="destructive">{i18n.t("admin.users.ban.banned")}</Badge>
+  ) : (
+    <Badge variant="secondary">{i18n.t("admin.users.ban.active")}</Badge>
+  )
+}
 
 export function UsersPage({ state, status, users, total, onSearch, onSort, onPage, onOpen }: UsersPageProps) {
   const [draft, setDraft] = useState(state.q)
@@ -109,7 +125,13 @@ export function UsersPage({ state, status, users, total, onSearch, onSort, onPag
                   aria-sort={state.sortBy === column.field ? (state.desc ? "descending" : "ascending") : undefined}
                   className={index === 0 ? undefined : "hidden md:table-cell"}
                 >
-                  <Button variant="ghost" size="xs" onClick={() => onSort(column.field)}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      onSort(column.field)
+                    }}
+                  >
                     {i18n.t(column.label)}
                   </Button>
                 </TableHead>
@@ -123,7 +145,13 @@ export function UsersPage({ state, status, users, total, onSearch, onSort, onPag
             {users.map(user => (
               <TableRow key={user.id}>
                 <TableCell>
-                  <Button variant="link" className="h-auto p-0" onClick={() => onOpen(user)}>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0"
+                    onClick={() => {
+                      onOpen(user)
+                    }}
+                  >
                     {user.name}
                   </Button>
                 </TableCell>
@@ -133,18 +161,10 @@ export function UsersPage({ state, status, users, total, onSearch, onSort, onPag
                   <Badge variant="secondary">{user.role ?? "—"}</Badge>
                 </TableCell>
                 <TableCell>
-                  {user.emailVerified ? (
-                    <Badge>{i18n.t("admin.users.verification.verified")}</Badge>
-                  ) : (
-                    <Badge variant="outline">{i18n.t("admin.users.verification.unverified")}</Badge>
-                  )}
+                  <VerificationBadge verified={user.emailVerified} />
                 </TableCell>
                 <TableCell>
-                  {user.banned ? (
-                    <Badge variant="destructive">{i18n.t("admin.users.ban.banned")}</Badge>
-                  ) : (
-                    <Badge variant="secondary">{i18n.t("admin.users.ban.active")}</Badge>
-                  )}
+                  <BanBadge banned={user.banned} />
                 </TableCell>
               </TableRow>
             ))}
