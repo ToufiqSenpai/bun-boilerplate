@@ -9,7 +9,7 @@ import { Elysia } from "elysia"
 
 import { config } from "../../common/config.js"
 import { database } from "../../common/database.js"
-import { emailService } from "../../common/email-service.js"
+import { emailService } from "../../common/email/email.service.js"
 import { resolveLocale } from "../../common/i18n.js"
 import { logger } from "../../common/logger.js"
 import type { OpenApiTag } from "../../common/openapi.js"

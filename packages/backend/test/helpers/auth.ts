@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 
 import { config } from "../../src/common/config.js"
 import { database } from "../../src/common/database.js"
-import { emailService, type SendEmailOptions } from "../../src/common/email-service.js"
+import { emailService, type SendEmailOptions } from "../../src/common/email/email.service.js"
 import { auth } from "../../src/modules/auth/index.js"
 import { users } from "../../src/modules/auth/tables/auth.table.js"
 

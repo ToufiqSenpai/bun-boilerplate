@@ -2,8 +2,8 @@ import * as Sentry from "@sentry/elysia"
 import { CryptoHasher } from "bun"
 import { Resend, type CreateEmailOptions } from "resend"
 
-import { config } from "./config.js"
-import { logger } from "./logger.js"
+import { config } from "../config.js"
+import { logger } from "../logger.js"
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 

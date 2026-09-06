@@ -1,6 +1,6 @@
 import { Button, Container, Heading, Hr, Link, Section, Text } from "react-email"
 
-import { EmailLayout, type BaseEmailProps } from "../../../common/email.js"
+import { EmailLayout, type BaseEmailProps } from "../../../common/email/email.layout.js"
 import { getTranslator } from "../../../common/translator.js"
 
 export interface ResetPasswordProps extends BaseEmailProps {
