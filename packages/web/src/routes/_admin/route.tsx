@@ -33,12 +33,14 @@ export const Route = createFileRoute("/_admin")({
 })
 
 function AdminRoute() {
-  const { adminSession } = Route.useRouteContext()
-  const role = adminSession?.data?.user.role ?? null
+  const { adminSetup, adminSession } = Route.useRouteContext()
+
+  const canManageUsers =
+    adminSetup !== null && adminSession !== null && resolveAdminAccess(adminSetup, adminSession, "users") === "allowed"
 
   return (
     <SidebarProvider>
-      <AdminLayout role={role} />
+      <AdminLayout canManageUsers={canManageUsers} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />

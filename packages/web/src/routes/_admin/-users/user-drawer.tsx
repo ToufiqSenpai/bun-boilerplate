@@ -5,7 +5,7 @@ import { Separator } from "src/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "src/components/ui/sheet"
 import { Skeleton } from "src/components/ui/skeleton"
 import { i18n } from "src/i18n"
-import { BanBadge, VerificationBadge, type AdminUser, type UsersListStatus } from "src/routes/_admin/-users/users-page"
+import { BanBadge, VerificationBadge, type AdminUser, type QueryStatus } from "src/routes/_admin/-users/users-page"
 
 export interface AdminSessionInfo {
   readonly id: string
@@ -16,7 +16,7 @@ export interface AdminSessionInfo {
 
 export interface UserDetailDrawerProps {
   readonly user: AdminUser | null
-  readonly status: UsersListStatus
+  readonly status: QueryStatus
   readonly sessions: readonly AdminSessionInfo[]
   readonly onClose: () => void
 }

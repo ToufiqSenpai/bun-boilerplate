@@ -1,10 +1,10 @@
-import { useSuspenseQuery } from "@tanstack/react-query"
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { createFileRoute, notFound } from "@tanstack/react-router"
 import { Suspense, useState } from "react"
-import { buildListUsersQuery, type UsersListState, type UsersSortField } from "src/routes/_admin/-users/list-query"
+import { buildListUsersQuery, type UsersListState } from "src/routes/_admin/-users/list-query"
 import { UserDetailDrawer, type AdminSessionInfo } from "src/routes/_admin/-users/user-drawer"
-import { UsersPage, type AdminUser, type UsersListStatus } from "src/routes/_admin/-users/users-page"
+import { UsersPage, type AdminUser, type QueryStatus } from "src/routes/_admin/-users/users-page"
 import { resolveAdminAccess } from "src/routes/admin/-lib/access"
 import { authClient } from "src/utils/client"
 import { z } from "zod"
@@ -70,7 +70,7 @@ function toSessionInfo(record: RawSessionRecord): AdminSessionInfo {
 }
 
 interface UsersListData {
-  readonly status: UsersListStatus
+  readonly status: QueryStatus
   readonly users: readonly AdminUser[]
   readonly total: number
 }
@@ -188,12 +188,17 @@ function AdminUsersContainer() {
 }
 
 function UserSessionsPanel({ user, onClose }: { readonly user: AdminUser; readonly onClose: () => void }) {
-  const { data } = useSuspenseQuery({
+  const { data } = useQuery({
     queryKey: ["admin-user-sessions", user.id],
     queryFn: () => fetchSessions(user.id)
   })
 
-  return <UserDetailDrawer user={user} status={data.status} sessions={data.sessions} onClose={onClose} />
+  return (
+    <UserDetailDrawer
+      user={user}
+      status={data?.status ?? "pending"}
+      sessions={data?.sessions ?? []}
+      onClose={onClose}
+    />
+  )
 }
-
-export type { UsersSortField }

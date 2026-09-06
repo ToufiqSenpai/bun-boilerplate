@@ -29,11 +29,11 @@ export interface AdminUser {
   readonly banExpires: string | null
 }
 
-export type UsersListStatus = "pending" | "error" | "success"
+export type QueryStatus = "pending" | "error" | "success"
 
 export interface UsersPageProps {
   readonly state: UsersListState
-  readonly status: UsersListStatus
+  readonly status: QueryStatus
   readonly users: readonly AdminUser[]
   readonly total: number
   readonly onSearch: (query: string) => void

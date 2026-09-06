@@ -21,16 +21,15 @@ interface NavItem {
 }
 
 export interface AdminLayoutProps {
-  readonly role: string | null
+  readonly canManageUsers: boolean
 }
 
-export function AdminLayout({ role }: AdminLayoutProps) {
+export function AdminLayout({ canManageUsers }: AdminLayoutProps) {
   const matchRoute = useMatchRoute()
-  const isUsersSuperadmin = role === "superadmin"
 
   const navItems: NavItem[] = [
     { title: "Dashboard", to: "/admin", icon: IconLayoutDashboard },
-    ...(isUsersSuperadmin ? [{ title: "Users", to: "/admin/users" as const, icon: IconUsers }] : []),
+    ...(canManageUsers ? [{ title: "Users", to: "/admin/users" as const, icon: IconUsers }] : []),
     { title: "Settings", icon: IconSettings }
   ]
 
@@ -39,7 +38,7 @@ export function AdminLayout({ role }: AdminLayoutProps) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton render={<Link to="/admin" />}>
+            <SidebarMenuButton size="lg" render={<Link to="/admin" />}>
               <span className="text-base font-semibold">Admin</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
