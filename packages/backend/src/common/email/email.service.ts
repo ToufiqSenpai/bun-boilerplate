@@ -45,7 +45,8 @@ export class EmailService {
       const retryable = error.statusCode === 429 || (error.statusCode !== null && error.statusCode >= 500)
       if (!retryable || attempt === this.MAX_RETRIES) break
 
-      const delay = Math.min(1000 * 2 ** (attempt - 1), 8000) + Math.random() * 500
+      const [jitter] = crypto.getRandomValues(new Uint32Array(1))
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 8000) + ((jitter ?? 0) / 0xffffffff) * 500
       logger.warn({ attempt: attempt + 1, delayMs: delay }, "Retrying email send")
       await new Promise(resolve => setTimeout(resolve, delay))
     }
