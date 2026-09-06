@@ -77,7 +77,7 @@ export async function createVerifiedUser(role: string): Promise<VerifiedUser> {
   }
 }
 
-export async function createAuthSession(role: string): Promise<Record<string, string>> {
+export async function createAuthSession(role: string): Promise<{ cookie: string }> {
   const { cookie } = await createVerifiedUser(role)
 
   return { cookie }
