@@ -24,6 +24,23 @@ export const configSchema = z
     auth: z
       .object({
         secret: z.string().min(32).max(128).describe("Secret for signing auth tokens (min 32 chars)"),
+        email: z
+          .object({
+            verifyEmailTtl: z
+              .uint32()
+              .min(60)
+              .max(86_400)
+              .default(1800)
+              .describe("Lifetime in seconds of email verification tokens"),
+            resetPasswordTtl: z
+              .uint32()
+              .min(60)
+              .max(86_400)
+              .default(1800)
+              .describe("Lifetime in seconds of password reset tokens")
+          })
+          .strict()
+          .describe("Auth email token configuration"),
         google: z
           .object({
             clientId: z.string().min(1).max(128).describe("Google OAuth client ID"),
@@ -82,6 +99,10 @@ export const config = configSchema.parse({
   },
   auth: {
     secret: process.env.BETTER_AUTH_SECRET,
+    email: {
+      verifyEmailTtl: defaultEnvironment({ development: 1800, test: 1800, production: 1800 }),
+      resetPasswordTtl: defaultEnvironment({ development: 1800, test: 1800, production: 1800 })
+    },
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET
