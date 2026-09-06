@@ -1,8 +1,8 @@
 import type { App } from "@bun-boilerplate/backend"
 import { ac } from "@bun-boilerplate/backend/auth/permissions"
 import { treaty } from "@elysiajs/eden"
-import { createAuthClient } from "better-auth/react"
 import { adminClient } from "better-auth/client/plugins"
+import { createAuthClient } from "better-auth/react"
 
 export const api = treaty<App>(import.meta.env.VITE_API_URL, {
   fetch: { credentials: "include" }

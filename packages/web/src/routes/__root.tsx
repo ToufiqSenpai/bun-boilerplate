@@ -2,11 +2,14 @@ import { DEFAULT_LOCALE, getTextDirection, isLocale } from "@bun-boilerplate/i18
 import type { QueryClient } from "@tanstack/react-query"
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
+import type { AdminSessionResult, AdminSetupResult } from "src/routes/admin/-lib/access"
 
 import appCss from "../styles.css?url"
 
-interface RouterContext {
+export interface RouterContext {
   queryClient: QueryClient
+  adminSetup: AdminSetupResult | null
+  adminSession: AdminSessionResult | null
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({

@@ -5,7 +5,13 @@ import { Badge } from "src/components/ui/badge"
 import { Button } from "src/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "src/components/ui/empty"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "src/components/ui/input-group"
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "src/components/ui/pagination"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious
+} from "src/components/ui/pagination"
 import { Skeleton } from "src/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "src/components/ui/table"
 import { i18n } from "src/i18n"

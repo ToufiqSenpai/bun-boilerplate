@@ -16,26 +16,30 @@ import {
 
 interface NavItem {
   title: string
-  to?: string
+  to?: "/admin" | "/admin/users"
   icon: typeof IconLayoutDashboard
 }
 
-const navItems: NavItem[] = [
-  { title: "Dashboard", to: "/admin", icon: IconLayoutDashboard },
-  { title: "Users", icon: IconUsers },
-  { title: "Settings", icon: IconSettings }
-]
+export interface AdminLayoutProps {
+  readonly role: string | null
+}
 
-export function AdminLayout() {
+export function AdminLayout({ role }: AdminLayoutProps) {
   const matchRoute = useMatchRoute()
-  const isDashboardActive = matchRoute({ to: "/admin", fuzzy: true }) !== false
+  const isUsersSuperadmin = role === "superadmin"
+
+  const navItems: NavItem[] = [
+    { title: "Dashboard", to: "/admin", icon: IconLayoutDashboard },
+    ...(isUsersSuperadmin ? [{ title: "Users", to: "/admin/users" as const, icon: IconUsers }] : []),
+    { title: "Settings", icon: IconSettings }
+  ]
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/admin" />}>
+            <SidebarMenuButton render={<Link to="/admin" />}>
               <span className="text-base font-semibold">Admin</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -46,24 +50,25 @@ export function AdminLayout() {
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map(item => (
-                <SidebarMenuItem key={item.title}>
-                  {item.to ? (
-                    <SidebarMenuButton
-                      render={<Link to={item.to} />}
-                      isActive={item.to === "/admin" && isDashboardActive}
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  ) : (
-                    <SidebarMenuButton>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  )}
-                </SidebarMenuItem>
-              ))}
+              {navItems.map(item => {
+                const isActive = item.to !== undefined && matchRoute({ to: item.to, fuzzy: false }) !== false
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    {item.to ? (
+                      <SidebarMenuButton render={<Link to={item.to} />} isActive={isActive}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

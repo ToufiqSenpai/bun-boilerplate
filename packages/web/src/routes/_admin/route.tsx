@@ -7,9 +7,12 @@ import { readAdminSession } from "src/routes/admin/-lib/session-reader"
 import { api } from "src/utils/client"
 
 export const Route = createFileRoute("/_admin")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ context, location }) => {
     const setup = await api.auth.setup.get()
     const session = await readAdminSession()
+
+    context.adminSetup = setup
+    context.adminSession = session
 
     const access = resolveAdminAccess(setup, session)
 
@@ -30,9 +33,12 @@ export const Route = createFileRoute("/_admin")({
 })
 
 function AdminRoute() {
+  const { adminSession } = Route.useRouteContext()
+  const role = adminSession?.data?.user.role ?? null
+
   return (
     <SidebarProvider>
-      <AdminLayout />
+      <AdminLayout role={role} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
