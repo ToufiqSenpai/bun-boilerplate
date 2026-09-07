@@ -1,18 +1,20 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 import { and, count, desc, eq } from "drizzle-orm"
+import { NotFoundError } from "elysia"
 import { z } from "zod"
 
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
-import type { ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleListItemSchema } from "../schemas/article.schema.js"
+import type { Article, ListArticlesQuery } from "../schemas/article.schema.js"
+import { articleSchema } from "../schemas/article.schema.js"
 import {
   articles,
   articleTranslations,
   type ArticleContent,
-  type ArticleContentValue
+  type ArticleContentValue,
+  type ArticleStatus
 } from "../tables/article.table.js"
 
 const articleProjection = {
@@ -32,6 +34,23 @@ const articleProjection = {
   metaDescription: articleTranslations.metaDescription
 }
 
+export interface JoinedArticleRow {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  status: ArticleStatus
+  publishedAt: Date | null
+  categoryId: string | null
+  coverKey: string
+  locale: Locale
+  title: string
+  slug: string
+  excerpt: string
+  content: ArticleContent
+  metaTitle: string
+  metaDescription: string
+}
+
 export class ArticleService {
   private readonly imageNodeSchema = z.looseObject({
     type: z.literal("image"),
@@ -40,10 +59,15 @@ export class ArticleService {
 
   public constructor(private readonly database: Database) {}
 
-  public async list(query: ListArticlesQuery, locale: Locale): Promise<Paginated<typeof articleListItemSchema>> {
+  public async list(
+    query: ListArticlesQuery,
+    locale: Locale,
+    canViewUnpublished = false
+  ): Promise<Paginated<typeof articleSchema>> {
     const offset = (query.page - 1) * query.limit
 
-    const wherePredicate = and(eq(articleTranslations.locale, locale), eq(articles.status, query.status))
+    const status = canViewUnpublished ? query.status : "published"
+    const wherePredicate = and(eq(articleTranslations.locale, locale), eq(articles.status, status))
 
     const [rows, [countResult]] = await Promise.all([
       this.database
@@ -64,23 +88,46 @@ export class ArticleService {
     const total = countResult?.value ?? 0
 
     return {
-      data: rows.map(row => ({
-        id: row.id,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        status: row.status,
-        publishedAt: row.publishedAt,
-        categoryId: row.categoryId,
-        locale: row.locale,
-        title: row.title,
-        slug: row.slug,
-        excerpt: row.excerpt,
-        content: this.resolveContentUrls(row.content),
-        metaTitle: row.metaTitle,
-        metaDescription: row.metaDescription,
-        cover: this.toPublicUrl(row.coverKey)
-      })),
+      data: rows.map(row => this.mapRow(row)),
       meta: pageMeta(query, total)
+    }
+  }
+
+  public async getByIdentifier(identifier: string, locale: Locale, canViewUnpublished = false): Promise<Article> {
+    const isId = z.uuidv7().safeParse(identifier).success
+    const predicate = and(
+      canViewUnpublished ? undefined : eq(articles.status, "published"),
+      eq(articleTranslations.locale, locale),
+      isId ? eq(articles.id, identifier) : eq(articleTranslations.slug, identifier)
+    )
+
+    const [row] = await this.database
+      .select(articleProjection)
+      .from(articles)
+      .innerJoin(articleTranslations, eq(articles.id, articleTranslations.articleId))
+      .where(predicate)
+      .limit(1)
+    if (!row) throw new NotFoundError("Article not found")
+
+    return this.mapRow(row)
+  }
+
+  private mapRow(row: JoinedArticleRow): Article {
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      status: row.status,
+      publishedAt: row.publishedAt,
+      categoryId: row.categoryId,
+      locale: row.locale,
+      title: row.title,
+      slug: row.slug,
+      excerpt: row.excerpt,
+      content: this.resolveContentUrls(row.content),
+      metaTitle: row.metaTitle,
+      metaDescription: row.metaDescription,
+      cover: this.toPublicUrl(row.coverKey)
     }
   }
 

@@ -1,19 +1,11 @@
 import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
-import slugify from "@sindresorhus/slugify"
 import { z } from "zod"
 
-import { collectionSchema, omitCollection } from "../../../common/schema.js"
+import { collectionSchema, omitCollection, slugSchema as slugSchemaField } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 
 // Shared field schemas
-const slugSchema = z
-  .string({ error: "Slug must be a string" })
-  .min(1, { error: "Slug must not be empty" })
-  .max(255, { error: "Slug must be at most 255 characters" })
-  .transform(value => slugify(value))
-  .refine(slug => slug.length > 0, { error: "Slug must not be empty" })
-  .refine(slug => !z.uuidv7().safeParse(slug).success, { error: "Slug must not look like a category id" })
-  .describe("URL-friendly slug, slugified before stored")
+const slugSchema = slugSchemaField("category")
 
 // Base schema: shape of an article category as returned in responses
 export const articleCategorySchema = z

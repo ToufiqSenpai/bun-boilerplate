@@ -5,6 +5,7 @@ import { database } from "../src/common/database.js"
 import { app } from "../src/main.js"
 import { articles, articleTranslations } from "../src/modules/article/tables/article.table.js"
 import type { ArticleContent, ArticleStatus } from "../src/modules/article/tables/article.table.js"
+import { createAuthSession } from "./helpers/auth.js"
 import type { EdenValidationError } from "./helpers/validation.js"
 
 const api = treaty(app)
@@ -51,6 +52,10 @@ function list(query: { page?: number; limit?: number; status?: ArticleStatus } =
   return api.api.articles.get({ query: { page: 1, limit: 100, ...query } as never })
 }
 
+function listAs(headers: Record<string, string>, status: ArticleStatus) {
+  return api.api.articles.get({ query: { page: 1, limit: 100, status }, headers })
+}
+
 describe("GET /api/articles", () => {
   test("returns 200 with an empty page on a fresh database", async () => {
     const { data, error, status } = await list({ page: faker.number.int({ min: 2, max: 5 }), limit: 20 })
@@ -77,17 +82,34 @@ describe("GET /api/articles", () => {
     expect(ids).not.toContain(archived.article.id)
   })
 
-  test("filters by the requested status", async () => {
+  test("filters by the requested status for privileged viewers", async () => {
+    const admin = await createAuthSession("admin")
+    const superadmin = await createAuthSession("superadmin")
     const published = await seedArticle({ status: "published" })
     const draft = await seedArticle({ status: "draft" })
 
-    const { data, error, status } = await list({ status: "draft" })
+    const { data, error, status } = await listAs(admin, "draft")
 
     expect(error).toBeNull()
     expect(status).toBe(200)
     const ids = data?.data.map(row => row.id) ?? []
     expect(ids).toContain(draft.article.id)
     expect(ids).not.toContain(published.article.id)
+
+    const bySuperadmin = await listAs(superadmin, "draft")
+    expect(bySuperadmin.data?.data.map(row => row.id)).toContain(draft.article.id)
+  })
+
+  test("forces the published status for anonymous and plain-user callers", async () => {
+    const plain = await createAuthSession("")
+    const draft = await seedArticle({ status: "draft" })
+
+    const anonymous = await list({ status: "draft" })
+    expect(anonymous.data?.data.map(row => row.id)).not.toContain(draft.article.id)
+
+    const asPlainUser = await listAs(plain, "archived")
+    expect(asPlainUser.error).toBeNull()
+    expect(asPlainUser.data?.data.map(row => row.id)).not.toContain(draft.article.id)
   })
 
   test("returns the requested locale and echoes Content-Language", async () => {
@@ -202,5 +224,134 @@ describe("GET /api/articles", () => {
     // SAFETY: error is a ValidationError per previous expect
     const payload = (error as EdenValidationError).value
     expect(payload).toMatchObject({ type: "validation", on: "query", property: "status" })
+  })
+})
+
+function getArticle(identifier: string, headers?: Record<string, string>) {
+  return api.api.articles({ identifier }).get(headers ? { headers } : undefined)
+}
+
+describe("GET /api/articles/:identifier", () => {
+  test("returns 200 by id with translation fields and resolved image host URLs", async () => {
+    const coverKey = `articles/${faker.string.uuid({ version: 7 })}.png`
+    const imageKey = `articles/${faker.string.uuid({ version: 7 })}.jpg`
+    const external = "https://cdn.example.org/pic.png"
+    const seeded = await seedArticle({
+      coverKey,
+      content: {
+        type: "doc",
+        content: [
+          { type: "image", attrs: { src: imageKey } },
+          { type: "image", attrs: { src: external } }
+        ]
+      }
+    })
+
+    const { data, error, status, headers } = await getArticle(seeded.article.id)
+
+    expect(error).toBeNull()
+    expect(status).toBe(200)
+    expect(new Headers(headers).get("content-language")).toBe("en")
+    expect(data).toMatchObject({
+      id: seeded.article.id,
+      status: "published",
+      title: seeded.translation.title,
+      slug: seeded.translation.slug,
+      excerpt: seeded.translation.excerpt,
+      metaTitle: seeded.translation.metaTitle,
+      metaDescription: seeded.translation.metaDescription
+    })
+    expect(data?.cover).toMatch(/^https?:\/\//)
+    expect(data?.cover?.endsWith(`/${coverKey}`)).toBe(true)
+    // SAFETY: shape mirrors the literal seeded above through the same JSON round-trip
+    const content = data?.content as { content: { attrs: { src: string } }[] }
+    expect(content.content[0]?.attrs.src).toMatch(/^https?:\/\//)
+    expect(content.content[0]?.attrs.src.endsWith(`/${imageKey}`)).toBe(true)
+    expect(content.content[1]?.attrs.src).toBe(external)
+  })
+
+  test("returns 200 by slug scoped to the requested locale", async () => {
+    const seeded = await seedArticle({ locale: "id" })
+
+    const result = await getArticle(seeded.translation.slug)
+    expect(result.status).toBe(404)
+
+    const localized = await getArticle(seeded.translation.slug, { "x-locale": "id" })
+
+    expect(localized.error).toBeNull()
+    expect(localized.status).toBe(200)
+    expect(new Headers(localized.headers).get("content-language")).toBe("id")
+    expect(localized.data?.id).toBe(seeded.article.id)
+    expect(localized.data?.title).toBe(seeded.translation.title)
+  })
+
+  test("returns 404 for an unknown id and an unknown slug", async () => {
+    await seedArticle()
+
+    expect((await getArticle(faker.string.uuid({ version: 7 }))).status).toBe(404)
+    expect((await getArticle(`nope-${faker.string.uuid({ version: 7 }).slice(0, 8)}`)).status).toBe(404)
+  })
+
+  test("returns 404 when the article has no translation in the requested locale, never another locale", async () => {
+    const onlyEnglish = await seedArticle({ locale: "en" })
+
+    expect((await getArticle(onlyEnglish.article.id, { "x-locale": "id" })).status).toBe(404)
+    expect((await getArticle(onlyEnglish.translation.slug, { "x-locale": "id" })).status).toBe(404)
+  })
+
+  test("serves draft and archived articles to privileged viewers only", async () => {
+    const admin = await createAuthSession("admin")
+    const plain = await createAuthSession("")
+    const draft = await seedArticle({ status: "draft" })
+    const archived = await seedArticle({ status: "archived" })
+
+    expect((await getArticle(draft.article.id)).status).toBe(404)
+    expect((await getArticle(draft.translation.slug)).status).toBe(404)
+    expect((await getArticle(archived.article.id)).status).toBe(404)
+    expect((await getArticle(archived.translation.slug)).status).toBe(404)
+
+    expect((await getArticle(draft.article.id, plain)).status).toBe(404)
+    expect((await getArticle(archived.translation.slug, plain)).status).toBe(404)
+
+    const draftByAdmin = await getArticle(draft.article.id, admin)
+    expect(draftByAdmin.status).toBe(200)
+    expect(draftByAdmin.data?.status).toBe("draft")
+
+    const archivedBySlug = await getArticle(archived.translation.slug, admin)
+    expect(archivedBySlug.status).toBe(200)
+    expect(archivedBySlug.data?.id).toBe(archived.article.id)
+  })
+
+  test("treats an id-form identifier as an id even when another article uses it as a slug", async () => {
+    const slugOwner = await seedArticle()
+    const idOwner = await seedArticle({ locale: "id" })
+    // SAFETY: raw insert bypasses the authoring-time rule that slugs must not look like ids
+    await database.insert(articleTranslations).values({
+      articleId: slugOwner.article.id,
+      locale: "id",
+      title: faker.lorem.words(3),
+      slug: idOwner.article.id,
+      excerpt: faker.lorem.sentence(),
+      content: { type: "doc", content: [] },
+      metaTitle: faker.lorem.words(2),
+      metaDescription: faker.lorem.sentence()
+    })
+
+    const { data, status } = await getArticle(idOwner.article.id, { "x-locale": "id" })
+
+    expect(status).toBe(200)
+    expect(data?.id).toBe(idOwner.article.id)
+  })
+
+  test("rejects an identifier that slugifies to an empty string with 422", async () => {
+    const { error, status } = await getArticle("!!!")
+
+    expect(status).toBe(422)
+    // SAFETY: error is a ValidationError per previous expect
+    expect((error as EdenValidationError).value).toMatchObject({
+      type: "validation",
+      on: "params",
+      property: "identifier"
+    })
   })
 })

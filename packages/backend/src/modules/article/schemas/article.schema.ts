@@ -1,11 +1,11 @@
 import { LOCALES } from "@bun-boilerplate/i18n"
 import { z } from "zod"
 
-import { collectionSchema } from "../../../common/schema.js"
+import { collectionSchema, slugSchema } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 import { articleStatusEnum } from "../tables/article.table.js"
 
-export const articleListItemSchema = z
+export const articleSchema = z
   .object({
     status: z.enum(articleStatusEnum.enumValues).describe("Lifecycle status of the article"),
     publishedAt: z.date().nullable().readonly().describe("Publication timestamp, null when never published"),
@@ -21,11 +21,21 @@ export const articleListItemSchema = z
   })
   .extend(collectionSchema.shape)
 
-export type ArticleListItem = z.output<typeof articleListItemSchema>
+export type Article = z.output<typeof articleSchema>
 
 export const listArticlesQuerySchema = paginationQuerySchema.extend({
   status: z.enum(articleStatusEnum.enumValues).default("published").describe("Filter by lifecycle status")
 })
-export const listArticlesResponseSchema = paginatedSchema(articleListItemSchema)
+export const listArticlesResponseSchema = paginatedSchema(articleSchema)
 
 export type ListArticlesQuery = z.output<typeof listArticlesQuerySchema>
+
+// GET /articles/:identifier (params) — resolves an Article by uuidv7 id or per-locale Slug.
+// The uuidv7 branch is tried first, so an identifier that looks like an id is always treated as an id, never as a Slug.
+export const getArticleParamsSchema = z.object({
+  identifier: z
+    .union([z.uuidv7(), slugSchema("article")], { error: "Invalid identifier" })
+    .describe("Article id (uuidv7) or slug in the requested locale")
+})
+
+export type GetArticleParams = z.output<typeof getArticleParamsSchema>

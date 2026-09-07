@@ -1,5 +1,5 @@
 import { DEFAULT_LOCALE, type Locale } from "@bun-boilerplate/i18n"
-import { jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import { jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core"
 
 import { baseColumns } from "../../../common/database.js"
 import { users } from "../../auth/tables/auth.table.js"
@@ -28,16 +28,23 @@ export const articles = pgTable("articles", {
 
 export type ArticleStatus = (typeof articles.$inferSelect)["status"]
 
-export const articleTranslations = pgTable("article_translations", {
-  ...baseColumns(),
-  locale: text("locale").$type<Locale>().notNull().default(DEFAULT_LOCALE),
-  articleId: uuid("article_id")
-    .notNull()
-    .references(() => articles.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  slug: text("slug").notNull().unique(),
-  excerpt: text("excerpt").notNull(),
-  content: jsonb("content").$type<ArticleContent>().notNull(),
-  metaTitle: text("meta_title").notNull(),
-  metaDescription: text("meta_description").notNull()
-})
+export const articleTranslations = pgTable(
+  "article_translations",
+  {
+    ...baseColumns(),
+    locale: text("locale").$type<Locale>().notNull().default(DEFAULT_LOCALE),
+    articleId: uuid("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    slug: text("slug").notNull(),
+    excerpt: text("excerpt").notNull(),
+    content: jsonb("content").$type<ArticleContent>().notNull(),
+    metaTitle: text("meta_title").notNull(),
+    metaDescription: text("meta_description").notNull()
+  },
+  table => [
+    unique("article_translations_article_id_locale_key").on(table.articleId, table.locale),
+    unique("article_translations_locale_slug_key").on(table.locale, table.slug)
+  ]
+)

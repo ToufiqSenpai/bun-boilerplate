@@ -6,26 +6,10 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { ListArticlesQuery } from "../schemas/article.schema.js"
-import type { ArticleContent, ArticleStatus } from "../tables/article.table.js"
+import type { ArticleContent } from "../tables/article.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
+import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
-
-interface JoinedArticleRow {
-  id: string
-  createdAt: Date
-  updatedAt: Date
-  status: ArticleStatus
-  publishedAt: Date | null
-  categoryId: string | null
-  coverKey: string
-  locale: string
-  title: string
-  slug: string
-  excerpt: string
-  content: ArticleContent
-  metaTitle: string
-  metaDescription: string
-}
 
 function createJoinedRow(overrides: Partial<JoinedArticleRow> = {}): JoinedArticleRow {
   return {
@@ -54,6 +38,21 @@ function buildRowsChain(rows: JoinedArticleRow[]) {
   const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
   const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
   return { from, innerJoin, where, orderBy, limit, offset }
+}
+
+function buildJoinedLimitChain(rows: JoinedArticleRow[]) {
+  const limit = vi.fn<(limit: number) => Promise<JoinedArticleRow[]>>().mockResolvedValue(rows)
+  const where = vi.fn<(predicate: unknown) => { limit: typeof limit }>().mockReturnValue({ limit })
+  const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
+  const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
+  return { from, innerJoin, where, limit }
+}
+
+function mockGetSelect(database: Database, rows: JoinedArticleRow[]) {
+  const chain = buildJoinedLimitChain(rows)
+  // SAFETY: drizzle select chain is mocked for unit test; return shape matches service usage
+  vi.mocked(database.select).mockReturnValueOnce(chain as never)
+  return chain
 }
 
 function buildCountChain(total: number) {
@@ -177,12 +176,12 @@ describe("ArticleService", () => {
       expect(content).toEqual(contentCopy)
     })
 
-    test("filters rows and count by the requested locale and the query status", async () => {
+    test("filters rows and count by the requested locale and the query status for a privileged viewer", async () => {
       const database = mockDeep<Database>()
       const { rowsChain, countChain } = mockListSelect(database, [], 0)
 
       const service = new ArticleService(database)
-      await service.list(query({ status: "draft" }), "id")
+      await service.list(query({ status: "draft" }), "id", true)
 
       expect(rowsChain.from).toHaveBeenCalledWith(articles)
       expect(rowsChain.innerJoin).toHaveBeenCalledWith(articleTranslations, expect.anything())
@@ -194,6 +193,107 @@ describe("ArticleService", () => {
         expect(rendered.params).toContain("id")
         expect(rendered.params).toContain("draft")
       }
+    })
+
+    test("forces the published status for a non-privileged viewer regardless of the query", async () => {
+      const database = mockDeep<Database>()
+      const { rowsChain, countChain } = mockListSelect(database, [], 0)
+
+      const service = new ArticleService(database)
+      await service.list(query({ status: "draft" }), "en")
+
+      for (const chain of [rowsChain, countChain]) {
+        const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+        expect(rendered.params).toContain("published")
+        expect(rendered.params).not.toContain("draft")
+      }
+    })
+  })
+
+  describe("getByIdentifier", () => {
+    afterEach(() => {
+      vi.clearAllMocks()
+    })
+
+    test("resolves a published article by uuidv7 id through id, status, and locale predicates", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      const row = createJoinedRow({ id })
+      const chain = mockGetSelect(database, [row])
+
+      const service = new ArticleService(database)
+      const result = await service.getByIdentifier(id, "en")
+
+      expect(result).toEqual({
+        id: row.id,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        status: row.status,
+        publishedAt: row.publishedAt,
+        categoryId: row.categoryId,
+        locale: row.locale,
+        title: row.title,
+        slug: row.slug,
+        excerpt: row.excerpt,
+        content: row.content,
+        metaTitle: row.metaTitle,
+        metaDescription: row.metaDescription,
+        cover: undefined
+      })
+      expect(chain.from).toHaveBeenCalledWith(articles)
+      expect(chain.innerJoin).toHaveBeenCalledWith(articleTranslations, expect.anything())
+      expect(chain.limit).toHaveBeenCalledWith(1)
+
+      const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+      expect(rendered.sql).toContain(`"articles"."id"`)
+      expect(rendered.sql).toContain(`"articles"."status"`)
+      expect(rendered.sql).toContain(`"article_translations"."locale"`)
+      expect(rendered.sql).not.toContain(`"article_translations"."slug"`)
+      expect(rendered.params).toContain(id)
+      expect(rendered.params).toContain("published")
+      expect(rendered.params).toContain("en")
+    })
+
+    test("resolves by slug through slug, status, and locale predicates when the identifier is not an id", async () => {
+      const database = mockDeep<Database>()
+      const slug = faker.lorem.slug()
+      const row = createJoinedRow({ slug })
+      const chain = mockGetSelect(database, [row])
+
+      const service = new ArticleService(database)
+      const result = await service.getByIdentifier(slug, "id")
+
+      expect(result.slug).toBe(slug)
+      const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+      expect(rendered.sql).toContain(`"article_translations"."slug"`)
+      expect(rendered.sql).toContain(`"articles"."status"`)
+      expect(rendered.sql).toContain(`"article_translations"."locale"`)
+      expect(rendered.sql).not.toContain(`"articles"."id"`)
+      expect(rendered.params).toContain(slug)
+      expect(rendered.params).toContain("id")
+    })
+
+    test("drops the status predicate for a privileged viewer so draft and archived rows resolve", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      const row = createJoinedRow({ id, status: "draft" })
+      const chain = mockGetSelect(database, [row])
+
+      const service = new ArticleService(database)
+      const result = await service.getByIdentifier(id, "en", true)
+
+      expect(result.status).toBe("draft")
+      const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+      expect(rendered.sql).not.toContain(`"articles"."status"`)
+      expect(rendered.params).not.toContain("published")
+    })
+
+    test("throws not-found when no published translation matches the identifier and locale", async () => {
+      const database = mockDeep<Database>()
+      mockGetSelect(database, [])
+
+      const service = new ArticleService(database)
+      await expect(service.getByIdentifier(faker.lorem.slug(), "en")).rejects.toThrow("Article not found")
     })
   })
 })
