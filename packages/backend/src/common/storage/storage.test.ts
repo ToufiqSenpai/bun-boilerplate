@@ -4,6 +4,7 @@ import {
   CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -144,6 +145,20 @@ describe("Storage", () => {
         storage.upload({ key: new StorageKey("avatars", "a.png"), stream, signal: abort.signal })
       ).rejects.toThrow("Upload aborted")
       expect(mockS3.send).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("getFile", () => {
+    it("should return the object body as a stream", async () => {
+      const body = Readable.from(["hello"])
+      mockS3.send.mockImplementation(async () => ({ Body: body }))
+
+      const result = await storage.getFile(new StorageKey("avatars", "../evil.png"))
+
+      expect(commandAt(mockS3, 0, GetObjectCommand).input.Key).toBe("avatars/..evil.png")
+      let received = ""
+      for await (const chunk of result) received += chunk
+      expect(received).toBe("hello")
     })
   })
 
