@@ -19,13 +19,30 @@ async function seedArticle(categoryId: string | null) {
 
 async function readArticle(id: string) {
   const [article] = await database
-    .select({ categoryId: articles.categoryId })
+    .select({ categoryId: articles.categoryId, coverKey: articles.coverKey })
     .from(articles)
     .where(eq(articles.id, id))
     .limit(1)
   if (!article) throw new Error("article not found")
   return article
 }
+
+describe("articles.cover_key schema", () => {
+  test("defaults to an empty string when no cover is provided", async () => {
+    const article = await seedArticle(null)
+
+    expect((await readArticle(article.id)).coverKey).toBe("")
+  })
+
+  test("persists a cover key and reads it back", async () => {
+    const article = await seedArticle(null)
+    const coverKey = `articles/${faker.string.uuid({ version: 7 })}.png`
+
+    await database.update(articles).set({ coverKey }).where(eq(articles.id, article.id))
+
+    expect((await readArticle(article.id)).coverKey).toBe(coverKey)
+  })
+})
 
 describe("articles.category_id schema", () => {
   test("persists an article with a category and reads the identifier back", async () => {
