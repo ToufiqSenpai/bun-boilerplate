@@ -163,6 +163,25 @@ describe("ArticleService.create", () => {
     expect(storage.objects.size).toBe(0)
   })
 
+  test("rejects an over-size inline file, persisting nothing", async () => {
+    const storage = new FakeStorage()
+    const service = new ArticleService(database, storage)
+    const before = await countArticles()
+    const oversized = jpegFile("inline-1")
+    // SAFETY: Blob size is virtual metadata; shadowing it avoids materializing 21 MB
+    Object.defineProperty(oversized, "size", { value: 21 * 1024 * 1024 })
+    const body = createBody({
+      content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
+      "inline-1": oversized
+    })
+
+    const payload = validationPayload(await service.create(body).catch((error: unknown) => error))
+
+    expect(payload.errors).toEqual([expect.objectContaining({ path: ["inline-1"] })])
+    expect(await countArticles()).toBe(before)
+    expect(storage.objects.size).toBe(0)
+  })
+
   test("rejects a non-image upload, persisting nothing", async () => {
     const storage = new FakeStorage()
     const service = new ArticleService(database, storage)

@@ -15,24 +15,13 @@ import { storage as defaultStorage, type Storage } from "../../../common/storage
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
 import type { Article, CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleSchema, createArticleSchema } from "../schemas/article.schema.js"
+import { articleSchema, ARTICLE_MAX_FILE_BYTES, createArticleSchema } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import { collectUploadRefs, rewriteUploadRefs } from "./article-content.js"
 
 export type ArticleStorage = Pick<Storage, "upload" | "delete">
 
-const CREATE_BODY_FIELDS = new Set([
-  "status",
-  "categoryId",
-  "locale",
-  "title",
-  "slug",
-  "excerpt",
-  "content",
-  "metaTitle",
-  "metaDescription",
-  "cover"
-])
+const CREATE_BODY_FIELDS = new Set(Object.keys(createArticleSchema.shape))
 
 export interface JoinedArticleRow extends Omit<Article, "cover"> {
   coverKey: string
@@ -123,6 +112,11 @@ export class ArticleService {
     const inlineFiles = new Map<string, File>()
     for (const [name, value] of Object.entries(body)) {
       if (!CREATE_BODY_FIELDS.has(name) && value instanceof File) inlineFiles.set(name, value)
+    }
+    for (const [name, file] of inlineFiles) {
+      if (file.size > ARTICLE_MAX_FILE_BYTES) {
+        throw this.createValidationError(body, [name], `${name} must be at most 20 MB`)
+      }
     }
 
     const refs = collectUploadRefs(body.content)

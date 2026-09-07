@@ -71,6 +71,27 @@ describe("createArticleSchema", () => {
     ])
   })
 
+  test("rejects a request whose total upload size exceeds the cap", () => {
+    const bigPart = (name: string): File => {
+      const file = pngFile(name, 1024)
+      // SAFETY: Blob size is virtual metadata; shadowing it avoids materializing megabytes
+      Object.defineProperty(file, "size", { value: 19 * 1024 * 1024 })
+      return file
+    }
+    const input = createInput({
+      "part-a": bigPart("part-a"),
+      "part-b": bigPart("part-b"),
+      "part-c": bigPart("part-c"),
+      "part-d": bigPart("part-d"),
+      "part-e": bigPart("part-e"),
+      "part-f": bigPart("part-f")
+    })
+
+    expect(parseIssues(input)).toEqual([
+      expect.objectContaining({ message: "Total upload size must be at most 100 MB" })
+    ])
+  })
+
   test("rejects content that is not a JSON string", () => {
     expect(parseIssues(createInput({ content: "not json {" }))).toEqual([
       expect.objectContaining({ path: ["content"] })
