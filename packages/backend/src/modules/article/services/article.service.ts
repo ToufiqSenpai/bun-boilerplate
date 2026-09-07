@@ -41,6 +41,8 @@ export class ArticleService {
 
   public constructor(private readonly database: Database) {}
 
+  // TODO: public list still accepts ?status=draft|archived, exposing non-published rows to anonymous readers.
+  // Restrict the filter to published for unauthenticated access once admin read-override is specced (detail is already locked to published).
   public async list(query: ListArticlesQuery, locale: Locale): Promise<Paginated<typeof articleSchema>> {
     const offset = (query.page - 1) * query.limit
 

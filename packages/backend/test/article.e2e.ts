@@ -205,9 +205,8 @@ describe("GET /api/articles", () => {
   })
 })
 
-function getArticle(identifier: string, headers?: Record<string, string>) {
-  // SAFETY: tests probe arbitrary header combinations through the public HTTP surface; treaty types the header map narrowly
-  return api.api.articles({ identifier }).get(headers ? { headers: headers as never } : undefined)
+function getArticle(identifier: string, headers?: { "x-locale"?: "en" | "id"; "accept-language"?: string }) {
+  return api.api.articles({ identifier }).get(headers ? { headers } : undefined)
 }
 
 describe("GET /api/articles/:identifier", () => {
@@ -284,18 +283,16 @@ describe("GET /api/articles/:identifier", () => {
     const slugOwner = await seedArticle()
     const idOwner = await seedArticle({ locale: "id" })
     // SAFETY: raw insert bypasses the authoring-time rule that slugs must not look like ids
-    await database
-      .insert(articleTranslations)
-      .values({
-        articleId: slugOwner.article.id,
-        locale: "id",
-        title: faker.lorem.words(3),
-        slug: idOwner.article.id,
-        excerpt: faker.lorem.sentence(),
-        content: { type: "doc", content: [] },
-        metaTitle: faker.lorem.words(2),
-        metaDescription: faker.lorem.sentence()
-      })
+    await database.insert(articleTranslations).values({
+      articleId: slugOwner.article.id,
+      locale: "id",
+      title: faker.lorem.words(3),
+      slug: idOwner.article.id,
+      excerpt: faker.lorem.sentence(),
+      content: { type: "doc", content: [] },
+      metaTitle: faker.lorem.words(2),
+      metaDescription: faker.lorem.sentence()
+    })
 
     const { data, status } = await getArticle(idOwner.article.id, { "x-locale": "id" })
 
@@ -308,6 +305,10 @@ describe("GET /api/articles/:identifier", () => {
 
     expect(status).toBe(422)
     // SAFETY: error is a ValidationError per previous expect
-    expect((error as EdenValidationError).value).toMatchObject({ type: "validation", on: "params", property: "identifier" })
+    expect((error as EdenValidationError).value).toMatchObject({
+      type: "validation",
+      on: "params",
+      property: "identifier"
+    })
   })
 })
