@@ -2,7 +2,6 @@ import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
 import slugify from "@sindresorhus/slugify"
 import { z } from "zod"
 
-import { localeHeadersSchema } from "../../../common/i18n.js"
 import { collectionSchema, omitCollection } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 
@@ -39,21 +38,19 @@ export const articleCategorySchema = z
 
 export type ArticleCategory = z.output<typeof articleCategorySchema>
 
-// GET /article-categories (query + headers)
+// GET /article-categories (query)
 export const listArticleCategoriesQuerySchema = paginationQuerySchema
-export const listArticleCategoriesHeadersSchema = localeHeadersSchema
 export const listArticleCategoryResponseSchema = paginatedSchema(articleCategorySchema)
 
 export type ListArticleCategoriesQuery = z.output<typeof listArticleCategoriesQuerySchema>
 
-// GET /article-categories/:identifier (params + headers) — resolves an ArticleCategory by uuidv7 id or per-locale Slug.
+// GET /article-categories/:identifier (params) — resolves an ArticleCategory by uuidv7 id or per-locale Slug.
 // The uuidv7 branch is tried first, so an identifier that looks like an id is always treated as an id, never as a Slug.
 export const getArticleCategoryParamsSchema = z.object({
   identifier: z
     .union([z.uuidv7(), slugSchema], { error: "Invalid identifier" })
     .describe("Article category id (uuidv7) or slug in the requested locale")
 })
-export const getArticleCategoryHeadersSchema = localeHeadersSchema
 
 // POST /article-categories (body) — pure rules only; per-Locale Slug uniqueness is owned by the
 // article category service through the UNIQUE(locale, slug) constraint (23505 → 422 Slug-conflict)

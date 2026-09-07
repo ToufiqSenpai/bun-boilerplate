@@ -28,3 +28,12 @@ export function paginatedSchema<T extends ZodType>(itemSchema: T) {
 export type PaginationQueryDto = z.output<typeof paginationQuerySchema>
 export type PaginationMetaDto = z.output<typeof paginationMetaSchema>
 export type Paginated<T extends ZodType> = z.output<ReturnType<typeof paginatedSchema<T>>>
+
+export function pageMeta(query: PaginationQueryDto, total: number): PaginationMetaDto {
+  return {
+    page: query.page,
+    limit: query.limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / query.limit)
+  }
+}

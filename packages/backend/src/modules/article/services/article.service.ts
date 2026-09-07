@@ -5,57 +5,38 @@ import { z } from "zod"
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { Paginated } from "../../../helpers/pagination.js"
-import type { ArticleListItem, ListArticlesQuery } from "../schemas/article.schema.js"
+import { pageMeta } from "../../../helpers/pagination.js"
+import type { ListArticlesQuery } from "../schemas/article.schema.js"
 import { articleListItemSchema } from "../schemas/article.schema.js"
 import {
   articles,
   articleTranslations,
   type ArticleContent,
-  type ArticleContentValue,
-  type ArticleStatus
+  type ArticleContentValue
 } from "../tables/article.table.js"
 
-interface JoinedArticleRow {
-  id: string
-  createdAt: Date
-  updatedAt: Date
-  status: ArticleStatus
-  publishedAt: Date | null
-  categoryId: string | null
-  coverKey: string
-  locale: Locale
-  title: string
-  slug: string
-  excerpt: string
-  content: ArticleContent
-  metaTitle: string
-  metaDescription: string
+const articleProjection = {
+  id: articles.id,
+  createdAt: articles.createdAt,
+  updatedAt: articles.updatedAt,
+  status: articles.status,
+  publishedAt: articles.publishedAt,
+  categoryId: articles.categoryId,
+  coverKey: articles.coverKey,
+  locale: articleTranslations.locale,
+  title: articleTranslations.title,
+  slug: articleTranslations.slug,
+  excerpt: articleTranslations.excerpt,
+  content: articleTranslations.content,
+  metaTitle: articleTranslations.metaTitle,
+  metaDescription: articleTranslations.metaDescription
 }
 
 export class ArticleService {
-  private readonly schemePrefix = /^[a-z][a-z0-9+.-]*:/i
-
   private readonly imageNodeSchema = z.looseObject({
     type: z.literal("image"),
     attrs: z.looseObject({ src: z.string() })
   })
-
-  private readonly articleProjection = {
-    id: articles.id,
-    createdAt: articles.createdAt,
-    updatedAt: articles.updatedAt,
-    status: articles.status,
-    publishedAt: articles.publishedAt,
-    categoryId: articles.categoryId,
-    coverKey: articles.coverKey,
-    locale: articleTranslations.locale,
-    title: articleTranslations.title,
-    slug: articleTranslations.slug,
-    excerpt: articleTranslations.excerpt,
-    content: articleTranslations.content,
-    metaTitle: articleTranslations.metaTitle,
-    metaDescription: articleTranslations.metaDescription
-  }
 
   public constructor(private readonly database: Database) {}
 
@@ -66,7 +47,7 @@ export class ArticleService {
 
     const [rows, [countResult]] = await Promise.all([
       this.database
-        .select(this.articleProjection)
+        .select(articleProjection)
         .from(articles)
         .innerJoin(articleTranslations, eq(articles.id, articleTranslations.articleId))
         .where(wherePredicate)
@@ -83,32 +64,23 @@ export class ArticleService {
     const total = countResult?.value ?? 0
 
     return {
-      data: rows.map(row => this.toListItem(row)),
-      meta: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / query.limit)
-      }
-    }
-  }
-
-  private toListItem(row: JoinedArticleRow): ArticleListItem {
-    return {
-      id: row.id,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      status: row.status,
-      publishedAt: row.publishedAt,
-      categoryId: row.categoryId,
-      locale: row.locale,
-      title: row.title,
-      slug: row.slug,
-      excerpt: row.excerpt,
-      content: this.resolveContentUrls(row.content),
-      metaTitle: row.metaTitle,
-      metaDescription: row.metaDescription,
-      cover: this.toPublicUrl(row.coverKey)
+      data: rows.map(row => ({
+        id: row.id,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        status: row.status,
+        publishedAt: row.publishedAt,
+        categoryId: row.categoryId,
+        locale: row.locale,
+        title: row.title,
+        slug: row.slug,
+        excerpt: row.excerpt,
+        content: this.resolveContentUrls(row.content),
+        metaTitle: row.metaTitle,
+        metaDescription: row.metaDescription,
+        cover: this.toPublicUrl(row.coverKey)
+      })),
+      meta: pageMeta(query, total)
     }
   }
 
@@ -116,7 +88,7 @@ export class ArticleService {
     if (!key) return undefined
     // ponytail: any scheme-prefixed src (https://, upload://) passes through; StorageKeys containing ":" in
     // the first segment would read as a scheme too — #49 generates uuid names, revisit if keys ever allow ":"
-    if (this.schemePrefix.test(key)) return key
+    if (URL.canParse(key)) return key
     const encoded = key.split("/").map(encodeURIComponent).join("/")
     return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
   }

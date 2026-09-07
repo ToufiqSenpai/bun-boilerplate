@@ -794,16 +794,6 @@ describe("ArticleCategoryService", () => {
       return chain
     }
 
-    function mockJoinedSelectAndProbe(database: Database, rows: ListRow[], probeRows: { id: string }[]) {
-      const joinChain = buildJoinedLimitChain(rows)
-      const probeChain = buildSelectLimitChain(probeRows)
-      // SAFETY: drizzle select chains are mocked for unit test; return shapes match service usage
-      vi.mocked(database.select)
-        .mockReturnValueOnce(joinChain as never)
-        .mockReturnValueOnce(probeChain as never)
-      return { joinChain, probeChain }
-    }
-
     test("resolves a uuidv7 identifier through id and locale predicates", async () => {
       const database = mockDeep<Database>()
       const id = faker.string.uuid({ version: 7 })
@@ -859,26 +849,15 @@ describe("ArticleCategoryService", () => {
       expect(result.description).toBeUndefined()
     })
 
-    test("throws generic NotFoundError when the id does not exist", async () => {
+    test("throws NotFoundError without a probe when the id has no translation in the locale", async () => {
       const database = mockDeep<Database>()
       const id = faker.string.uuid({ version: 7 })
-      mockJoinedSelectAndProbe(database, [], [])
+      mockJoinedSelect(database, [])
 
       const service = new ArticleCategoryService(database)
 
       await expect(service.getByIdentifier(id, "en")).rejects.toThrow("Article category not found")
-    })
-
-    test("throws translation-specific NotFoundError when the category exists without the locale", async () => {
-      const database = mockDeep<Database>()
-      const id = faker.string.uuid({ version: 7 })
-      mockJoinedSelectAndProbe(database, [], [{ id }])
-
-      const service = new ArticleCategoryService(database)
-
-      await expect(service.getByIdentifier(id, "id")).rejects.toThrow(
-        "Article category translation not found for locale id"
-      )
+      expect(database.select).toHaveBeenCalledTimes(1)
     })
 
     test("throws generic NotFoundError for an unknown slug without a follow-up probe", async () => {

@@ -2,7 +2,7 @@ import { Elysia } from "elysia"
 
 import { database } from "../../common/database.js"
 import { notFoundSchema } from "../../common/error.js"
-import { localePlugin } from "../../common/i18n.js"
+import { localeHeadersSchema, localePlugin } from "../../common/i18n.js"
 import type { OpenApiTag } from "../../common/openapi.js"
 import { authPlugin } from "../auth/index.js"
 import {
@@ -11,18 +11,12 @@ import {
   createArticleCategorySchema,
   deleteArticleCategoryNoContentSchema,
   deleteArticleCategoryParamsSchema,
-  getArticleCategoryHeadersSchema,
   getArticleCategoryParamsSchema,
-  listArticleCategoriesHeadersSchema,
   listArticleCategoriesQuerySchema,
   listArticleCategoryResponseSchema,
   upsertArticleCategoryTranslationSchema
 } from "./schemas/article-category.schema.js"
-import {
-  listArticlesHeadersSchema,
-  listArticlesQuerySchema,
-  listArticlesResponseSchema
-} from "./schemas/article.schema.js"
+import { listArticlesQuerySchema, listArticlesResponseSchema } from "./schemas/article.schema.js"
 import { ArticleCategoryService } from "./services/article-category.service.js"
 import { ArticleService } from "./services/article.service.js"
 
@@ -43,7 +37,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return articleService.list(query, locale)
     },
     {
-      headers: listArticlesHeadersSchema,
+      headers: localeHeadersSchema,
       query: listArticlesQuerySchema,
       response: listArticlesResponseSchema.describe(
         "Page of articles translated into the requested locale, with pagination metadata"
@@ -62,7 +56,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return articleCategoryService.list(query, locale)
     },
     {
-      headers: listArticleCategoriesHeadersSchema,
+      headers: localeHeadersSchema,
       query: listArticleCategoriesQuerySchema,
       response: listArticleCategoryResponseSchema.describe(
         "Page of article categories translated into the requested locale, with pagination metadata"
@@ -81,7 +75,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       return articleCategoryService.getByIdentifier(params.identifier, locale)
     },
     {
-      headers: getArticleCategoryHeadersSchema,
+      headers: localeHeadersSchema,
       params: getArticleCategoryParamsSchema,
       response: {
         200: articleCategorySchema.describe("The article category translated into the requested locale"),

@@ -202,7 +202,7 @@ describe("GET /api/article-categories/:identifier", () => {
     expectNotFoundCategory(await categoryByIdentifier(faker.string.uuid({ version: 7 })).get())
   })
 
-  test("returns 404 with a translation-specific message when the category exists without the locale", async () => {
+  test("returns 404 with a generic message when the category exists without the locale", async () => {
     const category = await createCategory(await createAuthSession("admin"))
 
     const { error, status, headers } = await categoryByIdentifier(category.id).get({
@@ -213,7 +213,7 @@ describe("GET /api/article-categories/:identifier", () => {
     expect(error).not.toBeNull()
     expect(headers.get("content-language")).toBe("id")
     // SAFETY: error is EdenApiError with parsed body per previous expect
-    expect((error as EdenApiError<{ message: string }>).value.message).toContain("translation")
+    expect((error as EdenApiError<{ message: string }>).value.message).toBe("Article category not found")
   })
 
   describe("locale resolution", () => {
