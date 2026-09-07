@@ -77,6 +77,7 @@ export const configSchema = z
         secretAccessKey: z.string().min(1).max(128).describe("S3 secret access key"),
         bucket: z.string().min(1).max(63).describe("S3 bucket name"),
         endpoint: z.url().max(256).describe("S3 endpoint URL"),
+        publicBaseUrl: z.url().max(256).describe("Public base URL used to resolve stored keys to host URLs"),
         region: z.string().min(1).max(32).default("auto").describe("S3 region")
       })
       .strict()
@@ -126,6 +127,7 @@ export const config = configSchema.parse({
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
     bucket: process.env.S3_BUCKET,
     endpoint: process.env.S3_ENDPOINT,
+    publicBaseUrl: process.env.S3_PUBLIC_BASE_URL,
     region: process.env.S3_REGION
   },
   sentry: {
