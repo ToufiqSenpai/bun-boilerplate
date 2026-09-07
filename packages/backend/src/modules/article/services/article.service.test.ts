@@ -176,12 +176,12 @@ describe("ArticleService", () => {
       expect(content).toEqual(contentCopy)
     })
 
-    test("filters rows and count by the requested locale and the query status", async () => {
+    test("filters rows and count by the requested locale and the query status for a privileged viewer", async () => {
       const database = mockDeep<Database>()
       const { rowsChain, countChain } = mockListSelect(database, [], 0)
 
       const service = new ArticleService(database)
-      await service.list(query({ status: "draft" }), "id")
+      await service.list(query({ status: "draft" }), "id", true)
 
       expect(rowsChain.from).toHaveBeenCalledWith(articles)
       expect(rowsChain.innerJoin).toHaveBeenCalledWith(articleTranslations, expect.anything())
@@ -192,6 +192,20 @@ describe("ArticleService", () => {
         expect(rendered.sql).toContain(`"articles"."status"`)
         expect(rendered.params).toContain("id")
         expect(rendered.params).toContain("draft")
+      }
+    })
+
+    test("forces the published status for a non-privileged viewer regardless of the query", async () => {
+      const database = mockDeep<Database>()
+      const { rowsChain, countChain } = mockListSelect(database, [], 0)
+
+      const service = new ArticleService(database)
+      await service.list(query({ status: "draft" }), "en")
+
+      for (const chain of [rowsChain, countChain]) {
+        const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+        expect(rendered.params).toContain("published")
+        expect(rendered.params).not.toContain("draft")
       }
     })
   })
@@ -257,6 +271,21 @@ describe("ArticleService", () => {
       expect(rendered.sql).not.toContain(`"articles"."id"`)
       expect(rendered.params).toContain(slug)
       expect(rendered.params).toContain("id")
+    })
+
+    test("drops the status predicate for a privileged viewer so draft and archived rows resolve", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      const row = createJoinedRow({ id, status: "draft" })
+      const chain = mockGetSelect(database, [row])
+
+      const service = new ArticleService(database)
+      const result = await service.getByIdentifier(id, "en", true)
+
+      expect(result.status).toBe("draft")
+      const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+      expect(rendered.sql).not.toContain(`"articles"."status"`)
+      expect(rendered.params).not.toContain("published")
     })
 
     test("throws not-found when no published translation matches the identifier and locale", async () => {

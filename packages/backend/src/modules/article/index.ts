@@ -4,7 +4,8 @@ import { database } from "../../common/database.js"
 import { notFoundSchema } from "../../common/error.js"
 import { localeHeadersSchema, localePlugin } from "../../common/i18n.js"
 import type { OpenApiTag } from "../../common/openapi.js"
-import { authPlugin } from "../auth/index.js"
+import { authPlugin, auth } from "../auth/index.js"
+import { isKnownRole } from "../auth/permissions.js"
 import {
   articleCategorySchema,
   articleCategoryTranslationParamsSchema,
@@ -28,6 +29,14 @@ import { ArticleService } from "./services/article.service.js"
 const articleCategoryService = new ArticleCategoryService(database)
 const articleService = new ArticleService(database)
 
+// Mirrors the permissions macro's gates (verified session, known role) without rejecting:
+// known roles are exactly admin and superadmin, the only viewers allowed past published-only reads.
+async function canViewUnpublished(request: Request): Promise<boolean> {
+  const session = await auth.api.getSession({ headers: request.headers })
+  const role = session?.user.role
+  return !!session?.user.emailVerified && !!role && isKnownRole(role)
+}
+
 export const articleTags: OpenApiTag[] = [
   { name: "Article", description: "Articles, article categories, and their per-locale translations" }
 ]
@@ -37,9 +46,9 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
   .use(localePlugin)
   .get(
     "/articles",
-    ({ query, locale, set }) => {
+    async ({ query, locale, set, request }) => {
       set.headers["content-language"] = locale
-      return articleService.list(query, locale)
+      return articleService.list(query, locale, await canViewUnpublished(request))
     },
     {
       headers: localeHeadersSchema,
@@ -50,29 +59,29 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       detail: {
         summary: "List articles",
         description:
-          "Returns a paginated list of articles, each translated into the requested locale. The translation is matched exactly against the negotiated locale; articles without a translation in that locale are omitted. Filter by status defaults to published. CoverImage and NodeImage storage keys are resolved to host URLs."
+          "Returns a paginated list of articles, each translated into the requested locale. The translation is matched exactly against the negotiated locale; articles without a translation in that locale are omitted. The status filter defaults to published and only takes effect for verified admin or superadmin sessions; all other viewers are forced to published. CoverImage and NodeImage storage keys are resolved to host URLs."
       }
     }
   )
   .get(
     "/articles/:identifier",
-    ({ params, locale, set }) => {
+    async ({ params, locale, set, request }) => {
       set.headers["content-language"] = locale
-      return articleService.getByIdentifier(params.identifier, locale)
+      return articleService.getByIdentifier(params.identifier, locale, await canViewUnpublished(request))
     },
     {
       headers: localeHeadersSchema,
       params: getArticleParamsSchema,
       response: {
-        200: articleSchema.describe("The published article translated into the requested locale"),
+        200: articleSchema.describe("The article translated into the requested locale"),
         404: notFoundSchema.describe(
-          "No published article exists with the given identifier, or no translation exists for the resolved locale"
+          "No article visible to the caller exists with the given identifier, or no translation exists for the resolved locale"
         )
       },
       detail: {
         summary: "Get article by id or slug",
         description:
-          "Resolves a published article by its stable uuidv7 id or by its slug in the requested locale. The locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default. Returns 404 when the article does not exist, is not published, or has no translation in the resolved locale; no fallback translation is served. A valid uuidv7 identifier is always treated as an id. Slugs are unique per locale, so the same slug may exist under different locales. CoverImage and NodeImage storage keys are resolved to host URLs."
+          "Resolves an article by its stable uuidv7 id or by its slug in the requested locale. The locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default. Non-published articles resolve only for verified admin or superadmin sessions; every other caller receives the same 404 as for a missing article, with no indication of existence. Returns 404 when the article does not exist, is not visible to the caller, or has no translation in the resolved locale; no fallback translation is served. A valid uuidv7 identifier is always treated as an id. Slugs are unique per locale, so the same slug may exist under different locales. CoverImage and NodeImage storage keys are resolved to host URLs."
       }
     }
   )

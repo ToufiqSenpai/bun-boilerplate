@@ -1,4 +1,3 @@
-import type { Locale } from "@bun-boilerplate/i18n"
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
 
@@ -6,6 +5,7 @@ import { database } from "../src/common/database.js"
 import { app } from "../src/main.js"
 import { articles, articleTranslations } from "../src/modules/article/tables/article.table.js"
 import type { ArticleContent, ArticleStatus } from "../src/modules/article/tables/article.table.js"
+import { createAuthSession } from "./helpers/auth.js"
 import type { EdenValidationError } from "./helpers/validation.js"
 
 const api = treaty(app)
@@ -52,6 +52,10 @@ function list(query: { page?: number; limit?: number; status?: ArticleStatus } =
   return api.api.articles.get({ query: { page: 1, limit: 100, ...query } as never })
 }
 
+function listAs(headers: Record<string, string>, status: ArticleStatus) {
+  return api.api.articles.get({ query: { page: 1, limit: 100, status }, headers })
+}
+
 describe("GET /api/articles", () => {
   test("returns 200 with an empty page on a fresh database", async () => {
     const { data, error, status } = await list({ page: faker.number.int({ min: 2, max: 5 }), limit: 20 })
@@ -78,17 +82,34 @@ describe("GET /api/articles", () => {
     expect(ids).not.toContain(archived.article.id)
   })
 
-  test("filters by the requested status", async () => {
+  test("filters by the requested status for privileged viewers", async () => {
+    const admin = await createAuthSession("admin")
+    const superadmin = await createAuthSession("superadmin")
     const published = await seedArticle({ status: "published" })
     const draft = await seedArticle({ status: "draft" })
 
-    const { data, error, status } = await list({ status: "draft" })
+    const { data, error, status } = await listAs(admin, "draft")
 
     expect(error).toBeNull()
     expect(status).toBe(200)
     const ids = data?.data.map(row => row.id) ?? []
     expect(ids).toContain(draft.article.id)
     expect(ids).not.toContain(published.article.id)
+
+    const bySuperadmin = await listAs(superadmin, "draft")
+    expect(bySuperadmin.data?.data.map(row => row.id)).toContain(draft.article.id)
+  })
+
+  test("forces the published status for anonymous and plain-user callers", async () => {
+    const plain = await createAuthSession("")
+    const draft = await seedArticle({ status: "draft" })
+
+    const anonymous = await list({ status: "draft" })
+    expect(anonymous.data?.data.map(row => row.id)).not.toContain(draft.article.id)
+
+    const asPlainUser = await listAs(plain, "archived")
+    expect(asPlainUser.error).toBeNull()
+    expect(asPlainUser.data?.data.map(row => row.id)).not.toContain(draft.article.id)
   })
 
   test("returns the requested locale and echoes Content-Language", async () => {
@@ -206,7 +227,7 @@ describe("GET /api/articles", () => {
   })
 })
 
-function getArticle(identifier: string, headers?: { "x-locale"?: Locale; "accept-language"?: string }) {
+function getArticle(identifier: string, headers?: Record<string, string>) {
   return api.api.articles({ identifier }).get(headers ? { headers } : undefined)
 }
 
@@ -278,7 +299,9 @@ describe("GET /api/articles/:identifier", () => {
     expect((await getArticle(onlyEnglish.translation.slug, { "x-locale": "id" })).status).toBe(404)
   })
 
-  test("returns 404 for draft and archived articles", async () => {
+  test("serves draft and archived articles to privileged viewers only", async () => {
+    const admin = await createAuthSession("admin")
+    const plain = await createAuthSession("")
     const draft = await seedArticle({ status: "draft" })
     const archived = await seedArticle({ status: "archived" })
 
@@ -286,6 +309,17 @@ describe("GET /api/articles/:identifier", () => {
     expect((await getArticle(draft.translation.slug)).status).toBe(404)
     expect((await getArticle(archived.article.id)).status).toBe(404)
     expect((await getArticle(archived.translation.slug)).status).toBe(404)
+
+    expect((await getArticle(draft.article.id, plain)).status).toBe(404)
+    expect((await getArticle(archived.translation.slug, plain)).status).toBe(404)
+
+    const draftByAdmin = await getArticle(draft.article.id, admin)
+    expect(draftByAdmin.status).toBe(200)
+    expect(draftByAdmin.data?.status).toBe("draft")
+
+    const archivedBySlug = await getArticle(archived.translation.slug, admin)
+    expect(archivedBySlug.status).toBe(200)
+    expect(archivedBySlug.data?.id).toBe(archived.article.id)
   })
 
   test("treats an id-form identifier as an id even when another article uses it as a slug", async () => {

@@ -59,12 +59,15 @@ export class ArticleService {
 
   public constructor(private readonly database: Database) {}
 
-  // TODO: public list still accepts ?status=draft|archived, exposing non-published rows to anonymous readers.
-  // Restrict the filter to published for unauthenticated access once admin read-override is specced (detail is already locked to published).
-  public async list(query: ListArticlesQuery, locale: Locale): Promise<Paginated<typeof articleSchema>> {
+  public async list(
+    query: ListArticlesQuery,
+    locale: Locale,
+    canViewUnpublished = false
+  ): Promise<Paginated<typeof articleSchema>> {
     const offset = (query.page - 1) * query.limit
 
-    const wherePredicate = and(eq(articleTranslations.locale, locale), eq(articles.status, query.status))
+    const status = canViewUnpublished ? query.status : "published"
+    const wherePredicate = and(eq(articleTranslations.locale, locale), eq(articles.status, status))
 
     const [rows, [countResult]] = await Promise.all([
       this.database
@@ -90,10 +93,10 @@ export class ArticleService {
     }
   }
 
-  public async getByIdentifier(identifier: string, locale: Locale): Promise<Article> {
+  public async getByIdentifier(identifier: string, locale: Locale, canViewUnpublished = false): Promise<Article> {
     const isId = z.uuidv7().safeParse(identifier).success
     const predicate = and(
-      eq(articles.status, "published"),
+      canViewUnpublished ? undefined : eq(articles.status, "published"),
       eq(articleTranslations.locale, locale),
       isId ? eq(articles.id, identifier) : eq(articleTranslations.slug, identifier)
     )
