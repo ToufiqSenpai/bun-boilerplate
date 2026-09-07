@@ -1,12 +1,17 @@
 import type { RichText } from "@bun-boilerplate/richtext"
+import { z } from "zod"
 
 export const ARTICLE_UPLOAD_SCHEME = "upload://"
 
+const imageUploadSchema = z.looseObject({
+  type: z.literal("image"),
+  attrs: z.looseObject({ src: z.string().startsWith(ARTICLE_UPLOAD_SCHEME) })
+})
+
 function imageUploadName(node: RichText): string | undefined {
-  if (node.type !== "image") return undefined
-  const src = node.attrs?.src
-  if (typeof src !== "string" || !src.startsWith(ARTICLE_UPLOAD_SCHEME)) return undefined
-  return src.slice(ARTICLE_UPLOAD_SCHEME.length)
+  const parsed = imageUploadSchema.safeParse(node)
+  if (!parsed.success) return undefined
+  return parsed.data.attrs.src.slice(ARTICLE_UPLOAD_SCHEME.length)
 }
 
 export function collectUploadRefs(node: RichText): string[] {

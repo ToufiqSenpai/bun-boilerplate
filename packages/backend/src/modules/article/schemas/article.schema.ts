@@ -1,4 +1,4 @@
-import { LOCALES } from "@bun-boilerplate/i18n"
+import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
 import { z } from "zod"
 
 import { collectionSchema, richTextContentSchema, slugSchema } from "../../../common/schema.js"
@@ -29,6 +29,68 @@ export const listArticlesQuerySchema = paginationQuerySchema.extend({
 export const listArticlesResponseSchema = paginatedSchema(articleSchema)
 
 export type ListArticlesQuery = z.output<typeof listArticlesQuerySchema>
+
+// POST /articles (body) — multipart carrying article fields, the first translation, the
+// ArticleContent document as a JSON-string part, the mandatory cover file, and inline image
+// files whose part names match the upload:// references in the document. The object stays loose
+// so dynamically named inline file parts survive validation; the service cross-checks them.
+export const ARTICLE_MAX_FILE_BYTES = 20 * 1024 * 1024
+export const ARTICLE_MAX_REQUEST_BYTES = 100 * 1024 * 1024
+
+const contentJsonSchema = z
+  .string({ error: "Content must be a JSON string" })
+  .transform((raw, ctx) => {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Content must be a JSON string" })
+      return z.NEVER
+    }
+  })
+  .pipe(richTextContentSchema)
+
+export const createArticleSchema = z
+  .looseObject({
+    status: z.enum(articleStatusEnum.enumValues).optional().describe("Lifecycle status of the article"),
+    categoryId: z
+      .uuidv7({ error: "Invalid category id" })
+      .nullable()
+      .optional()
+      .describe("Article category id, null when uncategorised"),
+    locale: z.enum(LOCALES, { error: "Invalid locale" }).default(DEFAULT_LOCALE),
+    title: z
+      .string({ error: "Title is required" })
+      .min(1, { error: "Title must not be empty" })
+      .max(255, { error: "Title must be at most 255 characters" }),
+    slug: slugSchema("article"),
+    excerpt: z
+      .string({ error: "Excerpt is required" })
+      .min(1, { error: "Excerpt must not be empty" })
+      .max(1000, { error: "Excerpt must be at most 1000 characters" }),
+    content: contentJsonSchema,
+    metaTitle: z
+      .string({ error: "Meta title is required" })
+      .min(1, { error: "Meta title must not be empty" })
+      .max(255, { error: "Meta title must be at most 255 characters" }),
+    metaDescription: z
+      .string({ error: "Meta description is required" })
+      .min(1, { error: "Meta description must not be empty" })
+      .max(500, { error: "Meta description must be at most 500 characters" }),
+    cover: z
+      .file({ error: "Cover image is required" })
+      .max(ARTICLE_MAX_FILE_BYTES, { error: "Cover image must be at most 20 MB" })
+  })
+  .superRefine((body, ctx) => {
+    let total = 0
+    for (const value of Object.values(body)) {
+      if (value instanceof File) total += value.size
+    }
+    if (total > ARTICLE_MAX_REQUEST_BYTES) {
+      ctx.addIssue({ code: "custom", message: "Total upload size must be at most 100 MB" })
+    }
+  })
+
+export type CreateArticleBody = z.output<typeof createArticleSchema>
 
 // GET /articles/:identifier (params) — resolves an Article by uuidv7 id or per-locale Slug.
 // The uuidv7 branch is tried first, so an identifier that looks like an id is always treated as an id, never as a Slug.
