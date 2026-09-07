@@ -7,8 +7,8 @@ import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
-import type { ArticleListItem, ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleListItemSchema } from "../schemas/article.schema.js"
+import type { Article, ListArticlesQuery } from "../schemas/article.schema.js"
+import { articleSchema } from "../schemas/article.schema.js"
 import {
   articles,
   articleTranslations,
@@ -41,7 +41,7 @@ export class ArticleService {
 
   public constructor(private readonly database: Database) {}
 
-  public async list(query: ListArticlesQuery, locale: Locale): Promise<Paginated<typeof articleListItemSchema>> {
+  public async list(query: ListArticlesQuery, locale: Locale): Promise<Paginated<typeof articleSchema>> {
     const offset = (query.page - 1) * query.limit
 
     const wherePredicate = and(eq(articleTranslations.locale, locale), eq(articles.status, query.status))
@@ -85,7 +85,7 @@ export class ArticleService {
     }
   }
 
-  public async getByIdentifier(identifier: string, locale: Locale): Promise<ArticleListItem> {
+  public async getByIdentifier(identifier: string, locale: Locale): Promise<Article> {
     const isId = z.uuidv7().safeParse(identifier).success
     const predicate = and(
       eq(articles.status, "published"),

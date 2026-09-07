@@ -204,3 +204,110 @@ describe("GET /api/articles", () => {
     expect(payload).toMatchObject({ type: "validation", on: "query", property: "status" })
   })
 })
+
+function getArticle(identifier: string, headers?: Record<string, string>) {
+  // SAFETY: tests probe arbitrary header combinations through the public HTTP surface; treaty types the header map narrowly
+  return api.api.articles({ identifier }).get(headers ? { headers: headers as never } : undefined)
+}
+
+describe("GET /api/articles/:identifier", () => {
+  test("returns 200 by id with translation fields and resolved image host URLs", async () => {
+    const coverKey = `articles/${faker.string.uuid({ version: 7 })}.png`
+    const imageKey = `articles/${faker.string.uuid({ version: 7 })}.jpg`
+    const seeded = await seedArticle({
+      coverKey,
+      content: { type: "doc", content: [{ type: "image", attrs: { src: imageKey } }] }
+    })
+
+    const { data, error, status, headers } = await getArticle(seeded.article.id)
+
+    expect(error).toBeNull()
+    expect(status).toBe(200)
+    expect(new Headers(headers).get("content-language")).toBe("en")
+    expect(data).toMatchObject({
+      id: seeded.article.id,
+      status: "published",
+      title: seeded.translation.title,
+      slug: seeded.translation.slug,
+      excerpt: seeded.translation.excerpt,
+      metaTitle: seeded.translation.metaTitle,
+      metaDescription: seeded.translation.metaDescription
+    })
+    expect(data?.cover).toMatch(/^https?:\/\//)
+    expect(data?.cover?.endsWith(`/${coverKey}`)).toBe(true)
+    // SAFETY: shape mirrors the literal seeded above through the same JSON round-trip
+    const content = data?.content as { content: { attrs: { src: string } }[] }
+    expect(content.content[0]?.attrs.src).toMatch(/^https?:\/\//)
+    expect(content.content[0]?.attrs.src.endsWith(`/${imageKey}`)).toBe(true)
+  })
+
+  test("returns 200 by slug scoped to the requested locale", async () => {
+    const seeded = await seedArticle({ locale: "id" })
+
+    const result = await getArticle(seeded.translation.slug)
+    expect(result.status).toBe(404)
+
+    const localized = await getArticle(seeded.translation.slug, { "x-locale": "id" })
+
+    expect(localized.error).toBeNull()
+    expect(localized.status).toBe(200)
+    expect(new Headers(localized.headers).get("content-language")).toBe("id")
+    expect(localized.data?.id).toBe(seeded.article.id)
+    expect(localized.data?.title).toBe(seeded.translation.title)
+  })
+
+  test("returns 404 for an unknown id and an unknown slug", async () => {
+    await seedArticle()
+
+    expect((await getArticle(faker.string.uuid({ version: 7 }))).status).toBe(404)
+    expect((await getArticle(`nope-${faker.string.uuid({ version: 7 }).slice(0, 8)}`)).status).toBe(404)
+  })
+
+  test("returns 404 when the article has no translation in the requested locale, never another locale", async () => {
+    const onlyEnglish = await seedArticle({ locale: "en" })
+
+    expect((await getArticle(onlyEnglish.article.id, { "x-locale": "id" })).status).toBe(404)
+    expect((await getArticle(onlyEnglish.translation.slug, { "x-locale": "id" })).status).toBe(404)
+  })
+
+  test("returns 404 for draft and archived articles", async () => {
+    const draft = await seedArticle({ status: "draft" })
+    const archived = await seedArticle({ status: "archived" })
+
+    expect((await getArticle(draft.article.id)).status).toBe(404)
+    expect((await getArticle(draft.translation.slug)).status).toBe(404)
+    expect((await getArticle(archived.article.id)).status).toBe(404)
+    expect((await getArticle(archived.translation.slug)).status).toBe(404)
+  })
+
+  test("treats an id-form identifier as an id even when another article uses it as a slug", async () => {
+    const slugOwner = await seedArticle()
+    const idOwner = await seedArticle({ locale: "id" })
+    // SAFETY: raw insert bypasses the authoring-time rule that slugs must not look like ids
+    await database
+      .insert(articleTranslations)
+      .values({
+        articleId: slugOwner.article.id,
+        locale: "id",
+        title: faker.lorem.words(3),
+        slug: idOwner.article.id,
+        excerpt: faker.lorem.sentence(),
+        content: { type: "doc", content: [] },
+        metaTitle: faker.lorem.words(2),
+        metaDescription: faker.lorem.sentence()
+      })
+
+    const { data, status } = await getArticle(idOwner.article.id, { "x-locale": "id" })
+
+    expect(status).toBe(200)
+    expect(data?.id).toBe(idOwner.article.id)
+  })
+
+  test("rejects an identifier that slugifies to an empty string with 422", async () => {
+    const { error, status } = await getArticle("!!!")
+
+    expect(status).toBe(422)
+    // SAFETY: error is a ValidationError per previous expect
+    expect((error as EdenValidationError).value).toMatchObject({ type: "validation", on: "params", property: "identifier" })
+  })
+})

@@ -255,5 +255,32 @@ describe("ArticleService", () => {
       expect(rendered.params).toContain("published")
       expect(rendered.params).toContain("en")
     })
+
+    test("resolves by slug through slug, status, and locale predicates when the identifier is not an id", async () => {
+      const database = mockDeep<Database>()
+      const slug = faker.lorem.slug()
+      const row = createJoinedRow({ slug })
+      const chain = mockGetSelect(database, [row])
+
+      const service = new ArticleService(database)
+      const result = await service.getByIdentifier(slug, "id")
+
+      expect(result.slug).toBe(slug)
+      const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+      expect(rendered.sql).toContain(`"article_translations"."slug"`)
+      expect(rendered.sql).toContain(`"articles"."status"`)
+      expect(rendered.sql).toContain(`"article_translations"."locale"`)
+      expect(rendered.sql).not.toContain(`"articles"."id"`)
+      expect(rendered.params).toContain(slug)
+      expect(rendered.params).toContain("id")
+    })
+
+    test("throws not-found when no published translation matches the identifier and locale", async () => {
+      const database = mockDeep<Database>()
+      mockGetSelect(database, [])
+
+      const service = new ArticleService(database)
+      await expect(service.getByIdentifier(faker.lorem.slug(), "en")).rejects.toThrow("Article not found")
+    })
   })
 })

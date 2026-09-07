@@ -16,7 +16,12 @@ import {
   listArticleCategoryResponseSchema,
   upsertArticleCategoryTranslationSchema
 } from "./schemas/article-category.schema.js"
-import { listArticlesQuerySchema, listArticlesResponseSchema } from "./schemas/article.schema.js"
+import {
+  articleSchema,
+  getArticleParamsSchema,
+  listArticlesQuerySchema,
+  listArticlesResponseSchema
+} from "./schemas/article.schema.js"
 import { ArticleCategoryService } from "./services/article-category.service.js"
 import { ArticleService } from "./services/article.service.js"
 
@@ -46,6 +51,28 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
         summary: "List articles",
         description:
           "Returns a paginated list of articles, each translated into the requested locale. The translation is matched exactly against the negotiated locale; articles without a translation in that locale are omitted. Filter by status defaults to published. CoverImage and NodeImage storage keys are resolved to host URLs."
+      }
+    }
+  )
+  .get(
+    "/articles/:identifier",
+    ({ params, locale, set }) => {
+      set.headers["content-language"] = locale
+      return articleService.getByIdentifier(params.identifier, locale)
+    },
+    {
+      headers: localeHeadersSchema,
+      params: getArticleParamsSchema,
+      response: {
+        200: articleSchema.describe("The published article translated into the requested locale"),
+        404: notFoundSchema.describe(
+          "No published article exists with the given identifier, or no translation exists for the resolved locale"
+        )
+      },
+      detail: {
+        summary: "Get article by id or slug",
+        description:
+          "Resolves a published article by its stable uuidv7 id or by its slug in the requested locale. The locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default. Returns 404 when the article does not exist, is not published, or has no translation in the resolved locale; no fallback translation is served. A valid uuidv7 identifier is always treated as an id. Slugs are unique per locale, so the same slug may exist under different locales. CoverImage and NodeImage storage keys are resolved to host URLs."
       }
     }
   )
