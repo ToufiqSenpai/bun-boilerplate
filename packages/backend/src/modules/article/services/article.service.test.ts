@@ -6,26 +6,10 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { ListArticlesQuery } from "../schemas/article.schema.js"
-import type { ArticleContent, ArticleStatus } from "../tables/article.table.js"
+import type { ArticleContent } from "../tables/article.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
+import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
-
-interface JoinedArticleRow {
-  id: string
-  createdAt: Date
-  updatedAt: Date
-  status: ArticleStatus
-  publishedAt: Date | null
-  categoryId: string | null
-  coverKey: string
-  locale: string
-  title: string
-  slug: string
-  excerpt: string
-  content: ArticleContent
-  metaTitle: string
-  metaDescription: string
-}
 
 function createJoinedRow(overrides: Partial<JoinedArticleRow> = {}): JoinedArticleRow {
   return {

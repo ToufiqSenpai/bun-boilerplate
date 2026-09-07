@@ -1,3 +1,4 @@
+import type { Locale } from "@bun-boilerplate/i18n"
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
 
@@ -205,7 +206,7 @@ describe("GET /api/articles", () => {
   })
 })
 
-function getArticle(identifier: string, headers?: { "x-locale"?: "en" | "id"; "accept-language"?: string }) {
+function getArticle(identifier: string, headers?: { "x-locale"?: Locale; "accept-language"?: string }) {
   return api.api.articles({ identifier }).get(headers ? { headers } : undefined)
 }
 
@@ -213,9 +214,16 @@ describe("GET /api/articles/:identifier", () => {
   test("returns 200 by id with translation fields and resolved image host URLs", async () => {
     const coverKey = `articles/${faker.string.uuid({ version: 7 })}.png`
     const imageKey = `articles/${faker.string.uuid({ version: 7 })}.jpg`
+    const external = "https://cdn.example.org/pic.png"
     const seeded = await seedArticle({
       coverKey,
-      content: { type: "doc", content: [{ type: "image", attrs: { src: imageKey } }] }
+      content: {
+        type: "doc",
+        content: [
+          { type: "image", attrs: { src: imageKey } },
+          { type: "image", attrs: { src: external } }
+        ]
+      }
     })
 
     const { data, error, status, headers } = await getArticle(seeded.article.id)
@@ -238,6 +246,7 @@ describe("GET /api/articles/:identifier", () => {
     const content = data?.content as { content: { attrs: { src: string } }[] }
     expect(content.content[0]?.attrs.src).toMatch(/^https?:\/\//)
     expect(content.content[0]?.attrs.src.endsWith(`/${imageKey}`)).toBe(true)
+    expect(content.content[1]?.attrs.src).toBe(external)
   })
 
   test("returns 200 by slug scoped to the requested locale", async () => {

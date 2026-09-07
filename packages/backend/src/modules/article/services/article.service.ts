@@ -13,7 +13,8 @@ import {
   articles,
   articleTranslations,
   type ArticleContent,
-  type ArticleContentValue
+  type ArticleContentValue,
+  type ArticleStatus
 } from "../tables/article.table.js"
 
 const articleProjection = {
@@ -31,6 +32,23 @@ const articleProjection = {
   content: articleTranslations.content,
   metaTitle: articleTranslations.metaTitle,
   metaDescription: articleTranslations.metaDescription
+}
+
+export interface JoinedArticleRow {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  status: ArticleStatus
+  publishedAt: Date | null
+  categoryId: string | null
+  coverKey: string
+  locale: Locale
+  title: string
+  slug: string
+  excerpt: string
+  content: ArticleContent
+  metaTitle: string
+  metaDescription: string
 }
 
 export class ArticleService {
@@ -67,22 +85,7 @@ export class ArticleService {
     const total = countResult?.value ?? 0
 
     return {
-      data: rows.map(row => ({
-        id: row.id,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        status: row.status,
-        publishedAt: row.publishedAt,
-        categoryId: row.categoryId,
-        locale: row.locale,
-        title: row.title,
-        slug: row.slug,
-        excerpt: row.excerpt,
-        content: this.resolveContentUrls(row.content),
-        metaTitle: row.metaTitle,
-        metaDescription: row.metaDescription,
-        cover: this.toPublicUrl(row.coverKey)
-      })),
+      data: rows.map(row => this.mapRow(row)),
       meta: pageMeta(query, total)
     }
   }
@@ -103,6 +106,10 @@ export class ArticleService {
       .limit(1)
     if (!row) throw new NotFoundError("Article not found")
 
+    return this.mapRow(row)
+  }
+
+  private mapRow(row: JoinedArticleRow): Article {
     return {
       id: row.id,
       createdAt: row.createdAt,
