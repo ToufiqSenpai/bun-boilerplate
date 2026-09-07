@@ -37,20 +37,27 @@ export type ListArticlesQuery = z.output<typeof listArticlesQuerySchema>
 export const ARTICLE_MAX_FILE_BYTES = 20 * 1024 * 1024
 export const ARTICLE_MAX_REQUEST_BYTES = 100 * 1024 * 1024
 
+// The document arrives as a JSON string from plain multipart clients, but Elysia
+// pre-parses JSON-looking fields into objects before validation, so both land here.
 const contentJsonSchema = z
-  .string({ error: "Content must be a JSON string" })
-  .transform((raw, ctx) => {
-    try {
-      return JSON.parse(raw)
-    } catch {
-      ctx.addIssue({ code: "custom", message: "Content must be a JSON string" })
-      return z.NEVER
-    }
-  })
+  .union(
+    [
+      z.string().transform((raw, ctx) => {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          ctx.addIssue({ code: "custom", message: "Content must be a JSON string" })
+          return z.NEVER
+        }
+      }),
+      z.record(z.string(), z.unknown()),
+      z.array(z.unknown())
+    ],
+    { error: "Content must be a JSON string" }
+  )
   .pipe(richTextContentSchema)
 
-export const createArticleSchema = z
-  .looseObject({
+export const createArticleSchema = z.looseObject({
     status: z.enum(articleStatusEnum.enumValues).optional().describe("Lifecycle status of the article"),
     categoryId: z
       .uuidv7({ error: "Invalid category id" })

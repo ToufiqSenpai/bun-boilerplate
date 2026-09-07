@@ -2,25 +2,30 @@ import { createAccessControl } from "better-auth/plugins/access"
 import { adminAc, defaultStatements } from "better-auth/plugins/admin/access"
 
 export type ArticleCategoryAction = "create" | "update" | "delete"
+export type ArticleAction = "create" | "update" | "delete"
 
 export interface PermissionRequirement {
   articleCategory?: ArticleCategoryAction[]
+  article?: ArticleAction[]
 }
 
 export const ac = createAccessControl({
   ...defaultStatements,
-  articleCategory: ["create", "update", "delete"]
+  articleCategory: ["create", "update", "delete"],
+  article: ["create", "update", "delete"]
 })
 
 export const roles = {
   superadmin: ac.newRole({
     ...adminAc.statements,
-    articleCategory: ["create", "update", "delete"]
+    articleCategory: ["create", "update", "delete"],
+    article: ["create", "update", "delete"]
   }),
   admin: ac.newRole({
     user: [],
     session: [],
-    articleCategory: ["create", "update", "delete"]
+    articleCategory: ["create", "update", "delete"],
+    article: ["create", "update", "delete"]
   })
 }
 

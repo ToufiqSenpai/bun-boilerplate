@@ -1,8 +1,11 @@
 import type { RichText } from "@bun-boilerplate/richtext"
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
+import { eq } from "drizzle-orm"
+import type { z } from "zod"
 
 import { database } from "../src/common/database.js"
+import type { createArticleSchema } from "../src/modules/article/schemas/article.schema.js"
 import { app } from "../src/main.js"
 import { articles, articleTranslations } from "../src/modules/article/tables/article.table.js"
 import type { ArticleStatus } from "../src/modules/article/tables/article.table.js"
@@ -351,5 +354,148 @@ describe("GET /api/articles/:identifier", () => {
       on: "params",
       property: "identifier"
     })
+  })
+})
+
+// NOTE: the route reuses the production storage singleton, so these HTTP tests only
+// cover gates and pre-upload validation. Full persistence behavior, including uploads,
+// lives in the ArticleService unit tests with an in-memory storage double.
+describe("POST /api/articles", () => {
+  function coverFile(): File {
+    return new File(["fake-cover-bytes"], "cover.png", { type: "image/png" })
+  }
+
+  function createPayload(overrides: Partial<z.input<typeof createArticleSchema>> = {}): z.input<
+    typeof createArticleSchema
+  > {
+    return {
+      locale: "en",
+      title: faker.lorem.words({ min: 2, max: 5 }),
+      slug: `${faker.lorem.slug()}-${faker.string.uuid({ version: 7 }).slice(0, 8)}`,
+      excerpt: faker.lorem.sentence(),
+      content: JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] }),
+      metaTitle: faker.lorem.words({ min: 1, max: 3 }),
+      metaDescription: faker.lorem.sentence(),
+      cover: coverFile(),
+      ...overrides
+    }
+  }
+
+  function createArticle(
+    payload: Partial<z.input<typeof createArticleSchema>>,
+    headers?: Record<string, string>
+  ) {
+    // SAFETY: treaty body type is the parsed output shape; multipart accepts File parts plus loose fields
+    return api.api.articles.post(payload as never, headers ? { headers } : undefined)
+  }
+
+  async function translationSlugs(slug: string): Promise<string[]> {
+    return (await database.select({ slug: articleTranslations.slug }).from(articleTranslations).where(
+      eq(articleTranslations.slug, slug)
+    )).map(row => row.slug)
+  }
+
+  test("returns 401 without a session", async () => {
+    const { error, status } = await createArticle(createPayload())
+
+    expect(status).toBe(401)
+    expect(error).not.toBeNull()
+  })
+
+  test("returns 403 for a verified non-admin session", async () => {
+    const plain = await createAuthSession("")
+
+    const { error, status } = await createArticle(createPayload(), plain)
+
+    expect(status).toBe(403)
+    expect(error).not.toBeNull()
+  })
+
+  test("lets admin and superadmin past the gate to validation", async () => {
+    const admin = await createAuthSession("admin")
+    const superadmin = await createAuthSession("superadmin")
+    const { cover: _ignored, ...withoutCover } = createPayload()
+
+    for (const headers of [admin, superadmin]) {
+      const { error, status } = await createArticle(withoutCover, headers)
+
+      expect(status).toBe(422)
+      // SAFETY: error is a ValidationError per previous expect
+      expect((error as EdenValidationError).value).toMatchObject({
+        type: "validation",
+        on: "body",
+        property: "cover"
+      })
+    }
+  })
+
+  test("rejects content that is not a JSON string with 422", async () => {
+    const headers = await createAuthSession("admin")
+    const payload = createPayload({ content: "not json {" })
+    const slug = payload["slug"]
+
+    const { error, status } = await createArticle(payload, headers)
+
+    expect(status).toBe(422)
+    // SAFETY: error is a ValidationError per previous expect
+    expect((error as EdenValidationError).value).toMatchObject({
+      type: "validation",
+      on: "body",
+      property: "content"
+    })
+    expect(await translationSlugs(slug)).toEqual([])
+  })
+
+  test("rejects a placeholder without a matching file with 422", async () => {
+    const headers = await createAuthSession("admin")
+    const payload = createPayload({
+      content: JSON.stringify({ type: "doc", content: [{ type: "image", attrs: { src: "upload://ghost" } }] })
+    })
+    const slug = payload["slug"]
+
+    const { error, status } = await createArticle(payload, headers)
+
+    expect(status).toBe(422)
+    // SAFETY: error is a ValidationError per previous expect
+    expect((error as EdenValidationError).value).toMatchObject({
+      type: "validation",
+      on: "body",
+      errors: expect.arrayContaining([expect.objectContaining({ path: ["content"] })])
+    })
+    expect(await translationSlugs(slug)).toEqual([])
+  })
+
+  test("rejects a file without a matching placeholder with 422", async () => {
+    const headers = await createAuthSession("admin")
+    const payload = createPayload({ stray: coverFile() })
+    const slug = payload["slug"]
+
+    const { error, status } = await createArticle(payload, headers)
+
+    expect(status).toBe(422)
+    // SAFETY: error is a ValidationError per previous expect
+    expect((error as EdenValidationError).value).toMatchObject({
+      type: "validation",
+      on: "body",
+      errors: expect.arrayContaining([expect.objectContaining({ path: ["stray"] })])
+    })
+    expect(await translationSlugs(slug)).toEqual([])
+  })
+
+  test("rejects a non-image cover with 422", async () => {
+    const headers = await createAuthSession("admin")
+    const payload = createPayload({ cover: new File(["not an image"], "cover.png", { type: "image/png" }) })
+    const slug = payload["slug"]
+
+    const { error, status } = await createArticle(payload, headers)
+
+    expect(status).toBe(422)
+    // SAFETY: error is a ValidationError per previous expect
+    expect((error as EdenValidationError).value).toMatchObject({
+      type: "validation",
+      on: "body",
+      property: "cover"
+    })
+    expect(await translationSlugs(slug)).toEqual([])
   })
 })

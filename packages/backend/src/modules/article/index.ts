@@ -19,6 +19,7 @@ import {
 } from "./schemas/article-category.schema.js"
 import {
   articleSchema,
+  createArticleSchema,
   getArticleParamsSchema,
   listArticlesQuerySchema,
   listArticlesResponseSchema
@@ -83,6 +84,25 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
         summary: "Get article by id or slug",
         description:
           "Resolves an article by its stable uuidv7 id or by its slug in the requested locale. The locale is negotiated from the `X-Locale` header first, then `Accept-Language`, then the application default. Non-published articles resolve only for verified admin or superadmin sessions; every other caller receives the same 404 as for a missing article, with no indication of existence. Returns 404 when the article does not exist, is not visible to the caller, or has no translation in the resolved locale; no fallback translation is served. A valid uuidv7 identifier is always treated as an id. Slugs are unique per locale, so the same slug may exist under different locales. CoverImage and NodeImage storage keys are resolved to host URLs."
+      }
+    }
+  )
+  .post(
+    "/articles",
+    async ({ body, set, status }) => {
+      set.headers["content-language"] = body.locale
+      return status(201, await articleService.create(body))
+    },
+    {
+      permissions: { article: ["create"] },
+      body: createArticleSchema.describe("Article fields with the first translation, content document, and image files"),
+      response: {
+        201: articleSchema.describe("The created article with its first translation")
+      },
+      detail: {
+        summary: "Create an article",
+        description:
+          "Admin only. Creates a new article together with its first translation, TipTap content document, mandatory cover image, and inline images matched to upload references in the document."
       }
     }
   )

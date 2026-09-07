@@ -79,6 +79,16 @@ describe("createArticleSchema", () => {
     ])
   })
 
+  test("accepts a pre-parsed content object as delivered by multipart parsing", () => {
+    const result = createArticleSchema.safeParse(
+      createInput({ content: { type: "doc", content: [{ type: "paragraph" }] } })
+    )
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.content).toEqual({ type: "doc", content: [{ type: "paragraph" }] })
+  })
+
   test("rejects content with an invalid rich text envelope", () => {
     expect(parseIssues(createInput({ content: JSON.stringify({ type: "nope" }) }))).toEqual([
       expect.objectContaining({ path: ["content"] })
