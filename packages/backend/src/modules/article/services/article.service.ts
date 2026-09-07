@@ -6,7 +6,12 @@ import type { Database } from "../../../common/database.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import type { ArticleListItem, ListArticlesQuery } from "../schemas/article.schema.js"
 import { articleListItemSchema } from "../schemas/article.schema.js"
-import { articles, articleTranslations, type ArticleContent } from "../tables/article.table.js"
+import {
+  articles,
+  articleTranslations,
+  type ArticleContent,
+  type ArticleContentValue
+} from "../tables/article.table.js"
 
 const ABSOLUTE_URL = /^https?:\/\//i
 
@@ -14,6 +19,24 @@ function toPublicUrl(key: string): string | undefined {
   if (!key) return undefined
   if (ABSOLUTE_URL.test(key)) return key
   return new URL(`${key.replace(/ /g, "%20")}`, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
+}
+
+function resolveValue(value: ArticleContentValue): ArticleContentValue {
+  if (Array.isArray(value)) return value.map(resolveValue)
+  if (value === null || typeof value !== "object") return value
+
+  // SAFETY: JSON objects are narrowed to plain records by the guard above
+  const node = value as Record<string, ArticleContentValue>
+  if (node.type === "image") {
+    const attrs = node.attrs
+    if (attrs !== null && typeof attrs === "object" && !Array.isArray(attrs)) {
+      const src = attrs.src
+      if (typeof src === "string") {
+        return { ...node, attrs: { ...attrs, src: toPublicUrl(src) ?? src } }
+      }
+    }
+  }
+  return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, resolveValue(v)]))
 }
 
 interface JoinedArticleRow {
@@ -31,6 +54,11 @@ interface JoinedArticleRow {
   content: ArticleContent
   metaTitle: string
   metaDescription: string
+}
+
+function resolveContentUrls(content: ArticleContent): ArticleContent {
+  // SAFETY: the document root is a JSON object and resolveValue preserves its object shape
+  return resolveValue(content) as ArticleContent
 }
 
 export class ArticleService {
@@ -53,10 +81,7 @@ export class ArticleService {
 
   public constructor(private readonly database: Database) {}
 
-  public async list(
-    query: ListArticlesQuery,
-    locale: Locale
-  ): Promise<Paginated<typeof articleListItemSchema>> {
+  public async list(query: ListArticlesQuery, locale: Locale): Promise<Paginated<typeof articleListItemSchema>> {
     const offset = (query.page - 1) * query.limit
 
     const wherePredicate = and(eq(articleTranslations.locale, locale), eq(articles.status, query.status))
@@ -102,7 +127,7 @@ export class ArticleService {
       title: row.title,
       slug: row.slug,
       excerpt: row.excerpt,
-      content: row.content,
+      content: resolveContentUrls(row.content),
       metaTitle: row.metaTitle,
       metaDescription: row.metaDescription,
       cover: toPublicUrl(row.coverKey)

@@ -57,9 +57,7 @@ function buildRowsChain(rows: JoinedArticleRow[]) {
 }
 
 function buildCountChain(total: number) {
-  const where = vi
-    .fn<(predicate: unknown) => Promise<{ value: number }[]>>()
-    .mockResolvedValue([{ value: total }])
+  const where = vi.fn<(predicate: unknown) => Promise<{ value: number }[]>>().mockResolvedValue([{ value: total }])
   const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
   const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
   return { from, innerJoin, where }
@@ -77,10 +75,9 @@ function mockListSelect(database: Database, rows: JoinedArticleRow[], total: num
 
 const pgDialect = new PgDialect()
 
-function renderWhere(whereCall: unknown): { sql: string; params: unknown[] } {
+function renderWhere(whereCall: unknown) {
   // SAFETY: the where() argument is always a drizzle SQL instance built by the service
-  const rendered = pgDialect.sqlToQuery(whereCall as SQL)
-  return { sql: rendered.sql, params: rendered.params }
+  return pgDialect.sqlToQuery(whereCall as SQL)
 }
 
 describe("ArticleService", () => {
@@ -138,6 +135,46 @@ describe("ArticleService", () => {
       const url = new URL(cover ?? "")
       expect(url.origin).toBe(new URL(config.s3.publicBaseUrl).origin)
       expect(url.pathname.endsWith(`/${key}`)).toBe(true)
+    })
+
+    test("rewrites nested NodeImage src keys to host URLs, passing external and upload refs through", async () => {
+      const database = mockDeep<Database>()
+      const key = `articles/${faker.string.uuid({ version: 7 })}.jpg`
+      const external = "https://cdn.example.org/pic.png"
+      const content: ArticleContent = {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "image", attrs: { src: key, alt: "a" } }]
+          },
+          { type: "image", attrs: { src: external } },
+          { type: "image", attrs: { src: "upload://part-1" } },
+          { type: "image", attrs: { src: 42 } }
+        ]
+      }
+      const contentCopy = structuredClone(content)
+      mockListSelect(database, [createJoinedRow({ content })], 1)
+
+      const service = new ArticleService(database)
+      const result = await service.list(query(), "en")
+
+      // SAFETY: shape is fixed by the literal above
+      const nodes = (result.data[0]?.content as { content: { type: string; attrs?: Record<string, unknown> }[] })
+        .content
+      expect(nodes[0]).toEqual({
+        type: "paragraph",
+        content: [
+          {
+            type: "image",
+            attrs: { src: new URL(key, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href, alt: "a" }
+          }
+        ]
+      })
+      expect(nodes[1]?.attrs?.src).toBe(external)
+      expect(nodes[2]?.attrs?.src).toBe("upload://part-1")
+      expect(nodes[3]?.attrs?.src).toBe(42)
+      expect(content).toEqual(contentCopy)
     })
 
     test("filters rows and count by the requested locale and the query status", async () => {

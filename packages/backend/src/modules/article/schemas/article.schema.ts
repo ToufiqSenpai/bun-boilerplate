@@ -9,16 +9,8 @@ import { articleStatusEnum, type ArticleContent } from "../tables/article.table.
 export const articleListItemSchema = z
   .object({
     status: z.enum(articleStatusEnum.enumValues).describe("Lifecycle status of the article"),
-    publishedAt: z
-      .date()
-      .nullable()
-      .readonly()
-      .describe("Publication timestamp, null when never published"),
-    categoryId: z
-      .uuidv7()
-      .nullable()
-      .readonly()
-      .describe("Article category id, null when uncategorised"),
+    publishedAt: z.date().nullable().readonly().describe("Publication timestamp, null when never published"),
+    categoryId: z.uuidv7().nullable().readonly().describe("Article category id, null when uncategorised"),
     locale: z.enum(LOCALES).describe("Locale of the translation carried by this row"),
     title: z.string().describe("Translated title"),
     slug: z.string().describe("Translated slug"),
