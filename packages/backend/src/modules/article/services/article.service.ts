@@ -1,16 +1,37 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 import type { RichText } from "@bun-boilerplate/richtext"
+import { randomUUIDv7 } from "bun"
 import { and, count, desc, eq } from "drizzle-orm"
-import { NotFoundError } from "elysia"
+import { NotFoundError, ValidationError } from "elysia"
+import { fileTypeFromBlob } from "file-type"
+import { Readable } from "stream"
 import { z } from "zod"
 
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
+import { storage as defaultStorage, type Storage } from "../../../common/storage/storage.js"
+import { StorageKey } from "../../../common/storage/storage-key.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
-import type { Article, ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleSchema } from "../schemas/article.schema.js"
+import type { Article, CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
+import { articleSchema, createArticleSchema } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
+import { collectUploadRefs, rewriteUploadRefs } from "./article-content.js"
+
+export type ArticleStorage = Pick<Storage, "upload" | "delete">
+
+const CREATE_BODY_FIELDS = new Set([
+  "status",
+  "categoryId",
+  "locale",
+  "title",
+  "slug",
+  "excerpt",
+  "content",
+  "metaTitle",
+  "metaDescription",
+  "cover"
+])
 
 export interface JoinedArticleRow extends Omit<Article, "cover"> {
   coverKey: string
@@ -39,7 +60,10 @@ export class ArticleService {
     attrs: z.looseObject({ src: z.string() })
   })
 
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly storage: ArticleStorage = defaultStorage
+  ) {}
 
   public async list(
     query: ListArticlesQuery,
@@ -92,6 +116,165 @@ export class ArticleService {
     if (!row) throw new NotFoundError("Article not found")
 
     return this.mapRow(row)
+  }
+
+  public async create(body: CreateArticleBody): Promise<Article> {
+    const inlineFiles = new Map<string, File>()
+    for (const [name, value] of Object.entries(body)) {
+      if (!CREATE_BODY_FIELDS.has(name) && value instanceof File) inlineFiles.set(name, value)
+    }
+
+    const refs = collectUploadRefs(body.content)
+    const missing = refs.filter(name => !inlineFiles.has(name))
+    if (missing.length > 0) {
+      throw this.createValidationError(body, ["content"], `Unresolved upload references: ${missing.join(", ")}`)
+    }
+    const stray = [...inlineFiles.keys()].filter(name => !refs.includes(name))
+    if (stray.length > 0) {
+      const [firstStray = "content"] = stray
+      throw this.createValidationError(body, [firstStray], `Unreferenced file parts: ${stray.join(", ")}`)
+    }
+
+    const allFiles = new Map<string, File>([["cover", body.cover], ...inlineFiles])
+    const sniffed = new Map<string, { extension: string; mime: string }>()
+    for (const [name, file] of allFiles) {
+      const detected = await fileTypeFromBlob(file.slice(0, 4100))
+      if (!detected || !detected.mime.startsWith("image/")) {
+        throw this.createValidationError(body, [name], `${name} must be an image file`)
+      }
+      sniffed.set(name, { extension: detected.ext, mime: detected.mime })
+    }
+
+    const articleId = randomUUIDv7()
+    // ponytail: StorageKey allows a single "collection/name" level, so the per-article
+    // scope lives in the name segment; #52 deletes by this prefix.
+    const keyByPart = new Map<string, string>()
+    for (const [name, info] of sniffed) {
+      keyByPart.set(name, `articles/${articleId}-${randomUUIDv7()}.${info.extension}`)
+    }
+
+    const uploaded: string[] = []
+    try {
+      for (const [name, file] of allFiles) {
+        const key = keyByPart.get(name)
+        const info = sniffed.get(name)
+        if (key === undefined || info === undefined) throw new Error("Failed to resolve upload keys")
+        await this.storage.upload({
+          key: new StorageKey(key),
+          stream: this.toUploadStream(file),
+          headers: { contentType: info.mime, contentLength: file.size }
+        })
+        uploaded.push(key)
+      }
+
+      const coverKey = keyByPart.get("cover")
+      if (coverKey === undefined) throw new Error("Failed to resolve the cover key")
+      const content = rewriteUploadRefs(body.content, keyByPart)
+
+      const created = await this.database.transaction(async tx => {
+        const [article] = await tx
+          .insert(articles)
+          .values({
+            id: articleId,
+            status: body.status ?? "draft",
+            coverKey,
+            categoryId: body.categoryId ?? null
+          })
+          .returning()
+        if (!article) throw new Error("Failed to create article")
+
+        const [translation] = await tx
+          .insert(articleTranslations)
+          .values({
+            articleId,
+            locale: body.locale,
+            title: body.title,
+            slug: body.slug,
+            excerpt: body.excerpt,
+            content,
+            metaTitle: body.metaTitle,
+            metaDescription: body.metaDescription
+          })
+          .returning()
+        if (!translation) throw new Error("Failed to create article translation")
+
+        return { article, translation }
+      })
+
+      return this.mapRow({
+        id: created.article.id,
+        createdAt: created.article.createdAt,
+        updatedAt: created.article.updatedAt,
+        status: created.article.status,
+        publishedAt: created.article.publishedAt,
+        categoryId: created.article.categoryId,
+        coverKey: created.article.coverKey,
+        locale: created.translation.locale,
+        title: created.translation.title,
+        slug: created.translation.slug,
+        excerpt: created.translation.excerpt,
+        content: created.translation.content,
+        metaTitle: created.translation.metaTitle,
+        metaDescription: created.translation.metaDescription
+      })
+    } catch (error) {
+      await this.removeUploaded(uploaded)
+      if (this.hasDatabaseCode(error, "23505")) throw this.slugConflictError(body)
+      if (this.hasDatabaseCode(error, "23503")) {
+        throw this.createValidationError(body, ["categoryId"], "Category not found")
+      }
+      throw error
+    }
+  }
+
+  private toUploadStream(file: File): Readable {
+    async function* chunks(): AsyncGenerator<Uint8Array> {
+      const reader = file.stream().getReader()
+      try {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) return
+          yield value
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    }
+    return Readable.from(chunks())
+  }
+
+  private async removeUploaded(keys: string[]): Promise<void> {    await Promise.all(
+      keys.map(async key => {
+        try {
+          await this.storage.delete(new StorageKey(key))
+        } catch {
+          // Compensation is best-effort; the original error below stays authoritative
+        }
+      })
+    )
+  }
+
+  private hasDatabaseCode(error: unknown, code: string): boolean {
+    let current: unknown = error
+    while (current instanceof Error) {
+      if ("code" in current && current.code === code) return true
+      current = current.cause
+    }
+    return false
+  }
+
+  private createValidationError(body: CreateArticleBody, path: string[], message: string): ValidationError {
+    // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
+    return new ValidationError("body", createArticleSchema, body, false, [
+      { code: "custom", path, message }
+    ] as never)
+  }
+
+  private slugConflictError(body: CreateArticleBody): ValidationError {
+    // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
+    return new ValidationError("body", createArticleSchema, body, false, [
+      { code: "custom", path: ["slug"], message: "Slug already exists" }
+    ] as never)
   }
 
   private mapRow(row: JoinedArticleRow): Article {
