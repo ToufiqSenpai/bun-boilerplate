@@ -1,7 +1,7 @@
 import { faker } from "@faker-js/faker"
 import { z } from "zod"
 
-import { collectionSchema, omitCollection, timestampSchema } from "./schema.js"
+import { collectionSchema, omitCollection, richTextContentSchema, timestampSchema } from "./schema.js"
 
 function createTimestamp() {
   return faker.date.recent().toISOString()
@@ -196,5 +196,45 @@ describe("omitCollection", () => {
     if (!result.success) {
       expect(issuePaths(result.error)).toEqual(["name"])
     }
+  })
+})
+
+describe("richTextContentSchema", () => {
+  test("accepts a valid rich text document and returns it unchanged", () => {
+    const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "hello" }] }] }
+
+    const result = richTextContentSchema.safeParse(doc)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual(doc)
+    }
+  })
+
+  test("rejects JSON scalars and arrays that are not documents", () => {
+    expect(richTextContentSchema.safeParse("hello").success).toBe(false)
+    expect(richTextContentSchema.safeParse([]).success).toBe(false)
+  })
+
+  test("rejects a document with an empty root with the ProseMirror content-spec message", () => {
+    const result = richTextContentSchema.safeParse({ type: "doc", content: [] })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toMatch(/Invalid content for node doc/)
+    }
+  })
+
+  test("rejects unknown node types with the ProseMirror node-type message", () => {
+    const result = richTextContentSchema.safeParse({ type: "doc", content: [{ type: "ghost-paragraph" }] })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toMatch(/node type/i)
+    }
+  })
+
+  test("has a description", () => {
+    expect(richTextContentSchema.description).toBe("Rich text document validated against the shared tiptap schema")
   })
 })

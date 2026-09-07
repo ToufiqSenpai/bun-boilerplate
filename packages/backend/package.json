@@ -27,6 +27,7 @@
     "@aws-sdk/lib-storage": "^3.1127.0",
     "@better-auth/drizzle-adapter": "^1.7.1",
     "@bun-boilerplate/i18n": "workspace:*",
+    "@bun-boilerplate/richtext": "workspace:*",
     "@electric-sql/pglite": "^0.5.8",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "^1.4.15",

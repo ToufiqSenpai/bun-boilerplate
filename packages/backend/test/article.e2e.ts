@@ -1,10 +1,11 @@
+import type { RichText } from "@bun-boilerplate/richtext"
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
 
 import { database } from "../src/common/database.js"
 import { app } from "../src/main.js"
 import { articles, articleTranslations } from "../src/modules/article/tables/article.table.js"
-import type { ArticleContent, ArticleStatus } from "../src/modules/article/tables/article.table.js"
+import type { ArticleStatus } from "../src/modules/article/tables/article.table.js"
 import { createAuthSession } from "./helpers/auth.js"
 import type { EdenValidationError } from "./helpers/validation.js"
 
@@ -14,8 +15,10 @@ interface SeedArticleOptions {
   status?: ArticleStatus
   locale?: "en" | "id"
   coverKey?: string
-  content?: ArticleContent
+  content?: RichText
 }
+
+const VALID_DOC: RichText = { type: "doc", content: [{ type: "paragraph" }] }
 
 async function seedArticle(options: SeedArticleOptions = {}) {
   const status = options.status ?? "published"
@@ -37,7 +40,7 @@ async function seedArticle(options: SeedArticleOptions = {}) {
       title: faker.lorem.words({ min: 2, max: 5 }),
       slug,
       excerpt: faker.lorem.sentence(),
-      content: options.content ?? { type: "doc", content: [] },
+      content: options.content ?? VALID_DOC,
       metaTitle: faker.lorem.words({ min: 1, max: 3 }),
       metaDescription: faker.lorem.sentence()
     })
@@ -122,7 +125,7 @@ describe("GET /api/articles", () => {
         title: faker.lorem.words(3),
         slug: `id-${faker.string.uuid({ version: 7 }).slice(0, 8)}`,
         excerpt: faker.lorem.sentence(),
-        content: { type: "doc", content: [] },
+        content: VALID_DOC,
         metaTitle: faker.lorem.words(2),
         metaDescription: faker.lorem.sentence()
       })
@@ -178,19 +181,14 @@ describe("GET /api/articles", () => {
   test("rewrites NodeImage src keys in content to host URLs", async () => {
     const key = `articles/${faker.string.uuid({ version: 7 })}.jpg`
     const seeded = await seedArticle({
-      content: {
-        type: "doc",
-        content: [{ type: "paragraph", content: [{ type: "image", attrs: { src: key } }] }]
-      }
+      content: { type: "doc", content: [{ type: "image", attrs: { src: key } }] }
     })
 
     const { data } = await list()
 
     const content = data?.data.find(row => row.id === seeded.article.id)?.content
     // SAFETY: shape mirrors the literal seeded above through the same JSON round-trip
-    const paragraph = (content as { content: { content: { attrs: { src: string } }[] }[] }).content[0]
-    if (!paragraph) throw new Error("missing seeded paragraph node")
-    const image = paragraph.content[0]
+    const image = (content as { content: { attrs: { src: string } }[] }).content[0]
     if (!image) throw new Error("missing seeded image node")
     expect(image.attrs.src).toMatch(/^https?:\/\//)
     expect(image.attrs.src.endsWith(`/${key}`)).toBe(true)
@@ -332,7 +330,7 @@ describe("GET /api/articles/:identifier", () => {
       title: faker.lorem.words(3),
       slug: idOwner.article.id,
       excerpt: faker.lorem.sentence(),
-      content: { type: "doc", content: [] },
+      content: VALID_DOC,
       metaTitle: faker.lorem.words(2),
       metaDescription: faker.lorem.sentence()
     })

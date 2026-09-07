@@ -1,3 +1,4 @@
+import type { RichText } from "@bun-boilerplate/richtext"
 import { faker } from "@faker-js/faker"
 import type { SQL } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
@@ -6,7 +7,6 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { ListArticlesQuery } from "../schemas/article.schema.js"
-import type { ArticleContent } from "../tables/article.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
@@ -141,7 +141,7 @@ describe("ArticleService", () => {
       const key = `articles/${faker.string.uuid({ version: 7 })}.jpg`
       const external = "https://cdn.example.org/pic.png"
       const hostUrl = new URL(key, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
-      const content: ArticleContent = {
+      const content: RichText = {
         type: "doc",
         content: [
           {

@@ -1,7 +1,7 @@
 import { LOCALES } from "@bun-boilerplate/i18n"
 import { z } from "zod"
 
-import { collectionSchema, slugSchema } from "../../../common/schema.js"
+import { collectionSchema, richTextContentSchema, slugSchema } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 import { articleStatusEnum } from "../tables/article.table.js"
 
@@ -14,7 +14,7 @@ export const articleSchema = z
     title: z.string().describe("Translated title"),
     slug: z.string().describe("Translated slug"),
     excerpt: z.string().describe("Translated excerpt"),
-    content: z.json().describe("ArticleContent document with image references resolved to host URLs"),
+    content: richTextContentSchema.describe("Rich text document with image references resolved to host URLs"),
     metaTitle: z.string().describe("Translated SEO meta title"),
     metaDescription: z.string().describe("Translated SEO meta description"),
     cover: z.url().optional().describe("CoverImage host URL, absent when no cover is stored")

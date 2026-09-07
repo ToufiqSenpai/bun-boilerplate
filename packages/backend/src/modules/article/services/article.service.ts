@@ -1,4 +1,5 @@
 import type { Locale } from "@bun-boilerplate/i18n"
+import type { RichText } from "@bun-boilerplate/richtext"
 import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError } from "elysia"
 import { z } from "zod"
@@ -9,13 +10,7 @@ import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
 import type { Article, ListArticlesQuery } from "../schemas/article.schema.js"
 import { articleSchema } from "../schemas/article.schema.js"
-import {
-  articles,
-  articleTranslations,
-  type ArticleContent,
-  type ArticleContentValue,
-  type ArticleStatus
-} from "../tables/article.table.js"
+import { articles, articleTranslations, type ArticleStatus } from "../tables/article.table.js"
 
 const articleProjection = {
   id: articles.id,
@@ -46,7 +41,7 @@ export interface JoinedArticleRow {
   title: string
   slug: string
   excerpt: string
-  content: ArticleContent
+  content: RichText
   metaTitle: string
   metaDescription: string
 }
@@ -140,23 +135,20 @@ export class ArticleService {
     return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
   }
 
-  private resolveContentUrls(content: ArticleContent): ArticleContent {
-    // SAFETY: the document root is a JSON object and resolveValue preserves its object shape
-    return this.resolveValue(content) as ArticleContent
+  private resolveContentUrls(content: RichText): RichText {
+    return this.resolveNode(content)
   }
 
-  private resolveValue(value: ArticleContentValue): ArticleContentValue {
-    if (Array.isArray(value)) return value.map(v => this.resolveValue(v))
-    if (!(value instanceof Object)) return value
-
-    // SAFETY: a JSON value that is an Object and not an Array is the object shape of ArticleContentValue
-    const node = value as Record<string, ArticleContentValue>
-    const resolved = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, this.resolveValue(v)]))
+  private resolveNode(node: RichText): RichText {
+    const resolved: RichText = node.content
+      ? { ...node, content: node.content.map(child => this.resolveNode(child)) }
+      : { ...node }
     const image = this.imageNodeSchema.safeParse(node)
-    if (!image.success) return resolved
+    if (!image.success || !resolved.attrs) return resolved
 
-    // SAFETY: imageNodeSchema proves node.attrs is a plain object and resolved preserves its shape
-    const attrs = resolved.attrs as Record<string, ArticleContentValue>
-    return { ...resolved, attrs: { ...attrs, src: this.toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src } }
+    return {
+      ...resolved,
+      attrs: { ...resolved.attrs, src: this.toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src }
+    }
   }
 }
