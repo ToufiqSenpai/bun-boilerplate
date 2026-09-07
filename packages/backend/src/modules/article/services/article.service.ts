@@ -1,12 +1,13 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 import { and, count, desc, eq } from "drizzle-orm"
+import { NotFoundError } from "elysia"
 import { z } from "zod"
 
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
-import type { ListArticlesQuery } from "../schemas/article.schema.js"
+import type { ArticleListItem, ListArticlesQuery } from "../schemas/article.schema.js"
 import { articleListItemSchema } from "../schemas/article.schema.js"
 import {
   articles,
@@ -81,6 +82,40 @@ export class ArticleService {
         cover: this.toPublicUrl(row.coverKey)
       })),
       meta: pageMeta(query, total)
+    }
+  }
+
+  public async getByIdentifier(identifier: string, locale: Locale): Promise<ArticleListItem> {
+    const isId = z.uuidv7().safeParse(identifier).success
+    const predicate = and(
+      eq(articles.status, "published"),
+      eq(articleTranslations.locale, locale),
+      isId ? eq(articles.id, identifier) : eq(articleTranslations.slug, identifier)
+    )
+
+    const [row] = await this.database
+      .select(articleProjection)
+      .from(articles)
+      .innerJoin(articleTranslations, eq(articles.id, articleTranslations.articleId))
+      .where(predicate)
+      .limit(1)
+    if (!row) throw new NotFoundError("Article not found")
+
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      status: row.status,
+      publishedAt: row.publishedAt,
+      categoryId: row.categoryId,
+      locale: row.locale,
+      title: row.title,
+      slug: row.slug,
+      excerpt: row.excerpt,
+      content: this.resolveContentUrls(row.content),
+      metaTitle: row.metaTitle,
+      metaDescription: row.metaDescription,
+      cover: this.toPublicUrl(row.coverKey)
     }
   }
 

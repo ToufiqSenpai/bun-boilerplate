@@ -56,6 +56,21 @@ function buildRowsChain(rows: JoinedArticleRow[]) {
   return { from, innerJoin, where, orderBy, limit, offset }
 }
 
+function buildJoinedLimitChain(rows: JoinedArticleRow[]) {
+  const limit = vi.fn<(limit: number) => Promise<JoinedArticleRow[]>>().mockResolvedValue(rows)
+  const where = vi.fn<(predicate: unknown) => { limit: typeof limit }>().mockReturnValue({ limit })
+  const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
+  const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
+  return { from, innerJoin, where, limit }
+}
+
+function mockGetSelect(database: Database, rows: JoinedArticleRow[]) {
+  const chain = buildJoinedLimitChain(rows)
+  // SAFETY: drizzle select chain is mocked for unit test; return shape matches service usage
+  vi.mocked(database.select).mockReturnValueOnce(chain as never)
+  return chain
+}
+
 function buildCountChain(total: number) {
   const where = vi.fn<(predicate: unknown) => Promise<{ value: number }[]>>().mockResolvedValue([{ value: total }])
   const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
@@ -194,6 +209,51 @@ describe("ArticleService", () => {
         expect(rendered.params).toContain("id")
         expect(rendered.params).toContain("draft")
       }
+    })
+  })
+
+  describe("getByIdentifier", () => {
+    afterEach(() => {
+      vi.clearAllMocks()
+    })
+
+    test("resolves a published article by uuidv7 id through id, status, and locale predicates", async () => {
+      const database = mockDeep<Database>()
+      const id = faker.string.uuid({ version: 7 })
+      const row = createJoinedRow({ id })
+      const chain = mockGetSelect(database, [row])
+
+      const service = new ArticleService(database)
+      const result = await service.getByIdentifier(id, "en")
+
+      expect(result).toEqual({
+        id: row.id,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        status: row.status,
+        publishedAt: row.publishedAt,
+        categoryId: row.categoryId,
+        locale: row.locale,
+        title: row.title,
+        slug: row.slug,
+        excerpt: row.excerpt,
+        content: row.content,
+        metaTitle: row.metaTitle,
+        metaDescription: row.metaDescription,
+        cover: undefined
+      })
+      expect(chain.from).toHaveBeenCalledWith(articles)
+      expect(chain.innerJoin).toHaveBeenCalledWith(articleTranslations, expect.anything())
+      expect(chain.limit).toHaveBeenCalledWith(1)
+
+      const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
+      expect(rendered.sql).toContain(`"articles"."id"`)
+      expect(rendered.sql).toContain(`"articles"."status"`)
+      expect(rendered.sql).toContain(`"article_translations"."locale"`)
+      expect(rendered.sql).not.toContain(`"article_translations"."slug"`)
+      expect(rendered.params).toContain(id)
+      expect(rendered.params).toContain("published")
+      expect(rendered.params).toContain("en")
     })
   })
 })
