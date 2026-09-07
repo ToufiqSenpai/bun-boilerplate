@@ -15,37 +15,6 @@ import {
   type ArticleStatus
 } from "../tables/article.table.js"
 
-const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:/i
-
-function toPublicUrl(key: string): string | undefined {
-  if (!key) return undefined
-  // ponytail: any scheme-prefixed src (https://, upload://) passes through; StorageKeys containing ":" in
-  // the first segment would read as a scheme too — #49 generates uuid names, revisit if keys ever allow ":"
-  if (SCHEME_PREFIX.test(key)) return key
-  const encoded = key.split("/").map(encodeURIComponent).join("/")
-  return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
-}
-
-const imageNodeSchema = z.looseObject({
-  type: z.literal("image"),
-  attrs: z.looseObject({ src: z.string() })
-})
-
-function resolveValue(value: ArticleContentValue): ArticleContentValue {
-  if (Array.isArray(value)) return value.map(resolveValue)
-  if (!(value instanceof Object)) return value
-
-  // SAFETY: a JSON value that is an Object and not an Array is the object shape of ArticleContentValue
-  const node = value as Record<string, ArticleContentValue>
-  const resolved = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, resolveValue(v)]))
-  const image = imageNodeSchema.safeParse(node)
-  if (!image.success) return resolved
-
-  // SAFETY: imageNodeSchema proves node.attrs is a plain object and resolved preserves its shape
-  const attrs = resolved.attrs as Record<string, ArticleContentValue>
-  return { ...resolved, attrs: { ...attrs, src: toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src } }
-}
-
 interface JoinedArticleRow {
   id: string
   createdAt: Date
@@ -63,12 +32,14 @@ interface JoinedArticleRow {
   metaDescription: string
 }
 
-function resolveContentUrls(content: ArticleContent): ArticleContent {
-  // SAFETY: the document root is a JSON object and resolveValue preserves its object shape
-  return resolveValue(content) as ArticleContent
-}
-
 export class ArticleService {
+  private readonly schemePrefix = /^[a-z][a-z0-9+.-]*:/i
+
+  private readonly imageNodeSchema = z.looseObject({
+    type: z.literal("image"),
+    attrs: z.looseObject({ src: z.string() })
+  })
+
   private readonly articleProjection = {
     id: articles.id,
     createdAt: articles.createdAt,
@@ -134,10 +105,39 @@ export class ArticleService {
       title: row.title,
       slug: row.slug,
       excerpt: row.excerpt,
-      content: resolveContentUrls(row.content),
+      content: this.resolveContentUrls(row.content),
       metaTitle: row.metaTitle,
       metaDescription: row.metaDescription,
-      cover: toPublicUrl(row.coverKey)
+      cover: this.toPublicUrl(row.coverKey)
     }
+  }
+
+  private toPublicUrl(key: string): string | undefined {
+    if (!key) return undefined
+    // ponytail: any scheme-prefixed src (https://, upload://) passes through; StorageKeys containing ":" in
+    // the first segment would read as a scheme too — #49 generates uuid names, revisit if keys ever allow ":"
+    if (this.schemePrefix.test(key)) return key
+    const encoded = key.split("/").map(encodeURIComponent).join("/")
+    return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
+  }
+
+  private resolveContentUrls(content: ArticleContent): ArticleContent {
+    // SAFETY: the document root is a JSON object and resolveValue preserves its object shape
+    return this.resolveValue(content) as ArticleContent
+  }
+
+  private resolveValue(value: ArticleContentValue): ArticleContentValue {
+    if (Array.isArray(value)) return value.map(v => this.resolveValue(v))
+    if (!(value instanceof Object)) return value
+
+    // SAFETY: a JSON value that is an Object and not an Array is the object shape of ArticleContentValue
+    const node = value as Record<string, ArticleContentValue>
+    const resolved = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, this.resolveValue(v)]))
+    const image = this.imageNodeSchema.safeParse(node)
+    if (!image.success) return resolved
+
+    // SAFETY: imageNodeSchema proves node.attrs is a plain object and resolved preserves its shape
+    const attrs = resolved.attrs as Record<string, ArticleContentValue>
+    return { ...resolved, attrs: { ...attrs, src: this.toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src } }
   }
 }
