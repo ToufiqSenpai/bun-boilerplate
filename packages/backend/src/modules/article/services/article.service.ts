@@ -11,15 +11,19 @@ import {
   articles,
   articleTranslations,
   type ArticleContent,
-  type ArticleContentValue
+  type ArticleContentValue,
+  type ArticleStatus
 } from "../tables/article.table.js"
 
-const ABSOLUTE_URL = /^https?:\/\//i
+const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:/i
 
 function toPublicUrl(key: string): string | undefined {
   if (!key) return undefined
-  if (ABSOLUTE_URL.test(key)) return key
-  return new URL(key.replace(/ /g, "%20"), `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
+  // ponytail: any scheme-prefixed src (https://, upload://) passes through; StorageKeys containing ":" in
+  // the first segment would read as a scheme too — #49 generates uuid names, revisit if keys ever allow ":"
+  if (SCHEME_PREFIX.test(key)) return key
+  const encoded = key.split("/").map(encodeURIComponent).join("/")
+  return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
 }
 
 const imageNodeSchema = z.looseObject({
@@ -33,20 +37,20 @@ function resolveValue(value: ArticleContentValue): ArticleContentValue {
 
   // SAFETY: a JSON value that is an Object and not an Array is the object shape of ArticleContentValue
   const node = value as Record<string, ArticleContentValue>
+  const resolved = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, resolveValue(v)]))
   const image = imageNodeSchema.safeParse(node)
-  if (image.success) {
-    // SAFETY: imageNodeSchema proves node.attrs is a plain object
-    const attrs = node.attrs as Record<string, ArticleContentValue>
-    return { ...node, attrs: { ...attrs, src: toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src } }
-  }
-  return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, resolveValue(v)]))
+  if (!image.success) return resolved
+
+  // SAFETY: imageNodeSchema proves node.attrs is a plain object and resolved preserves its shape
+  const attrs = resolved.attrs as Record<string, ArticleContentValue>
+  return { ...resolved, attrs: { ...attrs, src: toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src } }
 }
 
 interface JoinedArticleRow {
   id: string
   createdAt: Date
   updatedAt: Date
-  status: "draft" | "published" | "archived"
+  status: ArticleStatus
   publishedAt: Date | null
   categoryId: string | null
   coverKey: string

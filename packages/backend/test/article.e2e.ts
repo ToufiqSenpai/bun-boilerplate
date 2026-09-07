@@ -1,16 +1,13 @@
 import { treaty } from "@elysiajs/eden"
 import { faker } from "@faker-js/faker"
-import { eq } from "drizzle-orm"
 
 import { database } from "../src/common/database.js"
 import { app } from "../src/main.js"
 import { articles, articleTranslations } from "../src/modules/article/tables/article.table.js"
-import type { ArticleContent } from "../src/modules/article/tables/article.table.js"
+import type { ArticleContent, ArticleStatus } from "../src/modules/article/tables/article.table.js"
 import type { EdenValidationError } from "./helpers/validation.js"
 
 const api = treaty(app)
-
-type ArticleStatus = "draft" | "published" | "archived"
 
 interface SeedArticleOptions {
   status?: ArticleStatus
@@ -24,7 +21,11 @@ async function seedArticle(options: SeedArticleOptions = {}) {
   const locale = options.locale ?? "en"
   const slug = `${faker.lorem.slug()}-${faker.string.uuid({ version: 7 }).slice(0, 8)}`
 
-  const [article] = await database.insert(articles).values({ status }).returning()
+  const [article] = await database
+    .insert(articles)
+    // SAFETY: coverKey column is NOT NULL DEFAULT ''; tests insert the empty sentinel explicitly for uniform shape
+    .values({ status, coverKey: options.coverKey ?? "" })
+    .returning()
   if (!article) throw new Error("failed to seed article")
 
   const [translation] = await database
@@ -41,10 +42,6 @@ async function seedArticle(options: SeedArticleOptions = {}) {
     })
     .returning()
   if (!translation) throw new Error("failed to seed article translation")
-
-  if (options.coverKey !== undefined) {
-    await database.update(articles).set({ coverKey: options.coverKey }).where(eq(articles.id, article.id))
-  }
 
   return { article, translation }
 }

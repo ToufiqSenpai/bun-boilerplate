@@ -26,6 +26,8 @@ export const articles = pgTable("articles", {
   categoryId: uuid("category_id").references(() => articleCategories.id, { onDelete: "set null" })
 })
 
+export type ArticleStatus = (typeof articles.$inferSelect)["status"]
+
 export const articleTranslations = pgTable("article_translations", {
   ...baseColumns(),
   locale: text("locale").$type<Locale>().notNull().default(DEFAULT_LOCALE),

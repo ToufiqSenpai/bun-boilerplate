@@ -6,7 +6,7 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import type { ListArticlesQuery } from "../schemas/article.schema.js"
-import type { ArticleContent } from "../tables/article.table.js"
+import type { ArticleContent, ArticleStatus } from "../tables/article.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import { ArticleService } from "./article.service.js"
 
@@ -14,7 +14,7 @@ interface JoinedArticleRow {
   id: string
   createdAt: Date
   updatedAt: Date
-  status: "draft" | "published" | "archived"
+  status: ArticleStatus
   publishedAt: Date | null
   categoryId: string | null
   coverKey: string
@@ -141,6 +141,7 @@ describe("ArticleService", () => {
       const database = mockDeep<Database>()
       const key = `articles/${faker.string.uuid({ version: 7 })}.jpg`
       const external = "https://cdn.example.org/pic.png"
+      const hostUrl = new URL(key, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
       const content: ArticleContent = {
         type: "doc",
         content: [
@@ -150,7 +151,7 @@ describe("ArticleService", () => {
           },
           { type: "image", attrs: { src: external } },
           { type: "image", attrs: { src: "upload://part-1" } },
-          { type: "image", attrs: { src: 42 } }
+          { type: "image", attrs: { src: 42 }, content: [{ type: "image", attrs: { src: key } }] }
         ]
       }
       const contentCopy = structuredClone(content)
@@ -165,16 +166,11 @@ describe("ArticleService", () => {
         content: [
           {
             type: "paragraph",
-            content: [
-              {
-                type: "image",
-                attrs: { src: new URL(key, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href, alt: "a" }
-              }
-            ]
+            content: [{ type: "image", attrs: { src: hostUrl, alt: "a" } }]
           },
           { type: "image", attrs: { src: external } },
           { type: "image", attrs: { src: "upload://part-1" } },
-          { type: "image", attrs: { src: 42 } }
+          { type: "image", attrs: { src: 42 }, content: [{ type: "image", attrs: { src: hostUrl } }] }
         ]
       }
       expect(structuredClone(result.data[0]?.content)).toEqual(expected)
