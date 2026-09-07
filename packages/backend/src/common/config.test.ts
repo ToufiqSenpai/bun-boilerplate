@@ -47,6 +47,28 @@ describe("configSchema.auth.email", () => {
   })
 })
 
+describe("configSchema.s3.publicBaseUrl", () => {
+  const requiredS3Config = {
+    accessKeyId: faker.string.alphanumeric(16),
+    secretAccessKey: faker.string.alphanumeric(16),
+    bucket: faker.internet.domainWord(),
+    endpoint: faker.internet.url(),
+    region: "auto"
+  }
+
+  test("accepts a valid publicBaseUrl", () => {
+    const publicBaseUrl = faker.internet.url()
+    const parsed = configSchema.shape.s3.parse({ ...requiredS3Config, publicBaseUrl })
+
+    expect(parsed.publicBaseUrl).toBe(publicBaseUrl)
+  })
+
+  test("rejects a missing or malformed publicBaseUrl", () => {
+    expect(configSchema.shape.s3.safeParse(requiredS3Config).success).toBe(false)
+    expect(configSchema.shape.s3.safeParse({ ...requiredS3Config, publicBaseUrl: "not-a-url" }).success).toBe(false)
+  })
+})
+
 describe("defaultEnvironment", () => {
   const originalNodeEnv = process.env.NODE_ENV
 

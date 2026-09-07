@@ -20,10 +20,13 @@ export const articleStatusEnum = pgEnum("article_status", ["draft", "published",
 export const articles = pgTable("articles", {
   ...baseColumns(),
   status: articleStatusEnum("status").notNull().default("draft"),
+  coverKey: text("cover_key").notNull().default(""),
   publishedAt: timestamp("published_at", { withTimezone: true }),
   authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
   categoryId: uuid("category_id").references(() => articleCategories.id, { onDelete: "set null" })
 })
+
+export type ArticleStatus = (typeof articles.$inferSelect)["status"]
 
 export const articleTranslations = pgTable("article_translations", {
   ...baseColumns(),

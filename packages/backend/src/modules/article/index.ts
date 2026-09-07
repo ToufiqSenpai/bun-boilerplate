@@ -18,17 +18,43 @@ import {
   listArticleCategoryResponseSchema,
   upsertArticleCategoryTranslationSchema
 } from "./schemas/article-category.schema.js"
+import {
+  listArticlesHeadersSchema,
+  listArticlesQuerySchema,
+  listArticlesResponseSchema
+} from "./schemas/article.schema.js"
 import { ArticleCategoryService } from "./services/article-category.service.js"
+import { ArticleService } from "./services/article.service.js"
 
 const articleCategoryService = new ArticleCategoryService(database)
+const articleService = new ArticleService(database)
 
 export const articleTags: OpenApiTag[] = [
-  { name: "Article", description: "Article categories and their per-locale translations" }
+  { name: "Article", description: "Articles, article categories, and their per-locale translations" }
 ]
 
 export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
   .use(authPlugin)
   .use(localePlugin)
+  .get(
+    "/articles",
+    ({ query, locale, set }) => {
+      set.headers["content-language"] = locale
+      return articleService.list(query, locale)
+    },
+    {
+      headers: listArticlesHeadersSchema,
+      query: listArticlesQuerySchema,
+      response: listArticlesResponseSchema.describe(
+        "Page of articles translated into the requested locale, with pagination metadata"
+      ),
+      detail: {
+        summary: "List articles",
+        description:
+          "Returns a paginated list of articles, each translated into the requested locale. The translation is matched exactly against the negotiated locale; articles without a translation in that locale are omitted. Filter by status defaults to published. CoverImage and NodeImage storage keys are resolved to host URLs."
+      }
+    }
+  )
   .get(
     "/article-categories",
     ({ query, locale, set }) => {

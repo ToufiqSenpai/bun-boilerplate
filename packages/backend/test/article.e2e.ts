@@ -1,0 +1,206 @@
+import { treaty } from "@elysiajs/eden"
+import { faker } from "@faker-js/faker"
+
+import { database } from "../src/common/database.js"
+import { app } from "../src/main.js"
+import { articles, articleTranslations } from "../src/modules/article/tables/article.table.js"
+import type { ArticleContent, ArticleStatus } from "../src/modules/article/tables/article.table.js"
+import type { EdenValidationError } from "./helpers/validation.js"
+
+const api = treaty(app)
+
+interface SeedArticleOptions {
+  status?: ArticleStatus
+  locale?: "en" | "id"
+  coverKey?: string
+  content?: ArticleContent
+}
+
+async function seedArticle(options: SeedArticleOptions = {}) {
+  const status = options.status ?? "published"
+  const locale = options.locale ?? "en"
+  const slug = `${faker.lorem.slug()}-${faker.string.uuid({ version: 7 }).slice(0, 8)}`
+
+  const [article] = await database
+    .insert(articles)
+    // SAFETY: coverKey column is NOT NULL DEFAULT ''; tests insert the empty sentinel explicitly for uniform shape
+    .values({ status, coverKey: options.coverKey ?? "" })
+    .returning()
+  if (!article) throw new Error("failed to seed article")
+
+  const [translation] = await database
+    .insert(articleTranslations)
+    .values({
+      articleId: article.id,
+      locale,
+      title: faker.lorem.words({ min: 2, max: 5 }),
+      slug,
+      excerpt: faker.lorem.sentence(),
+      content: options.content ?? { type: "doc", content: [] },
+      metaTitle: faker.lorem.words({ min: 1, max: 3 }),
+      metaDescription: faker.lorem.sentence()
+    })
+    .returning()
+  if (!translation) throw new Error("failed to seed article translation")
+
+  return { article, translation }
+}
+
+function list(query: { page?: number; limit?: number; status?: ArticleStatus } = {}) {
+  // SAFETY: the treaty query type for defaulted fields is the parsed output shape; the server accepts any subset
+  return api.api.articles.get({ query: { page: 1, limit: 100, ...query } as never })
+}
+
+describe("GET /api/articles", () => {
+  test("returns 200 with an empty page on a fresh database", async () => {
+    const { data, error, status } = await list({ page: faker.number.int({ min: 2, max: 5 }), limit: 20 })
+
+    expect(error).toBeNull()
+    expect(status).toBe(200)
+    expect(data?.data).toEqual([])
+    expect(data?.meta.total).toBe(0)
+    expect(data?.meta.totalPages).toBe(0)
+  })
+
+  test("defaults the status filter to published", async () => {
+    const published = await seedArticle({ status: "published" })
+    const draft = await seedArticle({ status: "draft" })
+    const archived = await seedArticle({ status: "archived" })
+
+    const { data, error, status } = await list()
+
+    expect(error).toBeNull()
+    expect(status).toBe(200)
+    const ids = data?.data.map(row => row.id) ?? []
+    expect(ids).toContain(published.article.id)
+    expect(ids).not.toContain(draft.article.id)
+    expect(ids).not.toContain(archived.article.id)
+  })
+
+  test("filters by the requested status", async () => {
+    const published = await seedArticle({ status: "published" })
+    const draft = await seedArticle({ status: "draft" })
+
+    const { data, error, status } = await list({ status: "draft" })
+
+    expect(error).toBeNull()
+    expect(status).toBe(200)
+    const ids = data?.data.map(row => row.id) ?? []
+    expect(ids).toContain(draft.article.id)
+    expect(ids).not.toContain(published.article.id)
+  })
+
+  test("returns the requested locale and echoes Content-Language", async () => {
+    const english = await seedArticle({ locale: "en" })
+    const [second] = await database
+      .insert(articleTranslations)
+      .values({
+        articleId: english.article.id,
+        locale: "id",
+        title: faker.lorem.words(3),
+        slug: `id-${faker.string.uuid({ version: 7 }).slice(0, 8)}`,
+        excerpt: faker.lorem.sentence(),
+        content: { type: "doc", content: [] },
+        metaTitle: faker.lorem.words(2),
+        metaDescription: faker.lorem.sentence()
+      })
+      .returning()
+    if (!second) throw new Error("failed to seed second translation")
+
+    const result = await list({ status: "published" })
+    const headers = new Headers(result.headers)
+    const row = result.data?.data.find(item => item.id === english.article.id)
+
+    expect(headers.get("content-language")).toBe("en")
+    expect(row?.locale).toBe("en")
+    expect(row?.title).toBe(english.translation.title)
+
+    const localized = await api.api.articles.get({
+      // SAFETY: omitted keys fall back to the server defaults; only the locale header matters here
+      query: { page: 1, limit: 100 } as never,
+      headers: { "x-locale": "id" }
+    })
+    const localizedRow = localized.data?.data.find(item => item.id === english.article.id)
+
+    expect(new Headers(localized.headers).get("content-language")).toBe("id")
+    expect(localizedRow?.locale).toBe("id")
+    expect(localizedRow?.title).toBe(second.title)
+    expect(localizedRow?.slug).toBe(second.slug)
+  })
+
+  test("omits articles without a translation in the requested locale", async () => {
+    const onlyEnglish = await seedArticle({ locale: "en" })
+
+    const { data } = await api.api.articles.get({
+      // SAFETY: omitted keys fall back to the server defaults; only the locale header matters here
+      query: { page: 1, limit: 100 } as never,
+      headers: { "x-locale": "id" }
+    })
+
+    expect(data?.data.some(row => row.id === onlyEnglish.article.id)).toBe(false)
+  })
+
+  test("resolves the stored cover key to a host URL and omits missing covers", async () => {
+    const key = `articles/${faker.string.uuid({ version: 7 })}.png`
+    const withCover = await seedArticle({ coverKey: key })
+    const withoutCover = await seedArticle()
+
+    const { data } = await list()
+
+    const cover = data?.data.find(row => row.id === withCover.article.id)?.cover ?? ""
+    expect(cover).toMatch(/^https?:\/\//)
+    expect(cover.endsWith(`/${key}`)).toBe(true)
+    expect(data?.data.find(row => row.id === withoutCover.article.id)?.cover).toBeUndefined()
+  })
+
+  test("rewrites NodeImage src keys in content to host URLs", async () => {
+    const key = `articles/${faker.string.uuid({ version: 7 })}.jpg`
+    const seeded = await seedArticle({
+      content: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "image", attrs: { src: key } }] }]
+      }
+    })
+
+    const { data } = await list()
+
+    const content = data?.data.find(row => row.id === seeded.article.id)?.content
+    // SAFETY: shape mirrors the literal seeded above through the same JSON round-trip
+    const paragraph = (content as { content: { content: { attrs: { src: string } }[] }[] }).content[0]
+    if (!paragraph) throw new Error("missing seeded paragraph node")
+    const image = paragraph.content[0]
+    if (!image) throw new Error("missing seeded image node")
+    expect(image.attrs.src).toMatch(/^https?:\/\//)
+    expect(image.attrs.src.endsWith(`/${key}`)).toBe(true)
+  })
+
+  test("paginates with limit and offset", async () => {
+    await seedArticle()
+    await seedArticle()
+    const third = await seedArticle()
+
+    const firstPage = await list({ limit: 2 })
+    expect(firstPage.data?.data).toHaveLength(2)
+
+    const lastSeen = firstPage.data?.data.map(row => row.id) ?? []
+    const secondPage = await list({ page: 2, limit: 2 })
+    const secondIds = secondPage.data?.data.map(row => row.id) ?? []
+    for (const id of secondIds) {
+      expect(lastSeen).not.toContain(id)
+    }
+    expect([...lastSeen, ...secondIds]).toContain(third.article.id)
+  })
+
+  test("rejects an unknown status with 422", async () => {
+    const { error, status } = await api.api.articles.get({
+      // SAFETY: probing an out-of-enum status through the public HTTP surface
+      query: { page: 1, limit: 20, status: "unknown" } as never
+    })
+
+    expect(status).toBe(422)
+    expect(error).not.toBeNull()
+    // SAFETY: error is a ValidationError per previous expect
+    const payload = (error as EdenValidationError).value
+    expect(payload).toMatchObject({ type: "validation", on: "query", property: "status" })
+  })
+})
