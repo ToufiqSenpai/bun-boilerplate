@@ -17,17 +17,17 @@ import type {
 import { articleCategorySchema, upsertArticleCategoryTranslationSchema } from "../schemas/article-category.schema.js"
 import { articleCategories, articleCategoryTranslations } from "../tables/article-category.table.js"
 
-const articleCategoryProjection = {
-  id: articleCategories.id,
-  createdAt: articleCategories.createdAt,
-  updatedAt: articleCategories.updatedAt,
-  locale: articleCategoryTranslations.locale,
-  name: articleCategoryTranslations.name,
-  slug: articleCategoryTranslations.slug,
-  description: articleCategoryTranslations.description
-}
-
 export class ArticleCategoryService {
+  private readonly articleCategoryProjection = {
+    id: articleCategories.id,
+    createdAt: articleCategories.createdAt,
+    updatedAt: articleCategories.updatedAt,
+    locale: articleCategoryTranslations.locale,
+    name: articleCategoryTranslations.name,
+    slug: articleCategoryTranslations.slug,
+    description: articleCategoryTranslations.description
+  }
+
   public constructor(private readonly database: Database) {}
 
   public async list(
@@ -38,7 +38,7 @@ export class ArticleCategoryService {
 
     const [rows, [countResult]] = await Promise.all([
       this.database
-        .select(articleCategoryProjection)
+        .select(this.articleCategoryProjection)
         .from(articleCategories)
         .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
         .where(eq(articleCategoryTranslations.locale, locale))
@@ -75,7 +75,7 @@ export class ArticleCategoryService {
       : and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, identifier))
 
     const [row] = await this.database
-      .select(articleCategoryProjection)
+      .select(this.articleCategoryProjection)
       .from(articleCategories)
       .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
       .where(predicate)

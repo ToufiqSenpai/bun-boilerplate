@@ -10,43 +10,30 @@ import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
 import type { Article, ListArticlesQuery } from "../schemas/article.schema.js"
 import { articleSchema } from "../schemas/article.schema.js"
-import { articles, articleTranslations, type ArticleStatus } from "../tables/article.table.js"
+import { articles, articleTranslations } from "../tables/article.table.js"
 
-const articleProjection = {
-  id: articles.id,
-  createdAt: articles.createdAt,
-  updatedAt: articles.updatedAt,
-  status: articles.status,
-  publishedAt: articles.publishedAt,
-  categoryId: articles.categoryId,
-  coverKey: articles.coverKey,
-  locale: articleTranslations.locale,
-  title: articleTranslations.title,
-  slug: articleTranslations.slug,
-  excerpt: articleTranslations.excerpt,
-  content: articleTranslations.content,
-  metaTitle: articleTranslations.metaTitle,
-  metaDescription: articleTranslations.metaDescription
-}
-
-export interface JoinedArticleRow {
-  id: string
-  createdAt: Date
-  updatedAt: Date
-  status: ArticleStatus
-  publishedAt: Date | null
-  categoryId: string | null
+export interface JoinedArticleRow extends Omit<Article, "cover"> {
   coverKey: string
-  locale: Locale
-  title: string
-  slug: string
-  excerpt: string
-  content: RichText
-  metaTitle: string
-  metaDescription: string
 }
 
 export class ArticleService {
+  private readonly articleProjection = {
+    id: articles.id,
+    createdAt: articles.createdAt,
+    updatedAt: articles.updatedAt,
+    status: articles.status,
+    publishedAt: articles.publishedAt,
+    categoryId: articles.categoryId,
+    coverKey: articles.coverKey,
+    locale: articleTranslations.locale,
+    title: articleTranslations.title,
+    slug: articleTranslations.slug,
+    excerpt: articleTranslations.excerpt,
+    content: articleTranslations.content,
+    metaTitle: articleTranslations.metaTitle,
+    metaDescription: articleTranslations.metaDescription
+  }
+
   private readonly imageNodeSchema = z.looseObject({
     type: z.literal("image"),
     attrs: z.looseObject({ src: z.string() })
@@ -66,7 +53,7 @@ export class ArticleService {
 
     const [rows, [countResult]] = await Promise.all([
       this.database
-        .select(articleProjection)
+        .select(this.articleProjection)
         .from(articles)
         .innerJoin(articleTranslations, eq(articles.id, articleTranslations.articleId))
         .where(wherePredicate)
@@ -97,7 +84,7 @@ export class ArticleService {
     )
 
     const [row] = await this.database
-      .select(articleProjection)
+      .select(this.articleProjection)
       .from(articles)
       .innerJoin(articleTranslations, eq(articles.id, articleTranslations.articleId))
       .where(predicate)
@@ -119,7 +106,7 @@ export class ArticleService {
       title: row.title,
       slug: row.slug,
       excerpt: row.excerpt,
-      content: this.resolveContentUrls(row.content),
+      content: this.resolveNode(row.content),
       metaTitle: row.metaTitle,
       metaDescription: row.metaDescription,
       cover: this.toPublicUrl(row.coverKey)
@@ -135,14 +122,10 @@ export class ArticleService {
     return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
   }
 
-  private resolveContentUrls(content: RichText): RichText {
-    return this.resolveNode(content)
-  }
-
   private resolveNode(node: RichText): RichText {
     const resolved: RichText = node.content
       ? { ...node, content: node.content.map(child => this.resolveNode(child)) }
-      : { ...node }
+      : node
     const image = this.imageNodeSchema.safeParse(node)
     if (!image.success || !resolved.attrs) return resolved
 
