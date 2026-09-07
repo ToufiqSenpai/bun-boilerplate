@@ -1,7 +1,7 @@
 import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
 import { z } from "zod"
 
-import { collectionSchema, richTextContentSchema, slugSchema } from "../../../common/schema.js"
+import { collectionSchema, omitCollection, richTextContentSchema, slugSchema } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 import { articleStatusEnum } from "../tables/article.table.js"
 
@@ -32,10 +32,22 @@ export type ListArticlesQuery = z.output<typeof listArticlesQuerySchema>
 
 // POST /articles (body) — multipart carrying article fields, the first translation, the
 // ArticleContent document as a JSON-string part, the mandatory cover file, and inline image
-// files whose part names match the upload:// references in the document. The object stays loose
-// so dynamically named inline file parts survive validation; the service cross-checks them.
+// files whose part names match the upload:// references in the document. Fields reuse the
+// articleSchema shape with multipart overrides; the object stays loose with a file catchall so
+// dynamically named inline file parts survive validation, and the service cross-checks them.
 export const ARTICLE_MAX_FILE_BYTES = 20 * 1024 * 1024
 export const ARTICLE_MAX_REQUEST_BYTES = 100 * 1024 * 1024
+export const ARTICLE_IMAGE_MIMES: readonly string[] = ["image/png", "image/jpeg", "image/avif", "image/webp"]
+
+function isAllowedImageMime(type: string): boolean {
+  return ARTICLE_IMAGE_MIMES.includes(type)
+}
+
+const imageFileSchema = (name: string) =>
+  z
+    .file({ error: `${name} is required` })
+    .max(ARTICLE_MAX_FILE_BYTES, { error: `${name} must be at most 20 MB` })
+    .refine(file => isAllowedImageMime(file.type), { error: `${name} must be a PNG, JPEG, AVIF, or WebP image` })
 
 // The document arrives as a JSON string from plain multipart clients, but Elysia
 // pre-parses JSON-looking fields into objects before validation, so both land here.
@@ -57,8 +69,11 @@ const contentJsonSchema = z
   )
   .pipe(richTextContentSchema)
 
+const createArticleBase = omitCollection(articleSchema).omit({ publishedAt: true })
+
 export const createArticleSchema = z
   .looseObject({
+    ...createArticleBase.shape,
     status: z.enum(articleStatusEnum.enumValues).optional().describe("Lifecycle status of the article"),
     categoryId: z
       .uuidv7({ error: "Invalid category id" })
@@ -84,14 +99,22 @@ export const createArticleSchema = z
       .string({ error: "Meta description is required" })
       .min(1, { error: "Meta description must not be empty" })
       .max(500, { error: "Meta description must be at most 500 characters" }),
-    cover: z
-      .file({ error: "Cover image is required" })
-      .max(ARTICLE_MAX_FILE_BYTES, { error: "Cover image must be at most 20 MB" })
+    cover: imageFileSchema("Cover image")
   })
   .superRefine((body, ctx) => {
     let total = 0
-    for (const value of Object.values(body)) {
-      if (value instanceof File) total += value.size
+    for (const [name, value] of Object.entries(body)) {
+      if (!(value instanceof File)) continue
+      total += value.size
+      // The cover part carries its own field rules above; every other file part is
+      // dynamically named, so its per-file policy lives here instead of in the shape.
+      if (name === "cover") continue
+      if (value.size > ARTICLE_MAX_FILE_BYTES) {
+        ctx.addIssue({ code: "custom", path: [name], message: `${name} must be at most 20 MB` })
+      }
+      if (!isAllowedImageMime(value.type)) {
+        ctx.addIssue({ code: "custom", path: [name], message: `${name} must be a PNG, JPEG, AVIF, or WebP image` })
+      }
     }
     if (total > ARTICLE_MAX_REQUEST_BYTES) {
       ctx.addIssue({ code: "custom", message: "Total upload size must be at most 100 MB" })

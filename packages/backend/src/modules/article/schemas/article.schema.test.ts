@@ -71,6 +71,40 @@ describe("createArticleSchema", () => {
     ])
   })
 
+  test("rejects a non-image cover mime", () => {
+    const cover = new File(["not an image"], "cover.png", { type: "text/plain" })
+
+    expect(parseIssues(createInput({ cover }))).toEqual([
+      expect.objectContaining({ path: ["cover"], message: "Cover image must be a PNG, JPEG, AVIF, or WebP image" })
+    ])
+  })
+
+  test("accepts the allowlisted image mimes", () => {
+    for (const type of ["image/png", "image/jpeg", "image/avif", "image/webp"]) {
+      const result = createArticleSchema.safeParse(createInput({ cover: new File(["x"], "cover", { type }) }))
+
+      expect(result.success).toBe(true)
+    }
+  })
+
+  test("rejects an over-size inline file part", () => {
+    const oversized = pngFile("inline-1", 1024)
+    // SAFETY: Blob size is virtual metadata; shadowing it avoids materializing 21 MB
+    Object.defineProperty(oversized, "size", { value: ARTICLE_MAX_FILE_BYTES + 1 })
+
+    expect(parseIssues(createInput({ "inline-1": oversized }))).toEqual([
+      expect.objectContaining({ path: ["inline-1"], message: "inline-1 must be at most 20 MB" })
+    ])
+  })
+
+  test("rejects a non-image inline file part", () => {
+    const part = new File(["not an image"], "inline-1", { type: "text/plain" })
+
+    expect(parseIssues(createInput({ "inline-1": part }))).toEqual([
+      expect.objectContaining({ path: ["inline-1"], message: "inline-1 must be a PNG, JPEG, AVIF, or WebP image" })
+    ])
+  })
+
   test("rejects a request whose total upload size exceeds the cap", () => {
     const bigPart = (name: string): File => {
       const file = pngFile(name, 1024)

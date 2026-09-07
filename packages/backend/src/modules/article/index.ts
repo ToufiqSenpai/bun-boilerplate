@@ -4,6 +4,7 @@ import { database } from "../../common/database.js"
 import { notFoundSchema } from "../../common/error.js"
 import { localeHeadersSchema, localePlugin } from "../../common/i18n.js"
 import type { OpenApiTag } from "../../common/openapi.js"
+import { storage } from "../../common/storage/storage.js"
 import { authPlugin, auth } from "../auth/index.js"
 import { isKnownRole } from "../auth/permissions.js"
 import {
@@ -28,7 +29,7 @@ import { ArticleCategoryService } from "./services/article-category.service.js"
 import { ArticleService } from "./services/article.service.js"
 
 const articleCategoryService = new ArticleCategoryService(database)
-const articleService = new ArticleService(database)
+const articleService = new ArticleService(database, storage)
 
 export const articleTags: OpenApiTag[] = [
   { name: "Article", description: "Articles, article categories, and their per-locale translations" }

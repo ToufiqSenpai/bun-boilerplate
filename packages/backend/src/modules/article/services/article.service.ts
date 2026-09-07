@@ -11,15 +11,12 @@ import { z } from "zod"
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
 import { StorageKey } from "../../../common/storage/storage-key.js"
-import { storage as defaultStorage, type Storage } from "../../../common/storage/storage.js"
+import type { Storage } from "../../../common/storage/storage.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
 import type { Article, CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleSchema, ARTICLE_MAX_FILE_BYTES, createArticleSchema } from "../schemas/article.schema.js"
+import { articleSchema, ARTICLE_IMAGE_MIMES, createArticleSchema } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
-import { collectUploadRefs, rewriteUploadRefs } from "./article-content.js"
-
-export type ArticleStorage = Pick<Storage, "upload" | "delete">
 
 const CREATE_BODY_FIELDS = new Set(Object.keys(createArticleSchema.shape))
 
@@ -50,9 +47,16 @@ export class ArticleService {
     attrs: z.looseObject({ src: z.string() })
   })
 
+  private readonly uploadScheme = "upload://"
+
+  private readonly imageUploadSchema = z.looseObject({
+    type: z.literal("image"),
+    attrs: z.looseObject({ src: z.string().startsWith(this.uploadScheme) })
+  })
+
   public constructor(
     private readonly database: Database,
-    private readonly storage: ArticleStorage = defaultStorage
+    private readonly storage: Storage
   ) {}
 
   public async list(
@@ -113,13 +117,8 @@ export class ArticleService {
     for (const [name, value] of Object.entries(body)) {
       if (!CREATE_BODY_FIELDS.has(name) && value instanceof File) inlineFiles.set(name, value)
     }
-    for (const [name, file] of inlineFiles) {
-      if (file.size > ARTICLE_MAX_FILE_BYTES) {
-        throw this.createValidationError(body, [name], `${name} must be at most 20 MB`)
-      }
-    }
 
-    const refs = collectUploadRefs(body.content)
+    const refs = this.collectUploadRefs(body.content)
     const missing = refs.filter(name => !inlineFiles.has(name))
     if (missing.length > 0) {
       throw this.createValidationError(body, ["content"], `Unresolved upload references: ${missing.join(", ")}`)
@@ -134,8 +133,8 @@ export class ArticleService {
     const sniffed = new Map<string, { extension: string; mime: string }>()
     for (const [name, file] of allFiles) {
       const detected = await fileTypeFromBlob(file.slice(0, 4100))
-      if (!detected || !detected.mime.startsWith("image/")) {
-        throw this.createValidationError(body, [name], `${name} must be an image file`)
+      if (!detected || !ARTICLE_IMAGE_MIMES.includes(detected.mime)) {
+        throw this.createValidationError(body, [name], `${name} must be a PNG, JPEG, AVIF, or WebP image`)
       }
       sniffed.set(name, { extension: detected.ext, mime: detected.mime })
     }
@@ -164,7 +163,7 @@ export class ArticleService {
 
       const coverKey = keyByPart.get("cover")
       if (coverKey === undefined) throw new Error("Failed to resolve the cover key")
-      const content = rewriteUploadRefs(body.content, keyByPart)
+      const content = this.rewriteUploadRefs(body.content, keyByPart)
 
       const created = await this.database.transaction(async tx => {
         const [article] = await tx
@@ -220,6 +219,31 @@ export class ArticleService {
       }
       throw error
     }
+  }
+
+  private imageUploadName(node: RichText): string | undefined {
+    const parsed = this.imageUploadSchema.safeParse(node)
+    if (!parsed.success) return undefined
+    return parsed.data.attrs.src.slice(this.uploadScheme.length)
+  }
+
+  private collectUploadRefs(node: RichText): string[] {
+    const refs: string[] = []
+    const visit = (current: RichText): void => {
+      const name = this.imageUploadName(current)
+      if (name !== undefined && !refs.includes(name)) refs.push(name)
+      for (const child of current.content ?? []) visit(child)
+    }
+    visit(node)
+    return refs
+  }
+
+  private rewriteUploadRefs(node: RichText, keyByPart: ReadonlyMap<string, string>): RichText {
+    const name = this.imageUploadName(node)
+    const key = name === undefined ? undefined : keyByPart.get(name)
+    const rewritten = key === undefined ? node : { ...node, attrs: { ...node.attrs, src: key } }
+    if (!rewritten.content) return rewritten
+    return { ...rewritten, content: rewritten.content.map(child => this.rewriteUploadRefs(child, keyByPart)) }
   }
 
   private toUploadStream(file: File): Readable {
