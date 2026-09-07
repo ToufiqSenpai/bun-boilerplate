@@ -159,21 +159,25 @@ describe("ArticleService", () => {
       const service = new ArticleService(database)
       const result = await service.list(query(), "en")
 
-      // SAFETY: shape is fixed by the literal above
-      const nodes = (result.data[0]?.content as { content: { type: string; attrs?: Record<string, unknown> }[] })
-        .content
-      expect(nodes[0]).toEqual({
-        type: "paragraph",
+      // SAFETY: the resolver preserves document shape; the literal below restates the seeded one
+      const expected = {
+        type: "doc",
         content: [
           {
-            type: "image",
-            attrs: { src: new URL(key, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href, alt: "a" }
-          }
+            type: "paragraph",
+            content: [
+              {
+                type: "image",
+                attrs: { src: new URL(key, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href, alt: "a" }
+              }
+            ]
+          },
+          { type: "image", attrs: { src: external } },
+          { type: "image", attrs: { src: "upload://part-1" } },
+          { type: "image", attrs: { src: 42 } }
         ]
-      })
-      expect(nodes[1]?.attrs?.src).toBe(external)
-      expect(nodes[2]?.attrs?.src).toBe("upload://part-1")
-      expect(nodes[3]?.attrs?.src).toBe(42)
+      }
+      expect(structuredClone(result.data[0]?.content)).toEqual(expected)
       expect(content).toEqual(contentCopy)
     })
 

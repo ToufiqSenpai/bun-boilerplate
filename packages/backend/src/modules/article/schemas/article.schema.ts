@@ -4,7 +4,7 @@ import { z } from "zod"
 import { localeHeadersSchema } from "../../../common/i18n.js"
 import { collectionSchema } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
-import { articleStatusEnum, type ArticleContent } from "../tables/article.table.js"
+import { articleStatusEnum } from "../tables/article.table.js"
 
 export const articleListItemSchema = z
   .object({
@@ -15,11 +15,7 @@ export const articleListItemSchema = z
     title: z.string().describe("Translated title"),
     slug: z.string().describe("Translated slug"),
     excerpt: z.string().describe("Translated excerpt"),
-    content: z
-      .custom<ArticleContent>(value => typeof value === "object" && value !== null && !Array.isArray(value), {
-        error: "ArticleContent must be a JSON object"
-      })
-      .describe("ArticleContent document with image references resolved to host URLs"),
+    content: z.json().describe("ArticleContent document with image references resolved to host URLs"),
     metaTitle: z.string().describe("Translated SEO meta title"),
     metaDescription: z.string().describe("Translated SEO meta description"),
     cover: z.url().optional().describe("CoverImage host URL, absent when no cover is stored")

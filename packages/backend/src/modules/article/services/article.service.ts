@@ -1,5 +1,6 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 import { and, count, desc, eq } from "drizzle-orm"
+import { z } from "zod"
 
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
@@ -18,23 +19,25 @@ const ABSOLUTE_URL = /^https?:\/\//i
 function toPublicUrl(key: string): string | undefined {
   if (!key) return undefined
   if (ABSOLUTE_URL.test(key)) return key
-  return new URL(`${key.replace(/ /g, "%20")}`, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
+  return new URL(key.replace(/ /g, "%20"), `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
 }
+
+const imageNodeSchema = z.looseObject({
+  type: z.literal("image"),
+  attrs: z.looseObject({ src: z.string() })
+})
 
 function resolveValue(value: ArticleContentValue): ArticleContentValue {
   if (Array.isArray(value)) return value.map(resolveValue)
-  if (value === null || typeof value !== "object") return value
+  if (!(value instanceof Object)) return value
 
-  // SAFETY: JSON objects are narrowed to plain records by the guard above
+  // SAFETY: a JSON value that is an Object and not an Array is the object shape of ArticleContentValue
   const node = value as Record<string, ArticleContentValue>
-  if (node.type === "image") {
-    const attrs = node.attrs
-    if (attrs !== null && typeof attrs === "object" && !Array.isArray(attrs)) {
-      const src = attrs.src
-      if (typeof src === "string") {
-        return { ...node, attrs: { ...attrs, src: toPublicUrl(src) ?? src } }
-      }
-    }
+  const image = imageNodeSchema.safeParse(node)
+  if (image.success) {
+    // SAFETY: imageNodeSchema proves node.attrs is a plain object
+    const attrs = node.attrs as Record<string, ArticleContentValue>
+    return { ...node, attrs: { ...attrs, src: toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src } }
   }
   return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, resolveValue(v)]))
 }
