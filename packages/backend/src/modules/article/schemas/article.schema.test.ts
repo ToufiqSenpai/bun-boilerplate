@@ -62,9 +62,7 @@ describe("createArticleSchema", () => {
   test("rejects a missing cover", () => {
     const { cover: _ignored, ...withoutCover } = createInput()
 
-    expect(parseIssues(withoutCover)).toEqual([
-      expect.objectContaining({ path: ["cover"] })
-    ])
+    expect(parseIssues(withoutCover)).toEqual([expect.objectContaining({ path: ["cover"] })])
   })
 
   test("rejects an over-size cover", () => {

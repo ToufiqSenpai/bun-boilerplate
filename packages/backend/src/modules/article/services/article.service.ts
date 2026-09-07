@@ -1,16 +1,17 @@
+import { Readable } from "stream"
+
 import type { Locale } from "@bun-boilerplate/i18n"
 import type { RichText } from "@bun-boilerplate/richtext"
 import { randomUUIDv7 } from "bun"
 import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError, ValidationError } from "elysia"
 import { fileTypeFromBlob } from "file-type"
-import { Readable } from "stream"
 import { z } from "zod"
 
 import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
-import { storage as defaultStorage, type Storage } from "../../../common/storage/storage.js"
 import { StorageKey } from "../../../common/storage/storage-key.js"
+import { storage as defaultStorage, type Storage } from "../../../common/storage/storage.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
 import type { Article, CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
@@ -243,7 +244,8 @@ export class ArticleService {
     return Readable.from(chunks())
   }
 
-  private async removeUploaded(keys: string[]): Promise<void> {    await Promise.all(
+  private async removeUploaded(keys: string[]): Promise<void> {
+    await Promise.all(
       keys.map(async key => {
         try {
           await this.storage.delete(new StorageKey(key))
@@ -265,9 +267,7 @@ export class ArticleService {
 
   private createValidationError(body: CreateArticleBody, path: string[], message: string): ValidationError {
     // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
-    return new ValidationError("body", createArticleSchema, body, false, [
-      { code: "custom", path, message }
-    ] as never)
+    return new ValidationError("body", createArticleSchema, body, false, [{ code: "custom", path, message }] as never)
   }
 
   private slugConflictError(body: CreateArticleBody): ValidationError {

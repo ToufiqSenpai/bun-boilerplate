@@ -95,7 +95,9 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
     },
     {
       permissions: { article: ["create"] },
-      body: createArticleSchema.describe("Article fields with the first translation, content document, and image files"),
+      body: createArticleSchema.describe(
+        "Article fields with the first translation, content document, and image files"
+      ),
       response: {
         201: articleSchema.describe("The created article with its first translation")
       },

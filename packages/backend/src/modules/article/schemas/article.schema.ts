@@ -57,7 +57,8 @@ const contentJsonSchema = z
   )
   .pipe(richTextContentSchema)
 
-export const createArticleSchema = z.looseObject({
+export const createArticleSchema = z
+  .looseObject({
     status: z.enum(articleStatusEnum.enumValues).optional().describe("Lifecycle status of the article"),
     categoryId: z
       .uuidv7({ error: "Invalid category id" })

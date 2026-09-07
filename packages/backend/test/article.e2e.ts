@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm"
 import type { z } from "zod"
 
 import { database } from "../src/common/database.js"
-import type { createArticleSchema } from "../src/modules/article/schemas/article.schema.js"
 import { app } from "../src/main.js"
+import type { createArticleSchema } from "../src/modules/article/schemas/article.schema.js"
 import { articles, articleTranslations } from "../src/modules/article/tables/article.table.js"
 import type { ArticleStatus } from "../src/modules/article/tables/article.table.js"
 import { createAuthSession } from "./helpers/auth.js"
@@ -365,9 +365,9 @@ describe("POST /api/articles", () => {
     return new File(["fake-cover-bytes"], "cover.png", { type: "image/png" })
   }
 
-  function createPayload(overrides: Partial<z.input<typeof createArticleSchema>> = {}): z.input<
-    typeof createArticleSchema
-  > {
+  function createPayload(
+    overrides: Partial<z.input<typeof createArticleSchema>> = {}
+  ): z.input<typeof createArticleSchema> {
     return {
       locale: "en",
       title: faker.lorem.words({ min: 2, max: 5 }),
@@ -381,18 +381,18 @@ describe("POST /api/articles", () => {
     }
   }
 
-  function createArticle(
-    payload: Partial<z.input<typeof createArticleSchema>>,
-    headers?: Record<string, string>
-  ) {
+  function createArticle(payload: Partial<z.input<typeof createArticleSchema>>, headers?: Record<string, string>) {
     // SAFETY: treaty body type is the parsed output shape; multipart accepts File parts plus loose fields
     return api.api.articles.post(payload as never, headers ? { headers } : undefined)
   }
 
   async function translationSlugs(slug: string): Promise<string[]> {
-    return (await database.select({ slug: articleTranslations.slug }).from(articleTranslations).where(
-      eq(articleTranslations.slug, slug)
-    )).map(row => row.slug)
+    return (
+      await database
+        .select({ slug: articleTranslations.slug })
+        .from(articleTranslations)
+        .where(eq(articleTranslations.slug, slug))
+    ).map(row => row.slug)
   }
 
   test("returns 401 without a session", async () => {
