@@ -29,14 +29,6 @@ import { ArticleService } from "./services/article.service.js"
 const articleCategoryService = new ArticleCategoryService(database)
 const articleService = new ArticleService(database)
 
-// Mirrors the permissions macro's gates (verified session, known role) without rejecting:
-// known roles are exactly admin and superadmin, the only viewers allowed past published-only reads.
-async function canViewUnpublished(request: Request): Promise<boolean> {
-  const session = await auth.api.getSession({ headers: request.headers })
-  const role = session?.user.role
-  return !!session?.user.emailVerified && !!role && isKnownRole(role)
-}
-
 export const articleTags: OpenApiTag[] = [
   { name: "Article", description: "Articles, article categories, and their per-locale translations" }
 ]
@@ -44,11 +36,20 @@ export const articleTags: OpenApiTag[] = [
 export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
   .use(authPlugin)
   .use(localePlugin)
+  // Mirrors the permissions macro's gates (verified session, known role) without rejecting:
+  // known roles are exactly admin and superadmin, the only viewers allowed past published-only reads.
+  .resolve(async ({ request }) => {
+    const session = await auth.api.getSession({ headers: request.headers })
+    const role = session?.user.role
+    return {
+      canViewUnpublished: !!session?.user.emailVerified && !!role && isKnownRole(role)
+    }
+  })
   .get(
     "/articles",
-    async ({ query, locale, set, request }) => {
+    ({ query, locale, set, canViewUnpublished }) => {
       set.headers["content-language"] = locale
-      return articleService.list(query, locale, await canViewUnpublished(request))
+      return articleService.list(query, locale, canViewUnpublished)
     },
     {
       headers: localeHeadersSchema,
@@ -65,9 +66,9 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
   )
   .get(
     "/articles/:identifier",
-    async ({ params, locale, set, request }) => {
+    ({ params, locale, set, canViewUnpublished }) => {
       set.headers["content-language"] = locale
-      return articleService.getByIdentifier(params.identifier, locale, await canViewUnpublished(request))
+      return articleService.getByIdentifier(params.identifier, locale, canViewUnpublished)
     },
     {
       headers: localeHeadersSchema,
