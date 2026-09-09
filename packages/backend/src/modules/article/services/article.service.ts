@@ -180,9 +180,7 @@ export class ArticleService {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
       if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
-      if (hasPgCode(error, "23503")) {
-        throw this.createValidationError(body, ["categoryId"], "Category not found")
-      }
+      if (hasPgCode(error, "23503")) throw new NotFoundError("Category not found")
       throw error
     }
   }

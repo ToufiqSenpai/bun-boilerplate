@@ -101,6 +101,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       ),
       response: {
         201: articleSchema.describe("The created article with its first translation"),
+        404: notFoundSchema.describe("The given categoryId does not reference an existing article category"),
         409: conflictSchema.describe("The slug already exists for the requested locale")
       },
       detail: {
