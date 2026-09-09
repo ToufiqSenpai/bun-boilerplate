@@ -29,6 +29,7 @@ export const app = Sentry.withElysia(new Elysia({ name: "app" }))
             "## Conventions",
             '- Errors use a JSON envelope: `{ "message": string }`.',
             "- Invalid `body`, `query`, `headers`, `params`, or `cookie` return 422 with a `validation` payload listing all issues.",
+            '- A duplicate slug returns 409 with a `{ "message": string }` envelope.',
             "- List endpoints are paginated with `page` and `limit` query parameters and return `{ data, meta }`.",
             "- The response `meta` object echoes `page`, `limit`, `total`, and `totalPages`.",
             "",

@@ -43,7 +43,7 @@ export const getArticleCategoryParamsSchema = z.object({
 })
 
 // POST /article-categories (body) — pure rules only; per-Locale Slug uniqueness is owned by the
-// article category service through the UNIQUE(locale, slug) constraint (23505 → 422 Slug-conflict)
+// article category service through the UNIQUE(locale, slug) constraint (23505 → 409 Slug-conflict)
 export const createArticleCategorySchema = omitCollection(articleCategorySchema)
 
 export type CreateArticleCategoryBody = z.output<typeof createArticleCategorySchema>
