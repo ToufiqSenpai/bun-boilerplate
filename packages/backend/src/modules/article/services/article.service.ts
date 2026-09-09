@@ -7,6 +7,8 @@ import { NotFoundError, ValidationError } from "elysia"
 import { z } from "zod"
 
 import type { Database } from "../../../common/database.js"
+import { hasPgCode, isUniqueViolation } from "../../../common/database.js"
+import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
 import { isFilePart } from "../../../common/schema.js"
 import { StorageKey } from "../../../common/storage/storage-key.js"
@@ -177,10 +179,8 @@ export class ArticleService {
     } catch (error) {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
-      if (this.hasDatabaseCode(error, "23505")) {
-        throw this.createValidationError(body, ["slug"], "Slug already exists")
-      }
-      if (this.hasDatabaseCode(error, "23503")) {
+      if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
+      if (hasPgCode(error, "23503")) {
         throw this.createValidationError(body, ["categoryId"], "Category not found")
       }
       throw error
@@ -193,15 +193,6 @@ export class ArticleService {
     }
     const [firstStray = "content"] = error.stray
     return this.createValidationError(body, [firstStray], `Unreferenced file parts: ${error.stray.join(", ")}`)
-  }
-
-  private hasDatabaseCode(error: unknown, code: string): boolean {
-    let current: unknown = error
-    while (current instanceof Error) {
-      if ("code" in current && current.code === code) return true
-      current = current.cause
-    }
-    return false
   }
 
   private createValidationError(body: CreateArticleBody, path: string[], message: string): ValidationError {

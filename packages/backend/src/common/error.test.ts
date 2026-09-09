@@ -2,6 +2,8 @@ import { faker } from "@faker-js/faker"
 import { Elysia } from "elysia"
 
 import {
+  ConflictError,
+  conflictSchema,
   errorPlugin,
   internalServerErrorSchema,
   notFoundSchema,
@@ -87,6 +89,27 @@ describe("errorPlugin", () => {
 
       expect(res.status).toBe(404)
       expect(body).toEqual({ message })
+    })
+  })
+
+  describe("CONFLICT", () => {
+    test("returns JSON with the thrown ConflictError message", async () => {
+      const message = faker.lorem.sentence()
+      const app = new Elysia().use(errorPlugin).get("/throw", () => {
+        throw new ConflictError(message)
+      })
+
+      const res = await app.handle(new Request("http://localhost/throw"))
+      // SAFETY: Conflict body is { message: string }
+      const body = (await res.json()) as { message: string }
+
+      expect(res.status).toBe(409)
+      expect(body).toEqual({ message })
+      expect(res.headers.get("content-type")).toContain("application/json")
+    })
+
+    test("exposes status 409 on the error instance", () => {
+      expect(new ConflictError(faker.lorem.sentence()).status).toBe(409)
     })
   })
 
@@ -191,6 +214,42 @@ describe("notFoundSchema", () => {
   test("has descriptions on the root and the message field", () => {
     expect(notFoundSchema.description).toBe("Not found response")
     expect(notFoundSchema.shape.message.description).toBe("Not Found message")
+  })
+})
+
+describe("conflictSchema", () => {
+  test("accepts any string message", () => {
+    const message = faker.lorem.sentence()
+
+    const result = conflictSchema.safeParse({ message })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual({ message })
+    }
+  })
+
+  test("rejects a missing message", () => {
+    const result = conflictSchema.safeParse({})
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.map(issue => issue.path.join("."))).toEqual(["message"])
+    }
+  })
+
+  test("rejects a non-string message", () => {
+    const result = conflictSchema.safeParse({ message: faker.number.int() })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.map(issue => issue.path.join("."))).toEqual(["message"])
+    }
+  })
+
+  test("has descriptions on the root and the message field", () => {
+    expect(conflictSchema.description).toBe("Conflict response")
+    expect(conflictSchema.shape.message.description).toBe("Conflict message")
   })
 })
 

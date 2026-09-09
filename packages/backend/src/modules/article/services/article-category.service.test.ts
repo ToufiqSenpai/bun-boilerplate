@@ -1,10 +1,11 @@
 import { faker } from "@faker-js/faker"
 import { and, count, eq, isNull, type SQL } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
-import { NotFoundError, ValidationError } from "elysia"
+import { NotFoundError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
 
 import { database, type Database } from "../../../common/database.js"
+import { ConflictError } from "../../../common/error.js"
 import type {
   ArticleCategoryTranslationParams,
   CreateArticleCategoryBody,
@@ -369,7 +370,7 @@ describe("ArticleCategoryService", () => {
       await expect(service.create(input)).rejects.toThrow(error)
     })
 
-    test("rejects a sequential duplicate slug with the Slug-conflict shape and leaves no orphan", async () => {
+    test("rejects a sequential duplicate slug with a 409 conflict and leaves no orphan", async () => {
       const service = new ArticleCategoryService(database)
       const slug = faker.lorem.slug()
       const locale = faker.helpers.arrayElement(["en", "id"] as const)
@@ -377,13 +378,13 @@ describe("ArticleCategoryService", () => {
       await service.create(createCategoryInput({ locale, slug }))
       try {
         await service.create(createCategoryInput({ locale, slug }))
-        expect.unreachable("should throw ValidationError")
+        expect.unreachable("should throw ConflictError")
       } catch (error) {
-        expect(error).toBeInstanceOf(ValidationError)
-        // SAFETY: error is ValidationError per previous expect
-        expect((error as ValidationError).status).toBe(422)
-        // SAFETY: error is ValidationError per previous expect
-        expect((error as ValidationError).message).toContain("Slug already exists")
+        expect(error).toBeInstanceOf(ConflictError)
+        // SAFETY: error is ConflictError per previous expect
+        expect((error as ConflictError).status).toBe(409)
+        // SAFETY: error is ConflictError per previous expect
+        expect((error as ConflictError).message).toBe("Slug already exists")
       }
 
       const [categoryCount] = await database
@@ -399,7 +400,7 @@ describe("ArticleCategoryService", () => {
       expect(translationCount?.value).toBe(1)
     })
 
-    test("yields one success and one Slug-conflict for concurrent duplicates with no orphan", async () => {
+    test("yields one success and one 409 conflict for concurrent duplicates with no orphan", async () => {
       const service = new ArticleCategoryService(database)
       const slug = faker.lorem.slug()
       const locale = faker.helpers.arrayElement(["en", "id"] as const)
@@ -413,7 +414,7 @@ describe("ArticleCategoryService", () => {
       expect(fulfilled).toHaveLength(1)
       expect(rejected).toHaveLength(1)
       // SAFETY: rejected is PromiseRejectedResult per previous filter
-      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ValidationError)
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError)
 
       const [categoryCount] = await database
         .select({ value: count() })
@@ -600,7 +601,7 @@ describe("ArticleCategoryService", () => {
       expect(txMock.insert).not.toHaveBeenCalled()
     })
 
-    test("maps a 23505 unique violation on the upsert insert to ValidationError", async () => {
+    test("maps a 23505 unique violation on the upsert insert to ConflictError", async () => {
       const database = mockDeep<Database>()
       const categoryRow = createCategoryRow()
       const params = createUpsertParams({ id: categoryRow.id })
@@ -614,11 +615,11 @@ describe("ArticleCategoryService", () => {
 
       try {
         await service.upsertTranslation(params, body)
-        expect.unreachable("should throw ValidationError")
+        expect.unreachable("should throw ConflictError")
       } catch (error) {
-        expect(error).toBeInstanceOf(ValidationError)
-        // SAFETY: error is ValidationError per previous expect
-        expect((error as ValidationError).message).toContain("Slug already exists")
+        expect(error).toBeInstanceOf(ConflictError)
+        // SAFETY: error is ConflictError per previous expect
+        expect((error as ConflictError).message).toBe("Slug already exists")
       }
     })
   })

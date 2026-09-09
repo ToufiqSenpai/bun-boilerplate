@@ -1,7 +1,7 @@
 import { Elysia } from "elysia"
 
 import { database } from "../../common/database.js"
-import { notFoundSchema } from "../../common/error.js"
+import { conflictSchema, notFoundSchema } from "../../common/error.js"
 import { localeHeadersSchema, localePlugin } from "../../common/i18n.js"
 import type { OpenApiTag } from "../../common/openapi.js"
 import { storage } from "../../common/storage/storage.js"
@@ -100,7 +100,8 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
         "Article fields with the first translation, content document, and image files"
       ),
       response: {
-        201: articleSchema.describe("The created article with its first translation")
+        201: articleSchema.describe("The created article with its first translation"),
+        409: conflictSchema.describe("The slug already exists for the requested locale")
       },
       detail: {
         summary: "Create an article",
@@ -160,7 +161,8 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       permissions: { articleCategory: ["create"] },
       body: createArticleCategorySchema.describe("Category fields including the first translation"),
       response: {
-        201: articleCategorySchema.describe("The created article category with its first translation")
+        201: articleCategorySchema.describe("The created article category with its first translation"),
+        409: conflictSchema.describe("The slug already exists for the requested locale")
       },
       detail: {
         summary: "Create an article category",
@@ -183,7 +185,8 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       response: {
         200: articleCategorySchema.describe("The article category with the replaced translation"),
         201: articleCategorySchema.describe("The article category with the newly created translation"),
-        404: notFoundSchema.describe("No article category exists with the given id")
+        404: notFoundSchema.describe("No article category exists with the given id"),
+        409: conflictSchema.describe("The slug already exists for the requested locale")
       },
       detail: {
         summary: "Create or replace a category translation",

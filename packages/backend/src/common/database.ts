@@ -29,6 +29,20 @@ export const database = isTest
 
 export type Database = typeof database
 
+// Postgres reports integrity violations as SQLSTATE codes on the driver error
+// (NeonDbError in prod, PGlite DatabaseError in test), wrapped by Drizzle in a
+// DrizzleQueryError cause chain — so match the duck-typed code, not the class.
+export function hasPgCode(error: unknown, code: string): boolean {
+  let current: unknown = error
+  while (current instanceof Error) {
+    if ("code" in current && current.code === code) return true
+    current = current.cause
+  }
+  return false
+}
+
+export const isUniqueViolation = (error: unknown): boolean => hasPgCode(error, "23505")
+
 const migrationsFolder = join(assetsDir, "migrations")
 const migrateFn = isTest ? migratePglite : migrateNeon
 

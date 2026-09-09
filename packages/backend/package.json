@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --project tsconfig.build.json && bun build --compile --sourcemap --asset ./.env --asset ./migrations ./src/main.ts --outfile ./dist/app",
     "test": "bun --bun vitest run",
-    "test:e2e": "bun --bun vitest run --config vitest.e2e.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

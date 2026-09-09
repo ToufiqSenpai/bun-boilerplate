@@ -9,6 +9,7 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../../../common/config.js"
 import { database } from "../../../common/database.js"
 import type { Database } from "../../../common/database.js"
+import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
 import type { FileMetadata, Storage, UploadFileParams } from "../../../common/storage/storage.js"
 import type { CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
@@ -479,17 +480,19 @@ describe("ArticleService", () => {
       expect(objects.size).toBe(0)
     })
 
-    test("surfaces a per-locale slug collision as a field-level conflict", async () => {
+    test("surfaces a per-locale slug collision as a 409 conflict", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
       const first = await service.create(createBody())
       const before = await countArticles()
 
-      const payload = validationPayload(
-        await service.create(createBody({ slug: first.slug })).catch((error: unknown) => error)
-      )
+      const error = await service.create(createBody({ slug: first.slug })).catch((error: unknown) => error)
 
-      expect(payload.errors).toEqual([expect.objectContaining({ path: ["slug"], message: "Slug already exists" })])
+      expect(error).toBeInstanceOf(ConflictError)
+      // SAFETY: error is ConflictError per previous expect
+      expect((error as ConflictError).status).toBe(409)
+      // SAFETY: error is ConflictError per previous expect
+      expect((error as ConflictError).message).toBe("Slug already exists")
       expect(await countArticles()).toBe(before)
       // The colliding cover upload is compensated, leaving only the first article's cover
       expect(objects.size).toBe(1)

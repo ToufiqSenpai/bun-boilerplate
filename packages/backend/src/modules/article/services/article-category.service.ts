@@ -1,9 +1,11 @@
 import type { Locale } from "@bun-boilerplate/i18n"
 import { and, count, desc, eq } from "drizzle-orm"
-import { NotFoundError, ValidationError } from "elysia"
+import { NotFoundError } from "elysia"
 import { z } from "zod"
 
 import type { Database } from "../../../common/database.js"
+import { isUniqueViolation } from "../../../common/database.js"
+import { ConflictError } from "../../../common/error.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
 import type {
@@ -14,7 +16,7 @@ import type {
   ListArticleCategoriesQuery,
   UpsertArticleCategoryTranslationBody
 } from "../schemas/article-category.schema.js"
-import { articleCategorySchema, upsertArticleCategoryTranslationSchema } from "../schemas/article-category.schema.js"
+import { articleCategorySchema } from "../schemas/article-category.schema.js"
 import { articleCategories, articleCategoryTranslations } from "../tables/article-category.table.js"
 
 export class ArticleCategoryService {
@@ -124,7 +126,7 @@ export class ArticleCategoryService {
         description: translation.description ?? undefined
       }
     } catch (error) {
-      if (this.isUniqueViolation(error)) throw this.slugConflictError(data)
+      if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
       throw error
     }
   }
@@ -187,7 +189,7 @@ export class ArticleCategoryService {
         }
       })
     } catch (error) {
-      if (this.isUniqueViolation(error)) throw this.slugConflictError(data)
+      if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
       throw error
     }
   }
@@ -198,21 +200,5 @@ export class ArticleCategoryService {
       .where(eq(articleCategories.id, params.id))
       .returning()
     if (!deleted) throw new NotFoundError("Article category not found")
-  }
-
-  private isUniqueViolation(error: unknown): boolean {
-    let current: unknown = error
-    while (current instanceof Error) {
-      if ("code" in current && current.code === "23505") return true
-      current = current.cause
-    }
-    return false
-  }
-
-  private slugConflictError(data: UpsertArticleCategoryTranslationBody): ValidationError {
-    // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
-    return new ValidationError("body", upsertArticleCategoryTranslationSchema, data, false, [
-      { code: "custom", path: ["slug"], message: "Slug already exists" }
-    ] as never)
   }
 }
