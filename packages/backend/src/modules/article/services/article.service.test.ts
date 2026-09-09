@@ -3,7 +3,7 @@ import { faker } from "@faker-js/faker"
 import type { SQL } from "drizzle-orm"
 import { eq } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
-import { ValidationError } from "elysia"
+import { NotFoundError, ValidationError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
 
 import { config } from "../../../common/config.js"
@@ -498,18 +498,20 @@ describe("ArticleService", () => {
       expect(objects.size).toBe(1)
     })
 
-    test("rejects an unknown category id without leaking a server error", async () => {
+    test("rejects an unknown category id with a 404 without leaking a server error", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
       const before = await countArticles()
 
-      const payload = validationPayload(
-        await service
-          .create(createBody({ categoryId: faker.string.uuid({ version: 7 }) }))
-          .catch((error: unknown) => error)
-      )
+      const error = await service
+        .create(createBody({ categoryId: faker.string.uuid({ version: 7 }) }))
+        .catch((error: unknown) => error)
 
-      expect(payload.errors).toEqual([expect.objectContaining({ path: ["categoryId"] })])
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).status).toBe(404)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).message).toBe("Category not found")
       expect(await countArticles()).toBe(before)
       expect(objects.size).toBe(0)
     })
