@@ -113,3 +113,40 @@ function rewriteUploadRefs(node: RichText, keyByRef: ReadonlyMap<string, Storage
   if (!current.content) return current
   return { ...current, content: current.content.map(child => rewriteUploadRefs(child, keyByRef)) }
 }
+
+export function collectStoredKeys(node: RichText): StorageKey[] {
+  const seen = new Set<string>()
+  const keys: StorageKey[] = []
+  const visit = (current: RichText): void => {
+    const parsed = imageNodeSchema.safeParse(current)
+    if (parsed.success) {
+      const src = parsed.data.attrs.src
+      if (!src.startsWith(UPLOAD_SCHEME) && !URL.canParse(src)) {
+        const key = toStorageKey(src)
+        if (key !== undefined) {
+          const fingerprint = key.toString()
+          if (!seen.has(fingerprint)) {
+            seen.add(fingerprint)
+            keys.push(key)
+          }
+        }
+      }
+    }
+    for (const child of current.content ?? []) visit(child)
+  }
+  visit(node)
+  return keys
+}
+
+export function diffStoredKeys(oldContent: RichText, newContent: RichText): StorageKey[] {
+  const retained = new Set(collectStoredKeys(newContent).map(key => key.toString()))
+  return collectStoredKeys(oldContent).filter(key => !retained.has(key.toString()))
+}
+
+function toStorageKey(src: string): StorageKey | undefined {
+  try {
+    return new StorageKey(src)
+  } catch {
+    return undefined
+  }
+}

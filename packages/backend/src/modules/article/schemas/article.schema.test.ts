@@ -2,7 +2,7 @@ import { COMMON_IMAGE_MIMETYPE } from "@bun-boilerplate/constants"
 import type { RichText } from "@bun-boilerplate/richtext"
 import { faker } from "@faker-js/faker"
 
-import { createArticleSchema } from "./article.schema.js"
+import { createArticleSchema, upsertArticleTranslationSchema } from "./article.schema.js"
 
 // Minimal valid headers, verified against file-type: detection reads structure, not just magic.
 const PNG_1X1 = [
@@ -167,6 +167,63 @@ describe("createArticleSchema", () => {
   test("rejects a non-uuid category id", async () => {
     expect(await parseIssues(createInput({ categoryId: "not-an-id" }))).toEqual([
       expect.objectContaining({ path: ["categoryId"] })
+    ])
+  })
+})
+
+function upsertInput(overrides: Payload = {}) {
+  return {
+    title: faker.lorem.words({ min: 2, max: 5 }),
+    slug: faker.lorem.slug(),
+    excerpt: faker.lorem.sentence(),
+    content: { type: "doc", content: [{ type: "paragraph" }] },
+    metaTitle: faker.lorem.words({ min: 1, max: 3 }),
+    metaDescription: faker.lorem.sentence(),
+    ...overrides
+  }
+}
+
+async function parseUpsertIssues(input: Payload) {
+  const result = await upsertArticleTranslationSchema.safeParseAsync(input)
+  if (result.success) expect.unreachable("expected validation to fail")
+  return result.error.issues
+}
+
+describe("upsertArticleTranslationSchema", () => {
+  test("parses a valid multipart payload, keeping dynamic file parts", async () => {
+    const inline = pngFile("inline-1", 512)
+    const result = await upsertArticleTranslationSchema.safeParseAsync(upsertInput({ "inline-1": inline }))
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.content).toEqual({ type: "doc", content: [{ type: "paragraph" }] })
+    expect(result.data["inline-1"]?.file).toBe(inline)
+  })
+
+  test("accepts content as a JSON string", async () => {
+    const content = JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+    const result = await upsertArticleTranslationSchema.safeParseAsync(upsertInput({ content }))
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.content).toEqual({ type: "doc", content: [{ type: "paragraph" }] })
+  })
+
+  test("rejects an empty title", async () => {
+    expect(await parseUpsertIssues(upsertInput({ title: "" }))).toEqual([expect.objectContaining({ path: ["title"] })])
+  })
+
+  test("rejects content with an invalid rich text envelope", async () => {
+    expect(await parseUpsertIssues(upsertInput({ content: { type: "nope" } }))).toEqual([
+      expect.objectContaining({ path: ["content"] })
+    ])
+  })
+
+  test("rejects a detectable but disallowed inline file part", async () => {
+    const part = imageFile("inline-1", GIF_MINIMAL, "image/gif")
+
+    expect(await parseUpsertIssues(upsertInput({ "inline-1": part }))).toEqual([
+      expect.objectContaining({ path: ["inline-1"], message: COVER_MIME_MESSAGE })
     ])
   })
 })

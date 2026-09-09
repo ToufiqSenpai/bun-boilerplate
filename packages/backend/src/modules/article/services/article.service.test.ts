@@ -1,7 +1,8 @@
+import type { Locale } from "@bun-boilerplate/i18n"
 import type { RichText } from "@bun-boilerplate/richtext"
 import { faker } from "@faker-js/faker"
 import type { SQL } from "drizzle-orm"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { NotFoundError, ValidationError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
@@ -12,7 +13,7 @@ import type { Database } from "../../../common/database.js"
 import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
 import type { FileMetadata, Storage, UploadFileParams } from "../../../common/storage/storage.js"
-import type { CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
+import type { CreateArticleBody, ListArticlesQuery, UpsertArticleTranslationBody } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
@@ -150,6 +151,37 @@ function createBody(overrides: Record<string, string | RichText | FileSchema | n
     cover: filePart(pngFile("cover.png"), "image/png", "png"),
     ...overrides
   } as CreateArticleBody
+}
+
+function createUpsertBody(
+  overrides: Record<string, string | RichText | FileSchema | null> = {}
+): UpsertArticleTranslationBody {
+  // SAFETY: base literal mirrors upsertArticleTranslationSchema output; overrides carry dynamic inline file parts
+  return {
+    title: faker.lorem.words({ min: 2, max: 5 }),
+    slug: `${faker.lorem.slug()}-${faker.string.uuid({ version: 7 }).slice(0, 8)}`,
+    excerpt: faker.lorem.sentence(),
+    content: { type: "doc", content: [{ type: "paragraph" }] },
+    metaTitle: faker.lorem.words({ min: 1, max: 3 }),
+    metaDescription: faker.lorem.sentence(),
+    ...overrides
+  } as UpsertArticleTranslationBody
+}
+
+function storedInlineSrcs(storedContent: RichText): string[] {
+  // SAFETY: shape mirrors the image-node literals seeded in the request bodies above
+  const nodes = (storedContent as { content: { attrs: { src: string } }[] }).content
+  return nodes.map(node => node.attrs.src)
+}
+
+async function readStoredTranslation(articleId: string, locale: Locale) {
+  const [translation] = await database
+    .select()
+    .from(articleTranslations)
+    .where(and(eq(articleTranslations.articleId, articleId), eq(articleTranslations.locale, locale)))
+    .limit(1)
+  if (!translation) throw new Error("translation not persisted")
+  return translation
 }
 
 async function readStoredArticle(id: string) {
@@ -514,6 +546,245 @@ describe("ArticleService", () => {
       expect((error as NotFoundError).message).toBe("Category not found")
       expect(await countArticles()).toBe(before)
       expect(objects.size).toBe(0)
+    })
+  })
+
+  describe("upsertTranslation", () => {
+    test("replaces text plus content with new inline images, leaving the cover byte-identical", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(
+        createBody({
+          content: {
+            type: "doc",
+            content: [{ type: "image", attrs: { src: "upload://inline-1", alt: "old" } }]
+          },
+          "inline-1": filePart(jpegFile("inline-1"), "image/jpeg", "jpg")
+        })
+      )
+      const before = await readStoredArticle(created.id)
+      const [dropKey] = storedInlineSrcs(before.translation.content)
+      if (dropKey === undefined) expect.unreachable("expected a stored inline key")
+
+      const { translation, created: wasCreated } = await service.upsertTranslation(
+        { id: created.id, locale: "en" },
+        createUpsertBody({
+          title: "Fresh title",
+          content: {
+            type: "doc",
+            content: [{ type: "image", attrs: { src: "upload://inline-2", alt: "new" } }]
+          },
+          "inline-2": filePart(pngFile("inline-2"), "image/png", "png")
+        })
+      )
+
+      expect(wasCreated).toBe(false)
+      expect(translation.id).toBe(created.id)
+      expect(translation.locale).toBe("en")
+      expect(translation.title).toBe("Fresh title")
+      expect(translation.cover).toBe(created.cover)
+      const after = await readStoredArticle(created.id)
+      expect(after.article.coverKey).toBe(before.article.coverKey)
+      expect(JSON.stringify(after.translation.content)).not.toContain("upload://")
+      expect(objects.has(before.article.coverKey)).toBe(true)
+      expect(objects.has(dropKey)).toBe(false)
+      expect(objects.size).toBe(2)
+    })
+
+    test("creates a fresh locale translation without touching the cover", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const coverBefore = (await readStoredArticle(created.id)).article.coverKey
+
+      const { translation, created: wasCreated } = await service.upsertTranslation(
+        { id: created.id, locale: "id" },
+        createUpsertBody()
+      )
+
+      expect(wasCreated).toBe(true)
+      expect(translation.id).toBe(created.id)
+      expect(translation.locale).toBe("id")
+      const stored = await readStoredTranslation(created.id, "id")
+      expect(stored.title).toBe(translation.title)
+      expect((await readStoredArticle(created.id)).article.coverKey).toBe(coverBefore)
+      expect(objects.size).toBe(1)
+    })
+
+    test("keeps retained stored keys while deleting only dropped ones", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(
+        createBody({
+          content: {
+            type: "doc",
+            content: [
+              { type: "image", attrs: { src: "upload://keep-me" } },
+              { type: "image", attrs: { src: "upload://drop-me" } }
+            ]
+          },
+          "keep-me": filePart(pngFile("keep-me"), "image/png", "png"),
+          "drop-me": filePart(jpegFile("drop-me"), "image/jpeg", "jpg")
+        })
+      )
+      const before = await readStoredArticle(created.id)
+      const [keepKey, dropKey] = storedInlineSrcs(before.translation.content)
+      if (keepKey === undefined || dropKey === undefined) expect.unreachable("expected two stored inline keys")
+
+      await service.upsertTranslation(
+        { id: created.id, locale: "en" },
+        createUpsertBody({
+          content: {
+            type: "doc",
+            content: [
+              { type: "image", attrs: { src: keepKey } },
+              { type: "image", attrs: { src: "upload://fresh" } }
+            ]
+          },
+          fresh: filePart(pngFile("fresh"), "image/png", "png")
+        })
+      )
+
+      expect(objects.has(keepKey)).toBe(true)
+      expect(objects.has(dropKey)).toBe(false)
+      expect(objects.size).toBe(3)
+    })
+
+    test("forwards the abort signal to inline uploads", async () => {
+      const storage = mockDeep<Storage>()
+      storage.upload.mockResolvedValue({ key: "articles/a.png" })
+      const controller = new AbortController()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody(), controller.signal)
+
+      await service.upsertTranslation(
+        { id: created.id, locale: "en" },
+        createUpsertBody({
+          content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
+          "inline-1": filePart(jpegFile("inline-1"), "image/jpeg", "jpg")
+        }),
+        controller.signal
+      )
+
+      expect(storage.upload).toHaveBeenCalledTimes(2)
+      for (const call of storage.upload.mock.calls) expect(call[0].signal).toBe(controller.signal)
+    })
+
+    test("answers not-found for an unknown article id, persisting nothing", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const before = await countArticles()
+
+      const error = await service
+        .upsertTranslation(
+          { id: faker.string.uuid({ version: 7 }), locale: "en" },
+          createUpsertBody({
+            content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
+            "inline-1": filePart(pngFile("inline-1"), "image/png", "png")
+          })
+        )
+        .catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).status).toBe(404)
+      expect(await countArticles()).toBe(before)
+      expect(objects.size).toBe(0)
+    })
+
+    test("surfaces a per-locale slug collision as a 409 conflict, compensating new uploads", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const first = await service.create(createBody())
+      const second = await service.create(createBody())
+      const sizeAfterCreates = objects.size
+
+      const error = await service
+        .upsertTranslation(
+          { id: second.id, locale: "en" },
+          createUpsertBody({
+            slug: first.slug,
+            content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
+            "inline-1": filePart(pngFile("inline-1"), "image/png", "png")
+          })
+        )
+        .catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(ConflictError)
+      // SAFETY: error is ConflictError per previous expect
+      expect((error as ConflictError).status).toBe(409)
+      // SAFETY: error is ConflictError per previous expect
+      expect((error as ConflictError).message).toBe("Slug already exists")
+      expect(objects.size).toBe(sizeAfterCreates)
+      const stored = await readStoredTranslation(second.id, "en")
+      expect(stored.slug).not.toBe(first.slug)
+    })
+
+    test("rejects a placeholder without a matching file, persisting nothing", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const sizeAfterCreate = objects.size
+
+      const payload = validationPayload(
+        await service
+          .upsertTranslation(
+            { id: created.id, locale: "en" },
+            createUpsertBody({
+              content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://ghost" } }] }
+            })
+          )
+          .catch((error: unknown) => error)
+      )
+
+      expect(payload.errors).toEqual([
+        expect.objectContaining({ path: ["content"], message: expect.stringContaining("ghost") })
+      ])
+      expect(objects.size).toBe(sizeAfterCreate)
+    })
+
+    test("rejects a file without a matching placeholder, persisting nothing", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const sizeAfterCreate = objects.size
+
+      const payload = validationPayload(
+        await service
+          .upsertTranslation(
+            { id: created.id, locale: "en" },
+            createUpsertBody({ stray: filePart(pngFile("stray.png"), "image/png", "png") })
+          )
+          .catch((error: unknown) => error)
+      )
+
+      expect(payload.errors).toEqual([
+        expect.objectContaining({ path: ["stray"], message: expect.stringContaining("stray") })
+      ])
+      expect(objects.size).toBe(sizeAfterCreate)
+    })
+
+    test("rejects cover data sent to the translation endpoint, persisting nothing", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const coverBefore = (await readStoredArticle(created.id)).article.coverKey
+      const sizeAfterCreate = objects.size
+
+      const payload = validationPayload(
+        await service
+          .upsertTranslation(
+            { id: created.id, locale: "en" },
+            createUpsertBody({ cover: filePart(pngFile("cover.png"), "image/png", "png") })
+          )
+          .catch((error: unknown) => error)
+      )
+
+      expect(payload.errors).toEqual([
+        expect.objectContaining({ path: ["cover"], message: expect.stringContaining("cover") })
+      ])
+      expect((await readStoredArticle(created.id)).article.coverKey).toBe(coverBefore)
+      expect(objects.size).toBe(sizeAfterCreate)
     })
   })
 })

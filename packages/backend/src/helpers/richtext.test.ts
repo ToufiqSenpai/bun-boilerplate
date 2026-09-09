@@ -4,7 +4,13 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../common/config.js"
 import type { FileSchema } from "../common/schema.js"
 import type { Storage } from "../common/storage/storage.js"
-import { resolveImageSrc, UploadRefMismatchError, uploadInlineImages } from "./richtext.js"
+import {
+  collectStoredKeys,
+  diffStoredKeys,
+  resolveImageSrc,
+  UploadRefMismatchError,
+  uploadInlineImages
+} from "./richtext.js"
 
 const base = config.s3.publicBaseUrl.replace(/\/$/, "")
 
@@ -50,6 +56,60 @@ describe("resolveImageSrc", () => {
     const result = resolveImageSrc(doc)
     expect(result.content?.[0]?.attrs?.src).toBe(`${base}/avatars/a%20b.png`)
     expect(doc).toEqual(snapshot)
+  })
+})
+
+describe("collectStoredKeys", () => {
+  test("collects nested storage keys once, skipping refs, external urls, and malformed keys", () => {
+    const doc: RichText = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "image", attrs: { src: "articles/a.png" } }] },
+        { type: "image", attrs: { src: "articles/a.png" } },
+        { type: "image", attrs: { src: "articles/b.jpg" } },
+        { type: "image", attrs: { src: "upload://part-1" } },
+        { type: "image", attrs: { src: "https://cdn.example.org/pic.png" } },
+        { type: "image", attrs: { src: "not-a-key" } },
+        { type: "paragraph", content: [{ type: "text", text: "plain" }] }
+      ]
+    }
+    const snapshot = structuredClone(doc)
+
+    const keys = collectStoredKeys(doc)
+
+    expect(keys.map(key => key.toString()).sort()).toEqual(["articles/a.png", "articles/b.jpg"])
+    expect(doc).toEqual(snapshot)
+  })
+})
+
+describe("diffStoredKeys", () => {
+  test("returns keys dropped from the new document, keeping retained and new keys out", () => {
+    const oldContent: RichText = {
+      type: "doc",
+      content: [
+        { type: "image", attrs: { src: "articles/keep.png" } },
+        { type: "image", attrs: { src: "articles/drop.jpg" } }
+      ]
+    }
+    const newContent: RichText = {
+      type: "doc",
+      content: [
+        { type: "image", attrs: { src: "articles/keep.png" } },
+        { type: "image", attrs: { src: "articles/fresh.png" } },
+        { type: "image", attrs: { src: "https://cdn.example.org/pic.png" } }
+      ]
+    }
+
+    const orphans = diffStoredKeys(oldContent, newContent)
+
+    expect(orphans.map(key => key.toString())).toEqual(["articles/drop.jpg"])
+  })
+
+  test("returns an empty list when nothing was dropped", () => {
+    const doc: RichText = { type: "doc", content: [{ type: "image", attrs: { src: "articles/a.png" } }] }
+
+    expect(diffStoredKeys(doc, structuredClone(doc))).toEqual([])
+    expect(diffStoredKeys({ type: "doc", content: [] }, doc)).toEqual([])
   })
 })
 

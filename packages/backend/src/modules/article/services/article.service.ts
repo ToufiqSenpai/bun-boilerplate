@@ -15,9 +15,20 @@ import { StorageKey } from "../../../common/storage/storage-key.js"
 import type { Storage } from "../../../common/storage/storage.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
-import { UploadRefMismatchError, resolveImageSrc, uploadInlineImages } from "../../../helpers/richtext.js"
-import type { Article, CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleSchema, createArticleSchema } from "../schemas/article.schema.js"
+import {
+  UploadRefMismatchError,
+  diffStoredKeys,
+  resolveImageSrc,
+  uploadInlineImages
+} from "../../../helpers/richtext.js"
+import type {
+  Article,
+  ArticleTranslationParams,
+  CreateArticleBody,
+  ListArticlesQuery,
+  UpsertArticleTranslationBody
+} from "../schemas/article.schema.js"
+import { articleSchema, createArticleSchema, upsertArticleTranslationSchema } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 
 export interface JoinedArticleRow extends Omit<Article, "cover"> {
@@ -185,17 +196,126 @@ export class ArticleService {
     }
   }
 
-  private uploadMismatchError(body: CreateArticleBody, error: UploadRefMismatchError): ValidationError {
-    if (error.missing.length > 0) {
-      return this.createValidationError(body, ["content"], `Unresolved upload references: ${error.missing.join(", ")}`)
+  public async upsertTranslation(
+    params: ArticleTranslationParams,
+    body: UpsertArticleTranslationBody,
+    signal?: AbortSignal
+  ): Promise<{ translation: Article; created: boolean }> {
+    const { content, ...rest } = body
+    const inlineFiles: Record<string, FileSchema> = {}
+    for (const [name, value] of Object.entries(rest)) {
+      if (isFilePart(value)) inlineFiles[name] = value
     }
-    const [firstStray = "content"] = error.stray
-    return this.createValidationError(body, [firstStray], `Unreferenced file parts: ${error.stray.join(", ")}`)
+    const uploaded: StorageKey[] = []
+    try {
+      const [inlineKeys, resolvedContent] = await uploadInlineImages({
+        richText: content,
+        files: inlineFiles,
+        storage: this.storage,
+        collection: this.articleCollection,
+        signal
+      })
+      uploaded.push(...inlineKeys)
+
+      const upserted = await this.database.transaction(async tx => {
+        const [article] = await tx
+          .select({
+            id: articles.id,
+            createdAt: articles.createdAt,
+            updatedAt: articles.updatedAt,
+            status: articles.status,
+            publishedAt: articles.publishedAt,
+            categoryId: articles.categoryId,
+            coverKey: articles.coverKey
+          })
+          .from(articles)
+          .where(eq(articles.id, params.id))
+          .limit(1)
+        if (!article) throw new NotFoundError("Article not found")
+
+        const [old] = await tx
+          .select({ content: articleTranslations.content })
+          .from(articleTranslations)
+          .where(and(eq(articleTranslations.articleId, params.id), eq(articleTranslations.locale, params.locale)))
+          .limit(1)
+
+        const translationValues = {
+          title: body.title,
+          slug: body.slug,
+          excerpt: body.excerpt,
+          content: resolvedContent,
+          metaTitle: body.metaTitle,
+          metaDescription: body.metaDescription
+        }
+        const [translation] = await tx
+          .insert(articleTranslations)
+          .values({ articleId: params.id, locale: params.locale, ...translationValues })
+          .onConflictDoUpdate({
+            target: [articleTranslations.articleId, articleTranslations.locale],
+            set: translationValues
+          })
+          .returning()
+        if (!translation) throw new Error("Failed to upsert article translation")
+
+        return { article, translation, oldContent: old?.content ?? null, created: !old }
+      })
+
+      const orphans = upserted.oldContent ? diffStoredKeys(upserted.oldContent, resolvedContent) : []
+      if (orphans.length > 0) await this.storage.delete(orphans)
+
+      return {
+        translation: this.mapRow({
+          id: upserted.article.id,
+          createdAt: upserted.article.createdAt,
+          updatedAt: upserted.article.updatedAt,
+          status: upserted.article.status,
+          publishedAt: upserted.article.publishedAt,
+          categoryId: upserted.article.categoryId,
+          coverKey: upserted.article.coverKey,
+          locale: upserted.translation.locale,
+          title: upserted.translation.title,
+          slug: upserted.translation.slug,
+          excerpt: upserted.translation.excerpt,
+          content: upserted.translation.content,
+          metaTitle: upserted.translation.metaTitle,
+          metaDescription: upserted.translation.metaDescription
+        }),
+        created: upserted.created
+      }
+    } catch (error) {
+      await this.storage.delete(uploaded)
+      if (error instanceof UploadRefMismatchError)
+        throw this.uploadMismatchError(body, error, upsertArticleTranslationSchema)
+      if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
+      throw error
+    }
   }
 
-  private createValidationError(body: CreateArticleBody, path: string[], message: string): ValidationError {
+  private uploadMismatchError(
+    body: CreateArticleBody | UpsertArticleTranslationBody,
+    error: UploadRefMismatchError,
+    schema: typeof createArticleSchema | typeof upsertArticleTranslationSchema = createArticleSchema
+  ): ValidationError {
+    if (error.missing.length > 0) {
+      return this.createValidationError(
+        body,
+        schema,
+        ["content"],
+        `Unresolved upload references: ${error.missing.join(", ")}`
+      )
+    }
+    const [firstStray = "content"] = error.stray
+    return this.createValidationError(body, schema, [firstStray], `Unreferenced file parts: ${error.stray.join(", ")}`)
+  }
+
+  private createValidationError(
+    body: CreateArticleBody | UpsertArticleTranslationBody,
+    schema: typeof createArticleSchema | typeof upsertArticleTranslationSchema,
+    path: string[],
+    message: string
+  ): ValidationError {
     // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
-    return new ValidationError("body", createArticleSchema, body, false, [{ code: "custom", path, message }] as never)
+    return new ValidationError("body", schema, body, false, [{ code: "custom", path, message }] as never)
   }
 
   private mapRow(row: JoinedArticleRow): Article {
