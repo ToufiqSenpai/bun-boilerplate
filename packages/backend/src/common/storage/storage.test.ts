@@ -267,6 +267,26 @@ describe("Storage", () => {
 
       expect(commandAt(mockS3, 0, DeleteObjectCommand).input.Key).toBe("avatars/..evil.png")
     })
+
+    it("should delete every key when given an array", async () => {
+      mockS3.send.mockImplementation(async () => ({}))
+
+      await storage.delete([new StorageKey("avatars", "a.png"), new StorageKey("avatars", "b.png")])
+
+      expect(mockS3.send).toHaveBeenCalledTimes(2)
+      expect(commandAt(mockS3, 0, DeleteObjectCommand).input.Key).toBe("avatars/a.png")
+      expect(commandAt(mockS3, 1, DeleteObjectCommand).input.Key).toBe("avatars/b.png")
+    })
+
+    it("should keep deleting the remaining keys when one of them fails", async () => {
+      mockS3.send.mockRejectedValueOnce(new Error("S3 down")).mockImplementationOnce(async () => ({}))
+
+      await expect(
+        storage.delete([new StorageKey("avatars", "a.png"), new StorageKey("avatars", "b.png")])
+      ).resolves.toBeUndefined()
+      expect(mockS3.send).toHaveBeenCalledTimes(2)
+      expect(commandAt(mockS3, 1, DeleteObjectCommand).input.Key).toBe("avatars/b.png")
+    })
   })
 
   describe("copy", () => {

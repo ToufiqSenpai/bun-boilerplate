@@ -9,6 +9,7 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../../../common/config.js"
 import { database } from "../../../common/database.js"
 import type { Database } from "../../../common/database.js"
+import type { FileSchema } from "../../../common/schema.js"
 import type { FileMetadata, Storage, UploadFileParams } from "../../../common/storage/storage.js"
 import type { CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
@@ -23,7 +24,7 @@ function createJoinedRow(overrides: Partial<JoinedArticleRow> = {}): JoinedArtic
     status: overrides.status ?? "published",
     publishedAt: overrides.publishedAt ?? faker.date.recent(),
     categoryId: overrides.categoryId ?? null,
-    coverKey: overrides.coverKey ?? "",
+    coverKey: overrides.coverKey ?? `articles/${faker.string.uuid({ version: 7 })}.png`,
     locale: overrides.locale ?? faker.helpers.arrayElement(["en", "id"] as const),
     title: overrides.title ?? faker.lorem.words({ min: 2, max: 5 }),
     slug: overrides.slug ?? faker.lorem.slug(),
@@ -109,10 +110,8 @@ function jpegFile(name: string, size = 1024): File {
   return imageFile(name, JPEG_MINIMAL, "image/jpeg", size)
 }
 
-const GIF_MINIMAL = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00]
-
-function gifFile(name: string, size = 1024): File {
-  return imageFile(name, GIF_MINIMAL, "image/gif", size)
+function filePart(file: File, mime: string, extension: string): FileSchema {
+  return { file, mime, extension }
 }
 
 function createTestStorage() {
@@ -136,8 +135,10 @@ function createTestStorage() {
   return { storage, objects }
 }
 
-function createBody(overrides: Partial<CreateArticleBody> = {}): CreateArticleBody {
+function createBody(overrides: Record<string, string | RichText | FileSchema | null> = {}): CreateArticleBody {
+  // SAFETY: base literal mirrors createArticleSchema output; overrides carry dynamic inline file parts
   return {
+    status: "draft",
     locale: "en",
     title: faker.lorem.words({ min: 2, max: 5 }),
     slug: `${faker.lorem.slug()}-${faker.string.uuid({ version: 7 }).slice(0, 8)}`,
@@ -145,9 +146,9 @@ function createBody(overrides: Partial<CreateArticleBody> = {}): CreateArticleBo
     content: { type: "doc", content: [{ type: "paragraph" }] },
     metaTitle: faker.lorem.words({ min: 1, max: 3 }),
     metaDescription: faker.lorem.sentence(),
-    cover: pngFile("cover.png"),
+    cover: filePart(pngFile("cover.png"), "image/png", "png"),
     ...overrides
-  }
+  } as CreateArticleBody
 }
 
 async function readStoredArticle(id: string) {
@@ -213,7 +214,7 @@ describe("ArticleService", () => {
           content: row.content,
           metaTitle: row.metaTitle,
           metaDescription: row.metaDescription,
-          cover: undefined
+          cover: `${config.s3.publicBaseUrl.replace(/\/$/, "")}/${row.coverKey}`
         }
       ])
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 })
@@ -336,7 +337,7 @@ describe("ArticleService", () => {
         content: row.content,
         metaTitle: row.metaTitle,
         metaDescription: row.metaDescription,
-        cover: undefined
+        cover: `${config.s3.publicBaseUrl.replace(/\/$/, "")}/${row.coverKey}`
       })
       expect(chain.from).toHaveBeenCalledWith(articles)
       expect(chain.innerJoin).toHaveBeenCalledWith(articleTranslations, expect.anything())
@@ -407,7 +408,7 @@ describe("ArticleService", () => {
             { type: "image", attrs: { src: "upload://inline-1", alt: "inline" } }
           ]
         },
-        "inline-1": jpegFile("inline-1")
+        "inline-1": filePart(jpegFile("inline-1"), "image/jpeg", "jpg")
       })
 
       const result = await service.create(body)
@@ -417,8 +418,8 @@ describe("ArticleService", () => {
       expect(result.cover).toMatch(/^https?:\/\//)
       const stored = await readStoredArticle(result.id)
       expect(stored.article.coverKey).not.toBe("")
-      expect(result.cover?.endsWith(`/${stored.article.coverKey}`)).toBe(true)
-      expect(stored.article.coverKey.startsWith(`articles/${result.id}-`)).toBe(true)
+      expect(result.cover.endsWith(`/${stored.article.coverKey}`)).toBe(true)
+      expect(stored.article.coverKey).toMatch(/^articles\/.+\.png$/)
       expect(JSON.stringify(stored.translation.content)).not.toContain("upload://")
       expect(JSON.stringify(stored.translation.content)).not.toContain("http")
       // SAFETY: shape mirrors the image-node literal seeded in the request body above
@@ -426,9 +427,24 @@ describe("ArticleService", () => {
       // SAFETY: served content carries the same document shape with keys resolved to host URLs
       const served = result.content as { content: { attrs: { src: string } }[] }
       expect(served.content[1]?.attrs.src.endsWith(`/${content.content[1]?.attrs.src}`)).toBe(true)
-      expect(content.content[1]?.attrs.src.startsWith(`articles/${result.id}-`)).toBe(true)
-      expect(content.content[1]?.attrs.src.endsWith(".jpg")).toBe(true)
+      expect(content.content[1]?.attrs.src).toMatch(/^articles\/.+\.jpg$/)
       expect(objects.size).toBe(2)
+    })
+
+    test("forwards the abort signal to cover and inline uploads", async () => {
+      const storage = mockDeep<Storage>()
+      storage.upload.mockResolvedValue({ key: "articles/a.png" })
+      const controller = new AbortController()
+      const service = new ArticleService(database, storage)
+      const body = createBody({
+        content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
+        "inline-1": filePart(jpegFile("inline-1"), "image/jpeg", "jpg")
+      })
+
+      await service.create(body, controller.signal)
+
+      expect(storage.upload).toHaveBeenCalledTimes(2)
+      for (const call of storage.upload.mock.calls) expect(call[0].signal).toBe(controller.signal)
     })
 
     test("rejects a placeholder without a matching file, persisting nothing", async () => {
@@ -452,39 +468,13 @@ describe("ArticleService", () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
       const before = await countArticles()
-      const body = createBody({ stray: pngFile("stray.png") })
+      const body = createBody({ stray: filePart(pngFile("stray.png"), "image/png", "png") })
 
       const payload = validationPayload(await service.create(body).catch((error: unknown) => error))
 
       expect(payload.errors).toEqual([
         expect.objectContaining({ path: ["stray"], message: expect.stringContaining("stray") })
       ])
-      expect(await countArticles()).toBe(before)
-      expect(objects.size).toBe(0)
-    })
-
-    test("rejects a non-image upload, persisting nothing", async () => {
-      const { storage, objects } = createTestStorage()
-      const service = new ArticleService(database, storage)
-      const before = await countArticles()
-      const body = createBody({ cover: new File(["not an image"], "cover.png", { type: "image/png" }) })
-
-      const payload = validationPayload(await service.create(body).catch((error: unknown) => error))
-
-      expect(payload.errors).toEqual([expect.objectContaining({ path: ["cover"] })])
-      expect(await countArticles()).toBe(before)
-      expect(objects.size).toBe(0)
-    })
-
-    test("rejects bytes outside the allowlist even when the claimed mime is an image", async () => {
-      const { storage, objects } = createTestStorage()
-      const service = new ArticleService(database, storage)
-      const before = await countArticles()
-      const body = createBody({ cover: gifFile("cover.gif") })
-
-      const payload = validationPayload(await service.create(body).catch((error: unknown) => error))
-
-      expect(payload.errors).toEqual([expect.objectContaining({ path: ["cover"] })])
       expect(await countArticles()).toBe(before)
       expect(objects.size).toBe(0)
     })

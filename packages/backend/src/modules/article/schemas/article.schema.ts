@@ -1,23 +1,55 @@
+import { COMMON_IMAGE_MIMETYPE } from "@bun-boilerplate/constants"
 import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
+import { richTextContentSchema } from "@bun-boilerplate/richtext"
 import { z } from "zod"
 
-import { collectionSchema, omitCollection, richTextContentSchema, slugSchema } from "../../../common/schema.js"
+import { collectionSchema, fileSchema, jsonStringSchema, omitCollection, slugSchema, timestampSchema } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 import { articleStatusEnum } from "../tables/article.table.js"
 
+const articleImage = fileSchema
+  .refine(async ({ mime }) => COMMON_IMAGE_MIMETYPE.includes(mime), {
+    error: `Cover image mimetype must be ${COMMON_IMAGE_MIMETYPE.join(", ")}.`
+  })
+
 export const articleSchema = z
   .object({
-    status: z.enum(articleStatusEnum.enumValues).describe("Lifecycle status of the article"),
-    publishedAt: z.date().nullable().readonly().describe("Publication timestamp, null when never published"),
-    categoryId: z.uuidv7().nullable().readonly().describe("Article category id, null when uncategorised"),
-    locale: z.enum(LOCALES).describe("Locale of the translation carried by this row"),
-    title: z.string().describe("Translated title"),
-    slug: z.string().describe("Translated slug"),
-    excerpt: z.string().describe("Translated excerpt"),
+    status: z
+      .enum(articleStatusEnum.enumValues)
+      .default("draft")
+      .describe("Lifecycle status of the article"),
+    publishedAt: timestampSchema.nullable().readonly().describe("Publication timestamp, null when never published"),
+    categoryId: z
+      .uuidv7({ error: "Category id must be UUIDv7" })
+      .nullable()
+      .describe("Article category id, null when uncategorised"),
+    locale: z
+      .enum(LOCALES, { error: "Invalid locale" })
+      .default(DEFAULT_LOCALE)
+      .describe("Locale of the translation carried by this row"),
+    title: z
+      .string({ error: "Title is required" })
+      .min(1, { error: "Title must not be empty" })
+      .max(255, { error: "Title must be at most 255 characters" })
+      .describe("Translated title"),
+    slug: slugSchema.describe("Translated slug"),
+    excerpt: z
+      .string({ error: "Excerpt is required" })
+      .min(1, { error: "Excerpt must not be empty" })
+      .max(1000, { error: "Excerpt must be at most 1000 characters" })
+      .describe("Translated excerpt"),
     content: richTextContentSchema.describe("Rich text document with image references resolved to host URLs"),
-    metaTitle: z.string().describe("Translated SEO meta title"),
-    metaDescription: z.string().describe("Translated SEO meta description"),
-    cover: z.url().optional().describe("CoverImage host URL, absent when no cover is stored")
+    metaTitle: z
+      .string({ error: "Meta title is required" })
+      .min(1, { error: "Meta title must not be empty" })
+      .max(255, { error: "Meta title must be at most 255 characters" })
+      .describe("Translated SEO meta title"),
+    metaDescription: z
+      .string({ error: "Meta description is required" })
+      .min(1, { error: "Meta description must not be empty" })
+      .max(500, { error: "Meta description must be at most 500 characters" })
+      .describe("Translated SEO meta description"),
+    cover: z.httpUrl({ error: "Cover image URL is not valid" }).describe("Cover image URL")
   })
   .extend(collectionSchema.shape)
 
@@ -35,91 +67,14 @@ export type ListArticlesQuery = z.output<typeof listArticlesQuerySchema>
 // files whose part names match the upload:// references in the document. Fields reuse the
 // articleSchema shape with multipart overrides; the object stays loose with a file catchall so
 // dynamically named inline file parts survive validation, and the service cross-checks them.
-export const ARTICLE_MAX_FILE_BYTES = 20 * 1024 * 1024
-export const ARTICLE_MAX_REQUEST_BYTES = 100 * 1024 * 1024
-export const ARTICLE_IMAGE_MIMES: readonly string[] = ["image/png", "image/jpeg", "image/avif", "image/webp"]
-
-function isAllowedImageMime(type: string): boolean {
-  return ARTICLE_IMAGE_MIMES.includes(type)
-}
-
-const imageFileSchema = (name: string) =>
-  z
-    .file({ error: `${name} is required` })
-    .max(ARTICLE_MAX_FILE_BYTES, { error: `${name} must be at most 20 MB` })
-    .refine(file => isAllowedImageMime(file.type), { error: `${name} must be a PNG, JPEG, AVIF, or WebP image` })
-
-// The document arrives as a JSON string from plain multipart clients, but Elysia
-// pre-parses JSON-looking fields into objects before validation, so both land here.
-const contentJsonSchema = z
-  .union(
-    [
-      z.string().transform((raw, ctx) => {
-        try {
-          return JSON.parse(raw)
-        } catch {
-          ctx.addIssue({ code: "custom", message: "Content must be a JSON string" })
-          return z.NEVER
-        }
-      }),
-      z.record(z.string(), z.unknown()),
-      z.array(z.unknown())
-    ],
-    { error: "Content must be a JSON string" }
-  )
-  .pipe(richTextContentSchema)
-
-const createArticleBase = omitCollection(articleSchema).omit({ publishedAt: true })
 
 export const createArticleSchema = z
   .looseObject({
-    ...createArticleBase.shape,
-    status: z.enum(articleStatusEnum.enumValues).optional().describe("Lifecycle status of the article"),
-    categoryId: z
-      .uuidv7({ error: "Invalid category id" })
-      .nullable()
-      .optional()
-      .describe("Article category id, null when uncategorised"),
-    locale: z.enum(LOCALES, { error: "Invalid locale" }).default(DEFAULT_LOCALE),
-    title: z
-      .string({ error: "Title is required" })
-      .min(1, { error: "Title must not be empty" })
-      .max(255, { error: "Title must be at most 255 characters" }),
-    slug: slugSchema("article"),
-    excerpt: z
-      .string({ error: "Excerpt is required" })
-      .min(1, { error: "Excerpt must not be empty" })
-      .max(1000, { error: "Excerpt must be at most 1000 characters" }),
-    content: contentJsonSchema,
-    metaTitle: z
-      .string({ error: "Meta title is required" })
-      .min(1, { error: "Meta title must not be empty" })
-      .max(255, { error: "Meta title must be at most 255 characters" }),
-    metaDescription: z
-      .string({ error: "Meta description is required" })
-      .min(1, { error: "Meta description must not be empty" })
-      .max(500, { error: "Meta description must be at most 500 characters" }),
-    cover: imageFileSchema("Cover image")
+    ...omitCollection(articleSchema).omit({ publishedAt: true }).shape,
+    content: jsonStringSchema.pipe(richTextContentSchema),
+    cover: articleImage
   })
-  .superRefine((body, ctx) => {
-    let total = 0
-    for (const [name, value] of Object.entries(body)) {
-      if (!(value instanceof File)) continue
-      total += value.size
-      // The cover part carries its own field rules above; every other file part is
-      // dynamically named, so its per-file policy lives here instead of in the shape.
-      if (name === "cover") continue
-      if (value.size > ARTICLE_MAX_FILE_BYTES) {
-        ctx.addIssue({ code: "custom", path: [name], message: `${name} must be at most 20 MB` })
-      }
-      if (!isAllowedImageMime(value.type)) {
-        ctx.addIssue({ code: "custom", path: [name], message: `${name} must be a PNG, JPEG, AVIF, or WebP image` })
-      }
-    }
-    if (total > ARTICLE_MAX_REQUEST_BYTES) {
-      ctx.addIssue({ code: "custom", message: "Total upload size must be at most 100 MB" })
-    }
-  })
+  .catchall(articleImage)
 
 export type CreateArticleBody = z.output<typeof createArticleSchema>
 
@@ -127,7 +82,7 @@ export type CreateArticleBody = z.output<typeof createArticleSchema>
 // The uuidv7 branch is tried first, so an identifier that looks like an id is always treated as an id, never as a Slug.
 export const getArticleParamsSchema = z.object({
   identifier: z
-    .union([z.uuidv7(), slugSchema("article")], { error: "Invalid identifier" })
+    .union([z.uuidv7(), slugSchema], { error: "Invalid identifier" })
     .describe("Article id (uuidv7) or slug in the requested locale")
 })
 

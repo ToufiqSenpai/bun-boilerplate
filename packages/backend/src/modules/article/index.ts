@@ -90,9 +90,9 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
   )
   .post(
     "/articles",
-    async ({ body, set, status }) => {
+    async ({ body, request, set, status }) => {
       set.headers["content-language"] = body.locale
-      return status(201, await articleService.create(body))
+      return status(201, await articleService.create(body, request.signal))
     },
     {
       permissions: { article: ["create"] },

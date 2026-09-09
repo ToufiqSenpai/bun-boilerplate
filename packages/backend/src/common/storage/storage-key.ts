@@ -1,5 +1,7 @@
 import { z, ZodError } from "zod"
 
+import { config } from "../config.js"
+
 export class StorageKey {
   private readonly segmentSchema = z
     .string()
@@ -31,6 +33,11 @@ export class StorageKey {
 
   public toString(): string {
     return `${this.collection}/${this.name}`
+  }
+
+  public toPublicUrl(): string {
+    const encoded = this.toString().split("/").map(encodeURIComponent).join("/")
+    return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
   }
 
   public equals(other: StorageKey): boolean {

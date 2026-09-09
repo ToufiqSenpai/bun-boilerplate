@@ -26,6 +26,7 @@
     "@aws-sdk/client-s3": "^3.1127.0",
     "@aws-sdk/lib-storage": "^3.1127.0",
     "@better-auth/drizzle-adapter": "^1.7.1",
+    "@bun-boilerplate/constants": "workspace:*",
     "@bun-boilerplate/i18n": "workspace:*",
     "@bun-boilerplate/richtext": "workspace:*",
     "@electric-sql/pglite": "^0.5.8",

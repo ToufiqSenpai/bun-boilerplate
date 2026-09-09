@@ -38,6 +38,7 @@
         "@aws-sdk/client-s3": "^3.1127.0",
         "@aws-sdk/lib-storage": "^3.1127.0",
         "@better-auth/drizzle-adapter": "^1.7.1",
+        "@bun-boilerplate/constants": "workspace:*",
         "@bun-boilerplate/i18n": "workspace:*",
         "@bun-boilerplate/richtext": "workspace:*",
         "@electric-sql/pglite": "^0.5.8",
@@ -64,6 +65,10 @@
         "@types/negotiator": "^0.6.5",
         "pino-pretty": "^13.1.3",
       },
+    },
+    "packages/constants": {
+      "name": "@bun-boilerplate/constants",
+      "version": "1.0.0",
     },
     "packages/i18n": {
       "name": "@bun-boilerplate/i18n",
@@ -290,6 +295,8 @@
     "@bramus/specificity": ["@bramus/specificity@2.4.2", "", { "dependencies": { "css-tree": "^3.0.0" }, "bin": { "specificity": "bin/cli.js" } }, "sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw=="],
 
     "@bun-boilerplate/backend": ["@bun-boilerplate/backend@workspace:packages/backend"],
+
+    "@bun-boilerplate/constants": ["@bun-boilerplate/constants@workspace:packages/constants"],
 
     "@bun-boilerplate/i18n": ["@bun-boilerplate/i18n@workspace:packages/i18n"],
 

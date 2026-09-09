@@ -2,7 +2,7 @@ import { createAccessControl } from "better-auth/plugins/access"
 import { adminAc, defaultStatements } from "better-auth/plugins/admin/access"
 
 export type ArticleCategoryAction = "create" | "update" | "delete"
-export type ArticleAction = "create" | "update" | "delete"
+export type ArticleAction = ArticleCategoryAction
 
 export interface PermissionRequirement {
   articleCategory?: ArticleCategoryAction[]

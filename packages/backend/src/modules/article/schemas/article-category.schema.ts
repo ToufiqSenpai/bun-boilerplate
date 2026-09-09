@@ -1,11 +1,8 @@
 import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
 import { z } from "zod"
 
-import { collectionSchema, omitCollection, slugSchema as slugSchemaField } from "../../../common/schema.js"
+import { collectionSchema, omitCollection, slugSchema } from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
-
-// Shared field schemas
-const slugSchema = slugSchemaField("category")
 
 // Base schema: shape of an article category as returned in responses
 export const articleCategorySchema = z
@@ -19,7 +16,7 @@ export const articleCategorySchema = z
       .min(1, { error: "Name must not be empty" })
       .max(255, { error: "Name must be at most 255 characters" })
       .describe("Display name of the category"),
-    slug: slugSchema,
+    slug: slugSchema.describe("Article category slug"),
     description: z
       .string({ error: "Description must be a string" })
       .max(1000, { error: "Description must be at most 1000 characters" })
@@ -27,6 +24,7 @@ export const articleCategorySchema = z
       .describe("Optional description of the category")
   })
   .extend(collectionSchema.shape)
+  .describe("Article category schema")
 
 export type ArticleCategory = z.output<typeof articleCategorySchema>
 
