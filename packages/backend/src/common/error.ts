@@ -15,6 +15,21 @@ export const notFoundSchema = z
   })
   .describe("Not found response")
 
+export const conflictSchema = z
+  .object({
+    message: z.string().describe("Conflict message")
+  })
+  .describe("Conflict response")
+
+export class ConflictError extends Error {
+  public readonly status = 409
+
+  public constructor(message: string) {
+    super(message)
+    this.name = "ConflictError"
+  }
+}
+
 export const validationIssueSchema = z.looseObject({
   path: z
     .array(z.union([z.string(), z.number()]))
@@ -49,6 +64,11 @@ export const errorPlugin = new Elysia({ name: "error" })
     if (code === "NOT_FOUND" && error instanceof NotFoundError) {
       // SAFETY: 404 intentionally not declared in global guard; routes document it per-endpoint via notFoundSchema
       return status(404 as never, { message: error.message } as never)
+    }
+
+    if (code === "UNKNOWN" && error instanceof ConflictError) {
+      // SAFETY: 409 intentionally not declared in global guard; routes document it per-endpoint via conflictSchema
+      return status(409 as never, { message: error.message } as never)
     }
 
     if (code === "UNKNOWN" && error instanceof Error) {
