@@ -1,15 +1,21 @@
+import { Readable } from "stream"
+
 import type { Locale } from "@bun-boilerplate/i18n"
-import type { RichText } from "@bun-boilerplate/richtext"
+import { randomUUIDv7 } from "bun"
 import { and, count, desc, eq } from "drizzle-orm"
-import { NotFoundError } from "elysia"
+import { NotFoundError, ValidationError } from "elysia"
 import { z } from "zod"
 
-import { config } from "../../../common/config.js"
 import type { Database } from "../../../common/database.js"
+import type { FileSchema } from "../../../common/schema.js"
+import { isFilePart } from "../../../common/schema.js"
+import { StorageKey } from "../../../common/storage/storage-key.js"
+import type { Storage } from "../../../common/storage/storage.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
-import type { Article, ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleSchema } from "../schemas/article.schema.js"
+import { UploadRefMismatchError, resolveImageSrc, uploadInlineImages } from "../../../helpers/richtext.js"
+import type { Article, CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
+import { articleSchema, createArticleSchema } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 
 export interface JoinedArticleRow extends Omit<Article, "cover"> {
@@ -17,6 +23,8 @@ export interface JoinedArticleRow extends Omit<Article, "cover"> {
 }
 
 export class ArticleService {
+  private readonly articleCollection = "articles"
+
   private readonly articleProjection = {
     id: articles.id,
     createdAt: articles.createdAt,
@@ -34,12 +42,10 @@ export class ArticleService {
     metaDescription: articleTranslations.metaDescription
   }
 
-  private readonly imageNodeSchema = z.looseObject({
-    type: z.literal("image"),
-    attrs: z.looseObject({ src: z.string() })
-  })
-
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly storage: Storage
+  ) {}
 
   public async list(
     query: ListArticlesQuery,
@@ -94,6 +100,115 @@ export class ArticleService {
     return this.mapRow(row)
   }
 
+  public async create(body: CreateArticleBody, signal?: AbortSignal): Promise<Article> {
+    const { content, cover, ...rest } = body
+    const inlineFiles: Record<string, FileSchema> = {}
+    for (const [name, value] of Object.entries(rest)) {
+      if (isFilePart(value)) inlineFiles[name] = value
+    }
+    const uploaded: StorageKey[] = []
+    try {
+      const [inlineKeys, resolvedContent] = await uploadInlineImages({
+        richText: content,
+        files: inlineFiles,
+        storage: this.storage,
+        collection: this.articleCollection,
+        signal
+      })
+      uploaded.push(...inlineKeys)
+
+      const coverKey = new StorageKey(this.articleCollection, `${randomUUIDv7()}.${cover.extension}`)
+      await this.storage.upload({
+        key: coverKey,
+        // SAFETY: File.stream() yields a web ReadableStream; fromWeb adapts it to the Node Readable upload expects
+        stream: Readable.fromWeb(cover.file.stream() as never),
+        headers: { contentType: cover.mime, contentLength: cover.file.size },
+        signal
+      })
+      uploaded.push(coverKey)
+
+      const articleId = randomUUIDv7()
+      const created = await this.database.transaction(async tx => {
+        const [article] = await tx
+          .insert(articles)
+          .values({
+            id: articleId,
+            status: body.status,
+            coverKey: coverKey.toString(),
+            categoryId: body.categoryId ?? null
+          })
+          .returning()
+        if (!article) throw new Error("Failed to create article")
+
+        const [translation] = await tx
+          .insert(articleTranslations)
+          .values({
+            articleId,
+            locale: body.locale,
+            title: body.title,
+            slug: body.slug,
+            excerpt: body.excerpt,
+            content: resolvedContent,
+            metaTitle: body.metaTitle,
+            metaDescription: body.metaDescription
+          })
+          .returning()
+        if (!translation) throw new Error("Failed to create article translation")
+
+        return { article, translation }
+      })
+
+      return this.mapRow({
+        id: created.article.id,
+        createdAt: created.article.createdAt,
+        updatedAt: created.article.updatedAt,
+        status: created.article.status,
+        publishedAt: created.article.publishedAt,
+        categoryId: created.article.categoryId,
+        coverKey: created.article.coverKey,
+        locale: created.translation.locale,
+        title: created.translation.title,
+        slug: created.translation.slug,
+        excerpt: created.translation.excerpt,
+        content: created.translation.content,
+        metaTitle: created.translation.metaTitle,
+        metaDescription: created.translation.metaDescription
+      })
+    } catch (error) {
+      await this.storage.delete(uploaded)
+      if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
+      if (this.hasDatabaseCode(error, "23505")) {
+        throw this.createValidationError(body, ["slug"], "Slug already exists")
+      }
+      if (this.hasDatabaseCode(error, "23503")) {
+        throw this.createValidationError(body, ["categoryId"], "Category not found")
+      }
+      throw error
+    }
+  }
+
+  private uploadMismatchError(body: CreateArticleBody, error: UploadRefMismatchError): ValidationError {
+    if (error.missing.length > 0) {
+      return this.createValidationError(body, ["content"], `Unresolved upload references: ${error.missing.join(", ")}`)
+    }
+    const [firstStray = "content"] = error.stray
+    return this.createValidationError(body, [firstStray], `Unreferenced file parts: ${error.stray.join(", ")}`)
+  }
+
+  private hasDatabaseCode(error: unknown, code: string): boolean {
+    let current: unknown = error
+    while (current instanceof Error) {
+      if ("code" in current && current.code === code) return true
+      current = current.cause
+    }
+    return false
+  }
+
+  private createValidationError(body: CreateArticleBody, path: string[], message: string): ValidationError {
+    // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
+    return new ValidationError("body", createArticleSchema, body, false, [{ code: "custom", path, message }] as never)
+  }
+
   private mapRow(row: JoinedArticleRow): Article {
     return {
       id: row.id,
@@ -106,32 +221,10 @@ export class ArticleService {
       title: row.title,
       slug: row.slug,
       excerpt: row.excerpt,
-      content: this.resolveNode(row.content),
+      content: resolveImageSrc(row.content),
       metaTitle: row.metaTitle,
       metaDescription: row.metaDescription,
-      cover: this.toPublicUrl(row.coverKey)
-    }
-  }
-
-  private toPublicUrl(key: string): string | undefined {
-    if (!key) return undefined
-    // ponytail: any scheme-prefixed src (https://, upload://) passes through; StorageKeys containing ":" in
-    // the first segment would read as a scheme too — #49 generates uuid names, revisit if keys ever allow ":"
-    if (URL.canParse(key)) return key
-    const encoded = key.split("/").map(encodeURIComponent).join("/")
-    return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
-  }
-
-  private resolveNode(node: RichText): RichText {
-    const resolved: RichText = node.content
-      ? { ...node, content: node.content.map(child => this.resolveNode(child)) }
-      : node
-    const image = this.imageNodeSchema.safeParse(node)
-    if (!image.success || !resolved.attrs) return resolved
-
-    return {
-      ...resolved,
-      attrs: { ...resolved.attrs, src: this.toPublicUrl(image.data.attrs.src) ?? image.data.attrs.src }
+      cover: new StorageKey(row.coverKey).toPublicUrl()
     }
   }
 }

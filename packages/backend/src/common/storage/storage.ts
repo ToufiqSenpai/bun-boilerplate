@@ -9,8 +9,10 @@ import {
   S3Client
 } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
+import * as Sentry from "@sentry/elysia"
 
 import { config } from "../config.js"
+import { logger } from "../logger.js"
 import { StorageKey } from "./storage-key.js"
 
 export interface FileHeaders {
@@ -27,7 +29,7 @@ export interface UploadFileParams {
   key: StorageKey
   stream: Readable
   headers?: FileHeaders
-  signal?: AbortSignal
+  signal?: AbortSignal | undefined
 }
 
 export interface CopyFileParams {
@@ -207,11 +209,25 @@ export class Storage {
     return objects
   }
 
-  public async delete(key: StorageKey): Promise<void> {
-    await this.s3.send(
-      new DeleteObjectCommand({
-        Bucket: config.s3.bucket,
-        Key: key.toString()
+  public async delete(key: StorageKey | readonly StorageKey[]): Promise<void> {
+    const keys = Array.isArray(key) ? key : [key]
+    await Promise.all(
+      keys.map(async item => {
+        try {
+          await this.s3.send(
+            new DeleteObjectCommand({
+              Bucket: config.s3.bucket,
+              Key: item.toString()
+            })
+          )
+        } catch (error) {
+          logger.error({ key: item.toString(), err: error }, "Failed to delete stored object")
+          Sentry.captureException(error, {
+            level: "warning",
+            tags: { component: "storage" },
+            extra: { key: item.toString() }
+          })
+        }
       })
     )
   }

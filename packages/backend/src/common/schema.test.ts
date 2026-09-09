@@ -1,7 +1,8 @@
+import { richTextContentSchema } from "@bun-boilerplate/richtext"
 import { faker } from "@faker-js/faker"
 import { z } from "zod"
 
-import { collectionSchema, omitCollection, richTextContentSchema, timestampSchema } from "./schema.js"
+import { collectionSchema, isFilePart, jsonStringSchema, omitCollection, timestampSchema } from "./schema.js"
 
 function createTimestamp() {
   return faker.date.recent().toISOString()
@@ -199,6 +200,20 @@ describe("omitCollection", () => {
   })
 })
 
+describe("jsonStringSchema", () => {
+  test("parses a JSON string into a value", () => {
+    expect(jsonStringSchema.safeParse('{"type":"doc"}')).toEqual({ success: true, data: { type: "doc" } })
+  })
+
+  test("passes an already-parsed object through", () => {
+    expect(jsonStringSchema.safeParse({ type: "doc" })).toEqual({ success: true, data: { type: "doc" } })
+  })
+
+  test("rejects a string that is not JSON", () => {
+    expect(jsonStringSchema.safeParse("not json {").success).toBe(false)
+  })
+})
+
 describe("richTextContentSchema", () => {
   test("accepts a valid rich text document and returns it unchanged", () => {
     const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "hello" }] }] }
@@ -236,5 +251,40 @@ describe("richTextContentSchema", () => {
 
   test("has a description", () => {
     expect(richTextContentSchema.description).toBe("Rich text document validated against the shared tiptap schema")
+  })
+})
+
+describe("isFilePart", () => {
+  const part = {
+    file: new File(["binary"], "part.png", { type: "image/png" }),
+    mime: "image/png",
+    extension: "png"
+  }
+
+  test("accepts a complete file part", () => {
+    expect(isFilePart(part)).toBe(true)
+  })
+
+  test("rejects non-objects", () => {
+    expect(isFilePart(null)).toBe(false)
+    expect(isFilePart(undefined)).toBe(false)
+    expect(isFilePart("part")).toBe(false)
+    expect(isFilePart(42)).toBe(false)
+  })
+
+  test("rejects objects without a File", () => {
+    expect(isFilePart({})).toBe(false)
+    expect(isFilePart({ file: "not-a-file", mime: "image/png", extension: "png" })).toBe(false)
+  })
+
+  test("rejects a raw File, which carries no part envelope", () => {
+    expect(isFilePart(new File(["binary"], "part.png", { type: "image/png" }))).toBe(false)
+  })
+
+  test("rejects parts with a missing or empty mime or extension", () => {
+    expect(isFilePart({ ...part, mime: 42 })).toBe(false)
+    expect(isFilePart({ ...part, extension: "" })).toBe(false)
+    const { mime: _mime, ...withoutMime } = part
+    expect(isFilePart(withoutMime)).toBe(false)
   })
 })

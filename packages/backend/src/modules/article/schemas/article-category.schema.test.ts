@@ -101,7 +101,7 @@ describe("createArticleCategorySchema", () => {
       expect(issues).toEqual([
         expect.objectContaining({
           path: ["slug"],
-          message: "Slug must not look like a category id"
+          message: "Slug must not look like a uuid"
         })
       ])
     })

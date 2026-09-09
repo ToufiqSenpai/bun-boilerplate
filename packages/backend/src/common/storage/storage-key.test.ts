@@ -1,3 +1,4 @@
+import { config } from "../config.js"
 import { StorageKey } from "./storage-key.js"
 
 describe("StorageKey", () => {
@@ -44,6 +45,19 @@ describe("StorageKey", () => {
       expect(() => new StorageKey("a/b/c")).toThrow('Key must be "collection/name"')
       expect(() => new StorageKey("/a.png")).toThrow('Key must be "collection/name"')
       expect(() => new StorageKey("avatars/")).toThrow('Key must be "collection/name"')
+    })
+  })
+
+  describe("toPublicUrl", () => {
+    it("should resolve the key against the configured public host", () => {
+      const url = new URL(new StorageKey("avatars/a.png").toPublicUrl())
+      expect(url.origin).toBe(new URL(config.s3.publicBaseUrl).origin)
+      expect(url.pathname.endsWith("/avatars/a.png")).toBe(true)
+    })
+
+    it("should percent-encode segments", () => {
+      const url = new StorageKey("avatars", "a b.png").toPublicUrl()
+      expect(url).toBe(`${config.s3.publicBaseUrl.replace(/\/$/, "")}/avatars/a%20b.png`)
     })
   })
 
