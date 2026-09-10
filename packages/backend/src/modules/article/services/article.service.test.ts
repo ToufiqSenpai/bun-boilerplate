@@ -172,7 +172,7 @@ function createUpsertBody(
 function storedInlineSrc(storedContent: RichText): string {
   // SAFETY: shape mirrors the image-node literal seeded in the request body above
   const nodes = (storedContent as { content: { attrs: { src: string } }[] }).content
-  const [src] = [nodes[0]?.attrs.src]
+  const src = nodes[0]?.attrs.src
   if (src === undefined) expect.unreachable("expected a stored inline key")
   return src
 }

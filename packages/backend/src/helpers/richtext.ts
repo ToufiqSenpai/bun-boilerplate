@@ -120,27 +120,20 @@ export async function deleteStoredKeys(content: RichText, storage: Storage): Pro
 }
 
 function collectStoredKeys(node: RichText): StorageKey[] {
-  const seen = new Set<string>()
-  const keys: StorageKey[] = []
+  const seen = new Map<string, StorageKey>()
   const visit = (current: RichText): void => {
     const parsed = imageNodeSchema.safeParse(current)
     if (parsed.success) {
       const src = parsed.data.attrs.src
       if (!URL.canParse(src)) {
         const key = toStorageKey(src)
-        if (key !== undefined) {
-          const fingerprint = key.toString()
-          if (!seen.has(fingerprint)) {
-            seen.add(fingerprint)
-            keys.push(key)
-          }
-        }
+        if (key !== undefined) seen.set(key.toString(), key)
       }
     }
     for (const child of current.content ?? []) visit(child)
   }
   visit(node)
-  return keys
+  return [...seen.values()]
 }
 
 function toStorageKey(src: string): StorageKey | undefined {

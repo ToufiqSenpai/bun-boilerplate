@@ -1,7 +1,6 @@
 import { Readable } from "stream"
 
 import type { Locale } from "@bun-boilerplate/i18n"
-import type { RichText } from "@bun-boilerplate/richtext"
 import { randomUUIDv7 } from "bun"
 import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError, ValidationError } from "elysia"
@@ -30,31 +29,10 @@ import type {
   UpsertArticleTranslationBody
 } from "../schemas/article.schema.js"
 import { articleSchema, createArticleSchema, upsertArticleTranslationSchema } from "../schemas/article.schema.js"
-import type { ArticleStatus } from "../tables/article.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 
 export interface JoinedArticleRow extends Omit<Article, "cover"> {
   coverKey: string
-}
-
-interface ArticleRow {
-  id: string
-  createdAt: Date
-  updatedAt: Date
-  status: ArticleStatus
-  publishedAt: Date | null
-  categoryId: string | null
-  coverKey: string
-}
-
-interface TranslationRow {
-  locale: Locale
-  title: string
-  slug: string
-  excerpt: string
-  content: RichText
-  metaTitle: string
-  metaDescription: string
 }
 
 export class ArticleService {
@@ -193,7 +171,7 @@ export class ArticleService {
         return { article, translation }
       })
 
-      return this.mapRow(this.joinRow(created.article, created.translation))
+      return this.mapRow({ ...created.translation, ...created.article })
     } catch (error) {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
@@ -226,15 +204,7 @@ export class ArticleService {
 
       const upserted = await this.database.transaction(async tx => {
         const [article] = await tx
-          .select({
-            id: articles.id,
-            createdAt: articles.createdAt,
-            updatedAt: articles.updatedAt,
-            status: articles.status,
-            publishedAt: articles.publishedAt,
-            categoryId: articles.categoryId,
-            coverKey: articles.coverKey
-          })
+          .select()
           .from(articles)
           .where(eq(articles.id, params.id))
           .limit(1)
@@ -270,7 +240,7 @@ export class ArticleService {
       if (upserted.oldContent) await deleteStoredKeys(upserted.oldContent, this.storage)
 
       return {
-        translation: this.mapRow(this.joinRow(upserted.article, upserted.translation)),
+        translation: this.mapRow({ ...upserted.translation, ...upserted.article }),
         created: upserted.created
       }
     } catch (error) {
@@ -307,25 +277,6 @@ export class ArticleService {
   ): ValidationError {
     // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
     return new ValidationError("body", schema, body, false, [{ code: "custom", path, message }] as never)
-  }
-
-  private joinRow(article: ArticleRow, translation: TranslationRow): JoinedArticleRow {
-    return {
-      id: article.id,
-      createdAt: article.createdAt,
-      updatedAt: article.updatedAt,
-      status: article.status,
-      publishedAt: article.publishedAt,
-      categoryId: article.categoryId,
-      coverKey: article.coverKey,
-      locale: translation.locale,
-      title: translation.title,
-      slug: translation.slug,
-      excerpt: translation.excerpt,
-      content: translation.content,
-      metaTitle: translation.metaTitle,
-      metaDescription: translation.metaDescription
-    }
   }
 
   private mapRow(row: JoinedArticleRow): Article {
