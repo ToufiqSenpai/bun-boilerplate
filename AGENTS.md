@@ -4,7 +4,7 @@
 
 Bun workspaces (`workspaces: ["packages/*"]`). Packages:
 
-- `packages/backend` — Elysia API (`src/main.ts`), Drizzle + PGlite/Neon, better-auth. Workspace name `@bun-boilerplate/backend`.
+- `packages/backend` — Elysia API (`src/main.ts`), Drizzle + Neon (`drizzle-orm/neon-serverless` over `@neondatabase/serverless` Pool), better-auth. Workspace name `@bun-boilerplate/backend`.
 - `packages/web` — TanStack Start (SSR) + Vite + Nitro + Tailwind + shadcn/Base UI. Workspace name `@bun-boilerplate/web`.
 - `packages/i18n` — Shared i18n lib (`@bun-boilerplate/i18n`).
 
@@ -26,11 +26,11 @@ bun run format:check       # oxfmt . --check
 
 Per-package (from package dir):
 
-- `packages/backend`: `bun --bun vitest run` (unit), `bun --bun vitest run --config vitest.e2e.config.ts` (e2e); `bun run db:generate|db:migrate|db:push|db:studio` (drizzle-kit, schema `src/modules/**/*.table.ts`, out `migrations/`)
+- `packages/backend`: `bun --bun vitest run` (unit); `bun run db:generate|db:migrate|db:push|db:studio` (drizzle-kit, schema `src/modules/**/*.table.ts`, out `migrations/`)
 - `packages/web`: `bun run generate-routes` (tsr generate, output `src/routeTree.gen.ts` — do not hand-edit), `bun run typecheck` (clean; web `src/i18next.d.ts` must merge backend `src/locales/en.json` keys because eden's `import type { App }` pulls backend templates into the web program), `bun run build` (`bun --bun vite build`), `bun run package` (build + `bun build --compile` standalone exe at `dist/web.exe`; requires nitro options `serveStatic:"inline"`, `noExternals`, `inlineDynamicImports` in `vite.config.ts` so `.output/server/index.mjs` is self-contained — public assets inline as base64, no `--asset` needed); all web scripts run on Bun (vite, vitest, nitro preset `bun`)
 - `packages/i18n`: `bun run test`
 
-Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --project=backend|web|i18n -t "test name"`. E2E is isolated: `vitest.e2e.config.ts` forces `sequence.concurrent:false`, `fileParallelism:false`, 30s timeouts — keep it.
+Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --project=backend|web|i18n -t "test name"`.
 
 ## Config & Env
 
@@ -49,7 +49,7 @@ Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --p
 - Root `vitest.config.ts` uses `projects: ["packages/*"]`; each package merges `vitest.base.ts` (`globals:true`, `environment:node`, `include: src/**/*.{test,spec}.{ts,tsx}`). `packages/web` overrides to `jsdom` + vite react plugin.
 - Coverage excludes `**/*.d.ts`, `**/*.{test,spec}.{ts,tsx}`.
 - Backend `src/main.ts` guards `app.listen` with `import.meta.main && config.app.environment !== "test"` — import `app` in tests without side-effects.
-- E2E helpers in `packages/backend/test/helpers/`, specs `*.e2e.ts` under `packages/backend/test/`.
+- Backend unit tests never touch a database. `src/common/database.ts` skips migrations when `config.app.environment === "test"` (the app runs them on boot otherwise), and tests intercept the real `database` singleton with `vi.spyOn` — e.g. `vi.spyOn(database, "transaction")` with a tx stub, or `vi.spyOn(database, "execute")` for health checks. Never run migrations or query the configured database from a test.
 - Mocking: `anti-slop/no-module-mocking` (`oxlint.config.ts:32`) bans `vi.mock`/`vi.doMock`/`vi.unstable_mockModule` (and `jest` equivalent). Do not mock modules or over-mock functions. Replace dependencies through real seams — constructor params, function args, service interfaces, or faithful test doubles. Mock only at the seam for external boundaries (DB, HTTP, email, time, `config`) via injection, never whole-module mocks.
 
 ## Architecture Notes

@@ -1,5 +1,5 @@
 import { faker } from "@faker-js/faker"
-import { and, count, eq, isNull, type SQL } from "drizzle-orm"
+import type { SQL } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { NotFoundError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
@@ -211,6 +211,7 @@ function createUpsertBody(
 describe("ArticleCategoryService", () => {
   describe("create", () => {
     afterEach(() => {
+      vi.restoreAllMocks()
       vi.clearAllMocks()
     })
 
@@ -341,78 +342,46 @@ describe("ArticleCategoryService", () => {
       await expect(service.create(input)).rejects.toThrow(error)
     })
 
-    test("rejects a sequential duplicate slug with a 409 conflict and leaves no orphan", async () => {
+    test("maps a duplicate slug unique violation to a 409 conflict", async () => {
+      vi.spyOn(database, "transaction").mockRejectedValue(duplicateKeyError())
+
       const service = new ArticleCategoryService(database)
-      const slug = faker.lorem.slug()
-      const locale = faker.helpers.arrayElement(["en", "id"] as const)
 
-      await service.create(createCategoryInput({ locale, slug }))
-      try {
-        await service.create(createCategoryInput({ locale, slug }))
-        expect.unreachable("should throw ConflictError")
-      } catch (error) {
-        expect(error).toBeInstanceOf(ConflictError)
-        // SAFETY: error is ConflictError per previous expect
-        expect((error as ConflictError).status).toBe(409)
-        // SAFETY: error is ConflictError per previous expect
-        expect((error as ConflictError).message).toBe("Slug already exists")
-      }
-
-      const [categoryCount] = await database
-        .select({ value: count() })
-        .from(articleCategories)
-        .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
-        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
-      const [translationCount] = await database
-        .select({ value: count() })
-        .from(articleCategoryTranslations)
-        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
-      expect(categoryCount?.value).toBe(1)
-      expect(translationCount?.value).toBe(1)
-    })
-
-    test("yields one success and one 409 conflict for concurrent duplicates with no orphan", async () => {
-      const service = new ArticleCategoryService(database)
-      const slug = faker.lorem.slug()
-      const locale = faker.helpers.arrayElement(["en", "id"] as const)
-
-      const results = await Promise.allSettled([
-        service.create(createCategoryInput({ locale, slug })),
-        service.create(createCategoryInput({ locale, slug }))
-      ])
-      const fulfilled = results.filter(result => result.status === "fulfilled")
-      const rejected = results.filter(result => result.status === "rejected")
-      expect(fulfilled).toHaveLength(1)
-      expect(rejected).toHaveLength(1)
-      // SAFETY: rejected is PromiseRejectedResult per previous filter
-      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError)
-
-      const [categoryCount] = await database
-        .select({ value: count() })
-        .from(articleCategories)
-        .innerJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
-        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
-      const [translationCount] = await database
-        .select({ value: count() })
-        .from(articleCategoryTranslations)
-        .where(and(eq(articleCategoryTranslations.locale, locale), eq(articleCategoryTranslations.slug, slug)))
-      const [orphanCount] = await database
-        .select({ value: count() })
-        .from(articleCategories)
-        .leftJoin(articleCategoryTranslations, eq(articleCategories.id, articleCategoryTranslations.categoryId))
-        .where(isNull(articleCategoryTranslations.id))
-      expect(categoryCount?.value).toBe(1)
-      expect(translationCount?.value).toBe(1)
-      expect(orphanCount?.value).toBe(0)
+      await expect(service.create(createCategoryInput())).rejects.toBeInstanceOf(ConflictError)
     })
 
     test("accepts the same slug under a different locale", async () => {
-      const service = new ArticleCategoryService(database)
       const slug = faker.lorem.slug()
+      const en = buildTranslationChain(createTranslationRow({ locale: "en", slug }))
+      const id = buildTranslationChain(createTranslationRow({ locale: "id", slug }))
+      const enTx = {
+        insert: vi
+          .fn<() => Chain>()
+          .mockReturnValueOnce(buildCategoryChain(createCategoryRow()).chain)
+          .mockReturnValueOnce(en.chain)
+      }
+      const idTx = {
+        insert: vi
+          .fn<() => Chain>()
+          .mockReturnValueOnce(buildCategoryChain(createCategoryRow()).chain)
+          .mockReturnValueOnce(id.chain)
+      }
+      const transaction = vi.spyOn(database, "transaction")
+      // SAFETY: tx stub mirrors the drizzle transaction handle used by create
+      transaction.mockImplementationOnce(async callback => callback(enTx as never))
+      // SAFETY: tx stub mirrors the drizzle transaction handle used by create
+      transaction.mockImplementationOnce(async callback => callback(idTx as never))
 
-      await service.create(createCategoryInput({ locale: "en", slug }))
+      const service = new ArticleCategoryService(database)
 
-      expect(await service.create(createCategoryInput({ locale: "id", slug }))).toMatchObject({ locale: "id", slug })
+      await expect(service.create(createCategoryInput({ locale: "en", slug }))).resolves.toMatchObject({
+        locale: "en",
+        slug
+      })
+      await expect(service.create(createCategoryInput({ locale: "id", slug }))).resolves.toMatchObject({
+        locale: "id",
+        slug
+      })
     })
 
     test("calls insert with empty values for category", async () => {

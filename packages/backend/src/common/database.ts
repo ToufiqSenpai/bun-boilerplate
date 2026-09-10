@@ -1,13 +1,10 @@
 import { join } from "path"
 
-import { PGlite } from "@electric-sql/pglite"
 import { sql } from "drizzle-orm"
 import type { Logger } from "drizzle-orm/logger"
-import { drizzle as drizzleNeon } from "drizzle-orm/neon-http"
-import { migrate as migrateNeon } from "drizzle-orm/neon-http/migrator"
+import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless"
+import { migrate as migrateNeon } from "drizzle-orm/neon-serverless/migrator"
 import { timestamp, uuid } from "drizzle-orm/pg-core"
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite"
-import { migrate as migratePglite } from "drizzle-orm/pglite/migrator"
 
 import { assetsDir } from "./assets.js"
 import { config } from "./config.js"
@@ -21,17 +18,15 @@ class DatabaseLogger implements Logger {
 
 const isTest = config.app.environment === "test"
 
-export const database = isTest
-  ? drizzlePglite({ client: new PGlite() })
-  : drizzleNeon(config.database.url, {
-      logger: new DatabaseLogger()
-    })
+export const database = drizzleNeon(config.database.url, {
+  logger: new DatabaseLogger()
+})
 
 export type Database = typeof database
 
 // Postgres reports integrity violations as SQLSTATE codes on the driver error
-// (NeonDbError in prod, PGlite DatabaseError in test), wrapped by Drizzle in a
-// DrizzleQueryError cause chain — so match the duck-typed code, not the class.
+// (NeonDbError), wrapped by Drizzle in a DrizzleQueryError cause chain — so match
+// the duck-typed code, not the class.
 export function hasPgCode(error: unknown, code: string): boolean {
   let current: unknown = error
   while (current instanceof Error) {
@@ -43,18 +38,18 @@ export function hasPgCode(error: unknown, code: string): boolean {
 
 export const isUniqueViolation = (error: unknown): boolean => hasPgCode(error, "23505")
 
-const migrationsFolder = join(assetsDir, "migrations")
-const migrateFn = isTest ? migratePglite : migrateNeon
+if (!isTest) {
+  const migrationsFolder = join(assetsDir, "migrations")
 
-try {
-  // SAFETY: migrateNeon and migratePglite share identical MigrationConfig signature; database is narrowed by isTest at init
-  // Source: https://orm.drizzle.team/docs/migrations#option-4
-  // Source: https://orm.drizzle.team/docs/connect-pglite + https://orm.drizzle.team/docs/connect-neon
-  await (migrateFn as typeof migrateNeon)(database as never, { migrationsFolder })
-  logger.info({ module: "database", migrationsFolder }, "Database migrations applied")
-} catch (error) {
-  logger.error({ module: "database", error }, "Failed to run database migrations")
-  throw error
+  try {
+    // Source: https://orm.drizzle.team/docs/migrations#option-4
+    // Source: https://orm.drizzle.team/docs/connect-neon
+    await migrateNeon(database, { migrationsFolder })
+    logger.info({ module: "database", migrationsFolder }, "Database migrations applied")
+  } catch (error) {
+    logger.error({ module: "database", error }, "Failed to run database migrations")
+    throw error
+  }
 }
 
 export const baseColumns = () => ({

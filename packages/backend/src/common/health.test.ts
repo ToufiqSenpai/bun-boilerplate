@@ -1,5 +1,6 @@
 import { Elysia } from "elysia"
 
+import { database } from "./database.js"
 import { checkReadiness, healthChecks, healthPlugin, isHealthRoute } from "./health.js"
 import type { HealthCheck } from "./health.js"
 
@@ -46,6 +47,10 @@ describe("checkReadiness", () => {
 })
 
 describe("healthPlugin", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   test("liveness returns 200 alive", async () => {
     const app = new Elysia().use(healthPlugin)
 
@@ -56,7 +61,9 @@ describe("healthPlugin", () => {
     expect(body).toEqual({ status: "alive" })
   })
 
-  test("readiness returns 200 ready against the test-time database", async () => {
+  test("readiness returns 200 ready when the database check passes", async () => {
+    // SAFETY: the health check ignores the query result; an empty result array stands in for SELECT 1
+    vi.spyOn(database, "execute").mockResolvedValue([] as never)
     const app = new Elysia().use(healthPlugin)
 
     const res = await app.handle(new Request("http://localhost/health/ready"))
@@ -65,14 +72,31 @@ describe("healthPlugin", () => {
     expect(res.status).toBe(200)
     expect(body).toEqual({ status: "ready" })
   })
+
+  test("readiness returns 503 when the database check fails", async () => {
+    vi.spyOn(database, "execute").mockRejectedValue(new Error("connection refused"))
+    const app = new Elysia().use(healthPlugin)
+
+    const res = await app.handle(new Request("http://localhost/health/ready"))
+    const body = await readStatus(res)
+
+    expect(res.status).toBe(503)
+    expect(body).toEqual({ status: "unavailable" })
+  })
 })
 
 describe("healthChecks", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   test("contains the database check", () => {
     expect(healthChecks.map(check => check.name)).toContain("database")
   })
 
-  test("database check passes against the test-time database", async () => {
+  test("database check passes when the connection answers", async () => {
+    // SAFETY: the health check ignores the query result; an empty result array stands in for SELECT 1
+    vi.spyOn(database, "execute").mockResolvedValue([] as never)
     const dbCheck = healthChecks.find(check => check.name === "database")
     // SAFETY: prior test asserts it exists
     await expect(dbCheck!.check()).resolves.toBe(true)

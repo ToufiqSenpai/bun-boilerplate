@@ -28,7 +28,6 @@
     "@bun-boilerplate/constants": "workspace:*",
     "@bun-boilerplate/i18n": "workspace:*",
     "@bun-boilerplate/richtext": "workspace:*",
-    "@electric-sql/pglite": "^0.5.8",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "^1.4.15",
     "@infisical/sdk": "^5.0.2",

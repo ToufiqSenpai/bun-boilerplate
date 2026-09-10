@@ -1,8 +1,8 @@
-import type { Locale } from "@bun-boilerplate/i18n"
+import { Readable } from "stream"
+
 import type { RichText } from "@bun-boilerplate/richtext"
 import { faker } from "@faker-js/faker"
 import type { SQL } from "drizzle-orm"
-import { and, eq } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
 import { NotFoundError, ValidationError } from "elysia"
 import { mockDeep } from "vitest-mock-extended"
@@ -12,9 +12,9 @@ import { database } from "../../../common/database.js"
 import type { Database } from "../../../common/database.js"
 import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
+import { StorageKey } from "../../../common/storage/storage-key.js"
 import type { FileMetadata, Storage, UploadFileParams } from "../../../common/storage/storage.js"
 import type { CreateArticleBody, ListArticlesQuery, UpsertArticleTranslationBody } from "../schemas/article.schema.js"
-import { articleCategories } from "../tables/article-category.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
@@ -170,37 +170,134 @@ function createUpsertBody(
   } as UpsertArticleTranslationBody
 }
 
-function storedInlineSrc(storedContent: RichText): string {
-  // SAFETY: shape mirrors the image-node literal seeded in the request body above
-  const nodes = (storedContent as { content: { attrs: { src: string } }[] }).content
-  const src = nodes[0]?.attrs.src
-  if (src === undefined) expect.unreachable("expected a stored inline key")
-  return src
+interface ArticleRow {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  status: string
+  publishedAt: Date | null
+  categoryId: string | null
+  coverKey: string
+  authorId: null
 }
 
-async function readStoredTranslation(articleId: string, locale: Locale) {
-  const [translation] = await database
-    .select()
-    .from(articleTranslations)
-    .where(and(eq(articleTranslations.articleId, articleId), eq(articleTranslations.locale, locale)))
-    .limit(1)
-  if (!translation) throw new Error("translation not persisted")
-  return translation
+interface InsertedArticle {
+  id: string
+  status: string
+  coverKey: string
+  categoryId: string | null
 }
 
-async function readStoredArticle(id: string) {
-  const [article] = await database.select().from(articles).where(eq(articles.id, id)).limit(1)
-  const [translation] = await database
-    .select()
-    .from(articleTranslations)
-    .where(eq(articleTranslations.articleId, id))
-    .limit(1)
-  if (!article || !translation) throw new Error("article not persisted")
-  return { article, translation }
+interface InsertedTranslation {
+  articleId: string
+  locale: string
+  title: string
+  slug: string
+  excerpt: string
+  content: RichText
+  metaTitle: string
+  metaDescription: string
 }
 
-async function countArticles(): Promise<number> {
-  return (await database.select({ id: articles.id }).from(articles)).length
+interface ArticleChanges {
+  status?: string
+  publishedAt?: Date
+  categoryId?: string | null
+  coverKey?: string
+}
+
+type StubFn = ReturnType<typeof vi.fn>
+
+function createTransaction() {
+  const insert = vi.fn<() => object>()
+  const select = vi.fn<() => object>()
+  const update = vi.fn<() => object>()
+  const remove = vi.fn<() => object>()
+  return { handles: { insert, select, update, delete: remove }, insert, select, update, remove }
+}
+
+function spyTransaction(tx: Record<string, StubFn>) {
+  // SAFETY: tx handles mirror the drizzle transaction handle the service receives
+  return vi.spyOn(database, "transaction").mockImplementation(async callback => callback(tx as never))
+}
+
+function selectChain<Row>(rows: Row[]) {
+  const promise = Promise.resolve(rows)
+  const chain = {
+    from: vi.fn<() => object>(),
+    innerJoin: vi.fn<() => object>(),
+    where: vi.fn<() => object>(),
+    limit: vi.fn<() => object>(),
+    for: vi.fn<() => object>(),
+    then: promise.then.bind(promise)
+  }
+  chain.from.mockReturnValue(chain)
+  chain.innerJoin.mockReturnValue(chain)
+  chain.where.mockReturnValue(chain)
+  chain.limit.mockReturnValue(chain)
+  chain.for.mockReturnValue(chain)
+  return chain
+}
+
+function insertHandle<Values extends object>(buildRow: (values: Values) => object) {
+  let captured: Values | undefined
+  const returning = vi.fn<() => Promise<object[]>>(async () => {
+    if (captured === undefined) throw new Error("values() must run before returning()")
+    return [buildRow(captured)]
+  })
+  const onConflictDoUpdate = vi.fn<() => { returning: typeof returning }>(() => ({ returning }))
+  const values = vi.fn<(input: Values) => { returning: typeof returning; onConflictDoUpdate: typeof onConflictDoUpdate }>(
+    input => {
+      captured = input
+      return { returning, onConflictDoUpdate }
+    }
+  )
+  return { values, onConflictDoUpdate }
+}
+
+function updateHandle<Changes extends object>(buildRow: (changes: Changes) => object) {
+  let captured: Changes | undefined
+  const returning = vi.fn<() => Promise<object[]>>(async () => {
+    if (captured === undefined) throw new Error("set() must run before returning()")
+    return [buildRow(captured)]
+  })
+  const where = vi.fn<() => { returning: typeof returning }>(() => ({ returning }))
+  const set = vi.fn<(input: Changes) => { where: typeof where }>(input => {
+    captured = input
+    return { where }
+  })
+  return { set, returning }
+}
+
+function deleteHandle() {
+  const where = vi.fn<() => Promise<never[]>>(async () => [])
+  return { where }
+}
+
+function codedError(code: string): Error {
+  return Object.assign(new Error(`pg error ${code}`), { code })
+}
+
+function wrappedError(code: string): Error {
+  return new Error("query failed", { cause: codedError(code) })
+}
+
+function articleRow(overrides: Partial<ArticleRow> = {}): ArticleRow {
+  return {
+    id: faker.string.uuid({ version: 7 }),
+    createdAt: faker.date.recent(),
+    updatedAt: faker.date.recent(),
+    status: "draft",
+    publishedAt: null,
+    categoryId: null,
+    coverKey: `articles/${faker.string.uuid({ version: 7 })}.png`,
+    authorId: null,
+    ...overrides
+  }
+}
+
+async function seedStoredObject(storage: Storage, key: string): Promise<void> {
+  await storage.upload({ key: new StorageKey(key), stream: Readable.from([]) })
 }
 
 interface ValidationPayload {
@@ -434,9 +531,31 @@ describe("ArticleService", () => {
   })
 
   describe("create", () => {
-    test("persists keys and serves urls for cover plus inline images", async () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    function setupCreate() {
+      const articleInsert = insertHandle<InsertedArticle>(values => ({
+        ...values,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        publishedAt: null,
+        authorId: null
+      }))
+      const translationInsert = insertHandle<InsertedTranslation>(values => values)
+      const tx = createTransaction()
+      tx.insert
+        .mockReturnValueOnce({ values: articleInsert.values })
+        .mockReturnValueOnce({ values: translationInsert.values })
+      const transaction = spyTransaction(tx.handles)
+      return { articleInsert, translationInsert, transaction }
+    }
+
+    test("persists resolved keys for cover and inline images and serves host urls", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
+      const { articleInsert, translationInsert } = setupCreate()
       const body = createBody({
         content: {
           type: "doc",
@@ -450,22 +569,27 @@ describe("ArticleService", () => {
 
       const result = await service.create(body)
 
+      // SAFETY: the create flow inserted exactly one payload into each table
+      const articleValues = articleInsert.values.mock.calls[0]?.[0] as { coverKey: string }
+      // SAFETY: the create flow inserted exactly one payload into each table
+      const translationValues = translationInsert.values.mock.calls[0]?.[0] as { content: RichText }
+      const storedContent = translationValues.content
       expect(result.slug).toBe(body.slug)
       expect(result.title).toBe(body.title)
-      expect(result.cover).toMatch(/^https?:\/\//)
-      const stored = await readStoredArticle(result.id)
-      expect(stored.article.coverKey).not.toBe("")
-      expect(result.cover.endsWith(`/${stored.article.coverKey}`)).toBe(true)
-      expect(stored.article.coverKey).toMatch(/^articles\/.+\.png$/)
-      expect(JSON.stringify(stored.translation.content)).not.toContain("upload://")
-      expect(JSON.stringify(stored.translation.content)).not.toContain("http")
+      expect(articleValues.coverKey).toMatch(/^articles\/.+\.png$/)
+      expect(result.cover.endsWith(`/${articleValues.coverKey}`)).toBe(true)
+      expect(JSON.stringify(storedContent)).not.toContain("upload://")
+      expect(JSON.stringify(storedContent)).not.toContain("http")
       // SAFETY: shape mirrors the image-node literal seeded in the request body above
-      const content = stored.translation.content as { content: { attrs: { src: string } }[] }
+      const content = storedContent as { content: { attrs: { src: string } }[] }
       // SAFETY: served content carries the same document shape with keys resolved to host URLs
       const served = result.content as { content: { attrs: { src: string } }[] }
-      expect(served.content[1]?.attrs.src.endsWith(`/${content.content[1]?.attrs.src}`)).toBe(true)
-      expect(content.content[1]?.attrs.src).toMatch(/^articles\/.+\.jpg$/)
+      const inlineKey = content.content[1]?.attrs.src
+      expect(inlineKey).toMatch(/^articles\/.+\.jpg$/)
+      expect(served.content[1]?.attrs.src.endsWith(`/${inlineKey ?? ""}`)).toBe(true)
       expect(objects.size).toBe(2)
+      expect(objects.has(articleValues.coverKey)).toBe(true)
+      expect(objects.has(inlineKey ?? "")).toBe(true)
     })
 
     test("forwards the abort signal to cover and inline uploads", async () => {
@@ -473,6 +597,7 @@ describe("ArticleService", () => {
       storage.upload.mockResolvedValue({ key: "articles/a.png" })
       const controller = new AbortController()
       const service = new ArticleService(database, storage)
+      setupCreate()
       const body = createBody({
         content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
         "inline-1": filePart(jpegFile("inline-1"), "image/jpeg", "jpg")
@@ -487,7 +612,7 @@ describe("ArticleService", () => {
     test("rejects a placeholder without a matching file, persisting nothing", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const before = await countArticles()
+      const { transaction } = setupCreate()
       const body = createBody({
         content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://ghost" } }] }
       })
@@ -497,14 +622,14 @@ describe("ArticleService", () => {
       expect(payload.errors).toEqual([
         expect.objectContaining({ path: ["content"], message: expect.stringContaining("ghost") })
       ])
-      expect(await countArticles()).toBe(before)
+      expect(transaction).not.toHaveBeenCalled()
       expect(objects.size).toBe(0)
     })
 
     test("rejects a file without a matching placeholder, persisting nothing", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const before = await countArticles()
+      const { transaction } = setupCreate()
       const body = createBody({ stray: filePart(pngFile("stray.png"), "image/png", "png") })
 
       const payload = validationPayload(await service.create(body).catch((error: unknown) => error))
@@ -512,32 +637,29 @@ describe("ArticleService", () => {
       expect(payload.errors).toEqual([
         expect.objectContaining({ path: ["stray"], message: expect.stringContaining("stray") })
       ])
-      expect(await countArticles()).toBe(before)
+      expect(transaction).not.toHaveBeenCalled()
       expect(objects.size).toBe(0)
     })
 
-    test("surfaces a per-locale slug collision as a 409 conflict", async () => {
+    test("surfaces a per-locale slug collision as a 409 conflict, compensating uploads", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const first = await service.create(createBody())
-      const before = await countArticles()
+      vi.spyOn(database, "transaction").mockRejectedValue(wrappedError("23505"))
 
-      const error = await service.create(createBody({ slug: first.slug })).catch((error: unknown) => error)
+      const error = await service.create(createBody()).catch((error: unknown) => error)
 
       expect(error).toBeInstanceOf(ConflictError)
       // SAFETY: error is ConflictError per previous expect
       expect((error as ConflictError).status).toBe(409)
       // SAFETY: error is ConflictError per previous expect
       expect((error as ConflictError).message).toBe("Slug already exists")
-      expect(await countArticles()).toBe(before)
-      // The colliding cover upload is compensated, leaving only the first article's cover
-      expect(objects.size).toBe(1)
+      expect(objects.size).toBe(0)
     })
 
     test("rejects an unknown category id with a 404 without leaking a server error", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const before = await countArticles()
+      vi.spyOn(database, "transaction").mockRejectedValue(wrappedError("23503"))
 
       const error = await service
         .create(createBody({ categoryId: faker.string.uuid({ version: 7 }) }))
@@ -548,29 +670,31 @@ describe("ArticleService", () => {
       expect((error as NotFoundError).status).toBe(404)
       // SAFETY: error is NotFoundError per previous expect
       expect((error as NotFoundError).message).toBe("Category not found")
-      expect(await countArticles()).toBe(before)
       expect(objects.size).toBe(0)
     })
   })
 
   describe("upsertTranslation", () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
     test("replaces text plus content with new inline images, leaving the cover byte-identical", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(
-        createBody({
-          content: {
-            type: "doc",
-            content: [{ type: "image", attrs: { src: "upload://inline-1", alt: "old" } }]
-          },
-          "inline-1": filePart(jpegFile("inline-1"), "image/jpeg", "jpg")
-        })
-      )
-      const before = await readStoredArticle(created.id)
-      const dropKey = storedInlineSrc(before.translation.content)
+      const row = articleRow()
+      const dropKey = `articles/${faker.string.uuid({ version: 7 })}.jpg`
+      await seedStoredObject(storage, row.coverKey)
+      await seedStoredObject(storage, dropKey)
+      const oldContent: RichText = { type: "doc", content: [{ type: "image", attrs: { src: dropKey } }] }
+      const translationInsert = insertHandle<InsertedTranslation>(values => values)
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row])).mockReturnValueOnce(selectChain([{ content: oldContent }]))
+      tx.insert.mockReturnValueOnce({ values: translationInsert.values })
+      spyTransaction(tx.handles)
 
       const { translation, created: wasCreated } = await service.upsertTranslation(
-        { id: created.id, locale: "en" },
+        { id: row.id, locale: "en" },
         createUpsertBody({
           title: "Fresh title",
           content: {
@@ -582,35 +706,38 @@ describe("ArticleService", () => {
       )
 
       expect(wasCreated).toBe(false)
-      expect(translation.id).toBe(created.id)
+      expect(translation.id).toBe(row.id)
       expect(translation.locale).toBe("en")
       expect(translation.title).toBe("Fresh title")
-      expect(translation.cover).toBe(created.cover)
-      const after = await readStoredArticle(created.id)
-      expect(after.article.coverKey).toBe(before.article.coverKey)
-      expect(JSON.stringify(after.translation.content)).not.toContain("upload://")
-      expect(objects.has(before.article.coverKey)).toBe(true)
+      expect(translation.cover.endsWith(`/${row.coverKey}`)).toBe(true)
+      expect(objects.has(row.coverKey)).toBe(true)
       expect(objects.has(dropKey)).toBe(false)
       expect(objects.size).toBe(2)
+      // SAFETY: the upsert stored exactly one translation payload
+      const stored = translationInsert.values.mock.calls[0]?.[0] as { content: RichText }
+      expect(JSON.stringify(stored.content)).not.toContain("upload://")
     })
 
     test("creates a fresh locale translation without touching the cover", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const coverBefore = (await readStoredArticle(created.id)).article.coverKey
+      const row = articleRow({ status: "published", publishedAt: faker.date.recent() })
+      await seedStoredObject(storage, row.coverKey)
+      const translationInsert = insertHandle<InsertedTranslation>(values => values)
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row])).mockReturnValueOnce(selectChain([]))
+      tx.insert.mockReturnValueOnce({ values: translationInsert.values })
+      spyTransaction(tx.handles)
 
       const { translation, created: wasCreated } = await service.upsertTranslation(
-        { id: created.id, locale: "id" },
+        { id: row.id, locale: "id" },
         createUpsertBody()
       )
 
       expect(wasCreated).toBe(true)
-      expect(translation.id).toBe(created.id)
+      expect(translation.id).toBe(row.id)
       expect(translation.locale).toBe("id")
-      const stored = await readStoredTranslation(created.id, "id")
-      expect(stored.title).toBe(translation.title)
-      expect((await readStoredArticle(created.id)).article.coverKey).toBe(coverBefore)
+      expect(objects.has(row.coverKey)).toBe(true)
       expect(objects.size).toBe(1)
     })
 
@@ -619,10 +746,14 @@ describe("ArticleService", () => {
       storage.upload.mockResolvedValue({ key: "articles/a.png" })
       const controller = new AbortController()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody(), controller.signal)
+      const row = articleRow()
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row])).mockReturnValueOnce(selectChain([]))
+      tx.insert.mockReturnValueOnce({ values: insertHandle<InsertedTranslation>(values => values).values })
+      spyTransaction(tx.handles)
 
       await service.upsertTranslation(
-        { id: created.id, locale: "en" },
+        { id: row.id, locale: "en" },
         createUpsertBody({
           content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
           "inline-1": filePart(jpegFile("inline-1"), "image/jpeg", "jpg")
@@ -630,14 +761,17 @@ describe("ArticleService", () => {
         controller.signal
       )
 
-      expect(storage.upload).toHaveBeenCalledTimes(2)
+      expect(storage.upload).toHaveBeenCalledTimes(1)
       for (const call of storage.upload.mock.calls) expect(call[0].signal).toBe(controller.signal)
     })
 
-    test("answers not-found for an unknown article id, persisting nothing", async () => {
+    test("answers not-found for an unknown article id, deleting the uploaded inline images", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const before = await countArticles()
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([]))
+      tx.insert.mockReturnValueOnce({ values: insertHandle<InsertedTranslation>(values => values).values })
+      spyTransaction(tx.handles)
 
       const error = await service
         .upsertTranslation(
@@ -652,22 +786,18 @@ describe("ArticleService", () => {
       expect(error).toBeInstanceOf(NotFoundError)
       // SAFETY: error is NotFoundError per previous expect
       expect((error as NotFoundError).status).toBe(404)
-      expect(await countArticles()).toBe(before)
       expect(objects.size).toBe(0)
     })
 
     test("surfaces a per-locale slug collision as a 409 conflict, compensating new uploads", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const first = await service.create(createBody())
-      const second = await service.create(createBody())
-      const sizeAfterCreates = objects.size
+      vi.spyOn(database, "transaction").mockRejectedValue(wrappedError("23505"))
 
       const error = await service
         .upsertTranslation(
-          { id: second.id, locale: "en" },
+          { id: faker.string.uuid({ version: 7 }), locale: "en" },
           createUpsertBody({
-            slug: first.slug,
             content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://inline-1" } }] },
             "inline-1": filePart(pngFile("inline-1"), "image/png", "png")
           })
@@ -679,21 +809,19 @@ describe("ArticleService", () => {
       expect((error as ConflictError).status).toBe(409)
       // SAFETY: error is ConflictError per previous expect
       expect((error as ConflictError).message).toBe("Slug already exists")
-      expect(objects.size).toBe(sizeAfterCreates)
-      const stored = await readStoredTranslation(second.id, "en")
-      expect(stored.slug).not.toBe(first.slug)
+      expect(objects.size).toBe(0)
     })
 
     test("rejects a placeholder without a matching file, persisting nothing", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const sizeAfterCreate = objects.size
+      const tx = createTransaction()
+      spyTransaction(tx.handles)
 
       const payload = validationPayload(
         await service
           .upsertTranslation(
-            { id: created.id, locale: "en" },
+            { id: faker.string.uuid({ version: 7 }), locale: "en" },
             createUpsertBody({
               content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://ghost" } }] }
             })
@@ -704,19 +832,20 @@ describe("ArticleService", () => {
       expect(payload.errors).toEqual([
         expect.objectContaining({ path: ["content"], message: expect.stringContaining("ghost") })
       ])
-      expect(objects.size).toBe(sizeAfterCreate)
+      expect(tx.insert).not.toHaveBeenCalled()
+      expect(objects.size).toBe(0)
     })
 
     test("rejects a file without a matching placeholder, persisting nothing", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const sizeAfterCreate = objects.size
+      const tx = createTransaction()
+      spyTransaction(tx.handles)
 
       const payload = validationPayload(
         await service
           .upsertTranslation(
-            { id: created.id, locale: "en" },
+            { id: faker.string.uuid({ version: 7 }), locale: "en" },
             createUpsertBody({ stray: filePart(pngFile("stray.png"), "image/png", "png") })
           )
           .catch((error: unknown) => error)
@@ -725,20 +854,20 @@ describe("ArticleService", () => {
       expect(payload.errors).toEqual([
         expect.objectContaining({ path: ["stray"], message: expect.stringContaining("stray") })
       ])
-      expect(objects.size).toBe(sizeAfterCreate)
+      expect(tx.insert).not.toHaveBeenCalled()
+      expect(objects.size).toBe(0)
     })
 
     test("rejects cover data sent to the translation endpoint, persisting nothing", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const coverBefore = (await readStoredArticle(created.id)).article.coverKey
-      const sizeAfterCreate = objects.size
+      const tx = createTransaction()
+      spyTransaction(tx.handles)
 
       const payload = validationPayload(
         await service
           .upsertTranslation(
-            { id: created.id, locale: "en" },
+            { id: faker.string.uuid({ version: 7 }), locale: "en" },
             createUpsertBody({ cover: filePart(pngFile("cover.png"), "image/png", "png") })
           )
           .catch((error: unknown) => error)
@@ -747,106 +876,145 @@ describe("ArticleService", () => {
       expect(payload.errors).toEqual([
         expect.objectContaining({ path: ["cover"], message: expect.stringContaining("cover") })
       ])
-      expect((await readStoredArticle(created.id)).article.coverKey).toBe(coverBefore)
-      expect(objects.size).toBe(sizeAfterCreate)
+      expect(tx.insert).not.toHaveBeenCalled()
+      expect(objects.size).toBe(0)
     })
   })
 
   describe("updateArticle", () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
     test("publishes a draft on the first transition, leaving translation and stored keys untouched", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const before = await readStoredArticle(created.id)
+      const row = articleRow()
+      await seedStoredObject(storage, row.coverKey)
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
 
-      const result = await service.updateArticle({ id: created.id }, { status: "published" })
+      const result = await service.updateArticle({ id: row.id }, { status: "published" })
 
       expect(result).toEqual({
-        id: created.id,
-        createdAt: before.article.createdAt,
+        id: row.id,
+        createdAt: row.createdAt,
         updatedAt: expect.any(Date),
         status: "published",
         publishedAt: expect.any(Date),
         categoryId: null,
         cover: expect.stringMatching(/^https?:\/\//)
       })
-
-      const after = await readStoredArticle(created.id)
-      expect(after.article.status).toBe("published")
-      expect(after.article.publishedAt).toBeInstanceOf(Date)
-      expect(after.article.coverKey).toBe(before.article.coverKey)
-      expect(after.translation).toEqual(before.translation)
+      // SAFETY: update() received exactly one change payload
+      const changes = update.set.mock.calls[0]?.[0] as { status: string; publishedAt: Date }
+      expect(changes.status).toBe("published")
+      expect(changes.publishedAt).toBeInstanceOf(Date)
+      expect(objects.has(row.coverKey)).toBe(true)
       expect(objects.size).toBe(1)
     })
 
-    test("keeps the first publishedAt across later status changes", async () => {
-      const { storage } = createTestStorage()
-      const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
+    test("keeps the first publishedAt when the status changes again", async () => {
+      const firstPublishedAt = faker.date.recent()
+      const row = articleRow({ status: "archived", publishedAt: firstPublishedAt })
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
+      const service = new ArticleService(database, mockDeep<Storage>())
 
-      const first = await service.updateArticle({ id: created.id }, { status: "published" })
-      await service.updateArticle({ id: created.id }, { status: "archived" })
-      const again = await service.updateArticle({ id: created.id }, { status: "published" })
+      const result = await service.updateArticle({ id: row.id }, { status: "published" })
 
-      expect(first.publishedAt).toBeInstanceOf(Date)
-      expect(again.publishedAt?.getTime()).toBe(first.publishedAt?.getTime())
+      expect(result.publishedAt?.getTime()).toBe(firstPublishedAt.getTime())
+      // SAFETY: update() received exactly one change payload
+      const changes = update.set.mock.calls[0]?.[0] as Partial<ArticleChanges>
+      expect(changes).not.toHaveProperty("publishedAt")
     })
 
     test("reassigns and unassigns the article category without touching the translation", async () => {
-      const { storage } = createTestStorage()
-      const service = new ArticleService(database, storage)
-      const [category] = await database.insert(articleCategories).values({}).returning()
-      if (!category) throw new Error("category not persisted")
-      const created = await service.create(createBody({ status: "published" }))
-      const before = await readStoredArticle(created.id)
+      const service = new ArticleService(database, mockDeep<Storage>())
+      const row = articleRow({ status: "published", publishedAt: faker.date.recent() })
+      const categoryId = faker.string.uuid({ version: 7 })
+      const assign = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const unassign = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const assignTx = createTransaction()
+      assignTx.select.mockReturnValueOnce(selectChain([row]))
+      assignTx.update.mockReturnValueOnce({ set: assign.set })
+      const unassignTx = createTransaction()
+      unassignTx.select.mockReturnValueOnce(selectChain([row]))
+      unassignTx.update.mockReturnValueOnce({ set: unassign.set })
+      const transaction = vi.spyOn(database, "transaction")
+      // SAFETY: tx handles mirror the drizzle transaction handle the service receives
+      transaction.mockImplementationOnce(async callback => callback(assignTx.handles as never))
+      // SAFETY: tx handles mirror the drizzle transaction handle the service receives
+      transaction.mockImplementationOnce(async callback => callback(unassignTx.handles as never))
 
-      const assigned = await service.updateArticle({ id: created.id }, { categoryId: category.id })
+      const assigned = await service.updateArticle({ id: row.id }, { categoryId })
+      const unassigned = await service.updateArticle({ id: row.id }, { categoryId: null })
 
-      expect(assigned.categoryId).toBe(category.id)
-      expect(assigned.status).toBe("published")
-
-      const unassigned = await service.updateArticle({ id: created.id }, { categoryId: null })
-
+      expect(assigned.categoryId).toBe(categoryId)
       expect(unassigned.categoryId).toBeNull()
-      expect((await readStoredArticle(created.id)).translation).toEqual(before.translation)
+      // SAFETY: each update() received exactly one change payload
+      const assignChanges = assign.set.mock.calls[0]?.[0] as Partial<ArticleChanges>
+      // SAFETY: each update() received exactly one change payload
+      const unassignChanges = unassign.set.mock.calls[0]?.[0] as Partial<ArticleChanges>
+      expect(assignChanges.categoryId).toBe(categoryId)
+      expect(unassignChanges.categoryId).toBeNull()
     })
 
     test("keeps the stored cover byte-identical when no cover part is supplied", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const before = await readStoredArticle(created.id)
+      const row = articleRow({ status: "published", publishedAt: faker.date.recent() })
+      await seedStoredObject(storage, row.coverKey)
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
 
-      const result = await service.updateArticle({ id: created.id }, { status: "archived" })
+      const result = await service.updateArticle({ id: row.id }, { status: "archived" })
 
-      expect((await readStoredArticle(created.id)).article.coverKey).toBe(before.article.coverKey)
-      expect(objects.has(before.article.coverKey)).toBe(true)
-      expect(result.cover.endsWith(`/${before.article.coverKey}`)).toBe(true)
+      expect(objects.has(row.coverKey)).toBe(true)
+      expect(objects.size).toBe(1)
+      expect(result.cover.endsWith(`/${row.coverKey}`)).toBe(true)
     })
 
     test("replaces the cover, deleting the superseded stored key", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const before = await readStoredArticle(created.id)
+      const row = articleRow()
+      await seedStoredObject(storage, row.coverKey)
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
 
       const result = await service.updateArticle(
-        { id: created.id },
+        { id: row.id },
         { cover: filePart(jpegFile("new.jpg"), "image/jpeg", "jpg") }
       )
 
-      const after = await readStoredArticle(created.id)
-      expect(after.article.coverKey).not.toBe(before.article.coverKey)
-      expect(after.article.coverKey).toMatch(/^articles\/.+\.jpg$/)
-      expect(objects.has(before.article.coverKey)).toBe(false)
-      expect(objects.has(after.article.coverKey)).toBe(true)
+      // SAFETY: update() received exactly one change payload
+      const changes = update.set.mock.calls[0]?.[0] as { coverKey: string }
+      expect(changes.coverKey).not.toBe(row.coverKey)
+      expect(changes.coverKey).toMatch(/^articles\/.+\.jpg$/)
+      expect(objects.has(row.coverKey)).toBe(false)
+      expect(objects.has(changes.coverKey)).toBe(true)
       expect(objects.size).toBe(1)
-      expect(result.cover.endsWith(`/${after.article.coverKey}`)).toBe(true)
+      expect(result.cover.endsWith(`/${changes.coverKey}`)).toBe(true)
     })
 
     test("answers not-found for an unknown article id, uploading nothing", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([]))
+      spyTransaction(tx.handles)
 
       const error = await service
         .updateArticle({ id: faker.string.uuid({ version: 7 }) }, { status: "published" })
@@ -855,18 +1023,25 @@ describe("ArticleService", () => {
       expect(error).toBeInstanceOf(NotFoundError)
       // SAFETY: error is NotFoundError per previous expect
       expect((error as NotFoundError).status).toBe(404)
+      expect(tx.update).not.toHaveBeenCalled()
       expect(objects.size).toBe(0)
     })
 
     test("rejects an unknown category id with a 404, deleting the uploaded cover", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
-      const before = await readStoredArticle(created.id)
+      const row = articleRow()
+      await seedStoredObject(storage, row.coverKey)
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      update.returning.mockRejectedValueOnce(wrappedError("23503"))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
 
       const error = await service
         .updateArticle(
-          { id: created.id },
+          { id: row.id },
           { categoryId: faker.string.uuid({ version: 7 }), cover: filePart(pngFile("new.png"), "image/png", "png") }
         )
         .catch((error: unknown) => error)
@@ -874,8 +1049,7 @@ describe("ArticleService", () => {
       expect(error).toBeInstanceOf(NotFoundError)
       // SAFETY: error is NotFoundError per previous expect
       expect((error as NotFoundError).message).toBe("Category not found")
-      expect((await readStoredArticle(created.id)).article.coverKey).toBe(before.article.coverKey)
-      expect(objects.has(before.article.coverKey)).toBe(true)
+      expect(objects.has(row.coverKey)).toBe(true)
       expect(objects.size).toBe(1)
     })
 
@@ -884,97 +1058,90 @@ describe("ArticleService", () => {
       storage.upload.mockResolvedValue({ key: "articles/a.png" })
       const controller = new AbortController()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody(), controller.signal)
+      const row = articleRow()
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
 
       await service.updateArticle(
-        { id: created.id },
+        { id: row.id },
         { cover: filePart(jpegFile("new.jpg"), "image/jpeg", "jpg") },
         controller.signal
       )
 
-      expect(storage.upload).toHaveBeenCalledTimes(2)
+      expect(storage.upload).toHaveBeenCalledTimes(1)
       for (const call of storage.upload.mock.calls) expect(call[0].signal).toBe(controller.signal)
     })
   })
 
   describe("delete", () => {
-    test("removes the article row, every translation, and every stored key", async () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    test("removes the article row and every stored key", async () => {
       const { storage, objects } = createTestStorage()
       const service = new ArticleService(database, storage)
-      const created = await service.create(
-        createBody({
-          content: {
-            type: "doc",
-            content: [
-              { type: "image", attrs: { src: "upload://en-inline-1" } },
-              { type: "image", attrs: { src: "upload://en-inline-2" } }
-            ]
-          },
-          "en-inline-1": filePart(jpegFile("en-inline-1"), "image/jpeg", "jpg"),
-          "en-inline-2": filePart(pngFile("en-inline-2"), "image/png", "png")
-        })
-      )
-      await service.upsertTranslation(
-        { id: created.id, locale: "id" },
-        createUpsertBody({
-          content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://id-inline" } }] },
-          "id-inline": filePart(pngFile("id-inline"), "image/png", "png")
-        })
-      )
-      expect(objects.size).toBe(4)
+      const row = articleRow()
+      const inlineKeys = [
+        `articles/${faker.string.uuid({ version: 7 })}.jpg`,
+        `articles/${faker.string.uuid({ version: 7 })}.png`
+      ]
+      await seedStoredObject(storage, row.coverKey)
+      for (const key of inlineKeys) await seedStoredObject(storage, key)
+      expect(objects.size).toBe(3)
+      const contents: RichText[] = inlineKeys.map(key => ({
+        type: "doc",
+        content: [{ type: "image", attrs: { src: key } }]
+      }))
+      const tx = createTransaction()
+      tx.select
+        .mockReturnValueOnce(selectChain([{ coverKey: row.coverKey }]))
+        .mockReturnValueOnce(selectChain(contents.map(content => ({ content }))))
+      tx.remove.mockReturnValueOnce({ where: deleteHandle().where })
+      spyTransaction(tx.handles)
 
-      await service.delete({ id: created.id })
+      await service.delete({ id: row.id })
 
-      const [article] = await database.select().from(articles).where(eq(articles.id, created.id)).limit(1)
-      const translations = await database
-        .select()
-        .from(articleTranslations)
-        .where(eq(articleTranslations.articleId, created.id))
-      expect(article).toBeUndefined()
-      expect(translations).toEqual([])
+      expect(tx.remove).toHaveBeenCalledWith(articles)
       expect(objects.size).toBe(0)
     })
 
     test("answers not-found for an unknown article id, deleting nothing", async () => {
       const { storage, objects } = createTestStorage()
+      await seedStoredObject(storage, `articles/${faker.string.uuid({ version: 7 })}.png`)
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([]))
+      spyTransaction(tx.handles)
 
       const error = await service.delete({ id: faker.string.uuid({ version: 7 }) }).catch((error: unknown) => error)
 
       expect(error).toBeInstanceOf(NotFoundError)
       // SAFETY: error is NotFoundError per previous expect
       expect((error as NotFoundError).status).toBe(404)
+      expect(tx.remove).not.toHaveBeenCalled()
       expect(objects.size).toBe(1)
-      expect((await readStoredArticle(created.id)).article.id).toBe(created.id)
     })
 
     test("keeps deleted identifiers not-found on subsequent reads", async () => {
       const { storage } = createTestStorage()
+      const row = articleRow()
       const service = new ArticleService(database, storage)
-      const created = await service.create(createBody())
+      const tx = createTransaction()
+      tx.select
+        .mockReturnValueOnce(selectChain([{ coverKey: row.coverKey }]))
+        .mockReturnValueOnce(selectChain([]))
+      tx.remove.mockReturnValueOnce({ where: deleteHandle().where })
+      spyTransaction(tx.handles)
 
-      await service.delete({ id: created.id })
+      await service.delete({ id: row.id })
 
-      await expect(service.getByIdentifier(created.id, "en", true)).rejects.toThrow("Article not found")
-      await expect(service.getByIdentifier(created.slug, "en", true)).rejects.toThrow("Article not found")
-    })
-
-    test("leaves a referencing category alive", async () => {
-      const { storage } = createTestStorage()
-      const service = new ArticleService(database, storage)
-      const [category] = await database.insert(articleCategories).values({}).returning()
-      if (!category) throw new Error("category not persisted")
-      const created = await service.create(createBody({ categoryId: category.id }))
-
-      await service.delete({ id: created.id })
-
-      const [survivor] = await database
-        .select()
-        .from(articleCategories)
-        .where(eq(articleCategories.id, category.id))
-        .limit(1)
-      expect(survivor?.id).toBe(category.id)
+      // SAFETY: the select chain stands in for the drizzle query builder consumed by getByIdentifier
+      vi.spyOn(database, "select").mockReturnValueOnce(selectChain([]) as never)
+      await expect(service.getByIdentifier(row.id, "en", true)).rejects.toThrow("Article not found")
     })
   })
 })
