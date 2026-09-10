@@ -25,6 +25,9 @@ import {
   getArticleParamsSchema,
   listArticlesQuerySchema,
   listArticlesResponseSchema,
+  updateArticleParamsSchema,
+  updateArticleResponseSchema,
+  updateArticleSchema,
   upsertArticleTranslationSchema
 } from "./schemas/article.schema.js"
 import { ArticleCategoryService } from "./services/article-category.service.js"
@@ -136,6 +139,30 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
         summary: "Create or replace an article translation",
         description:
           "Admin only. Upserts the ArticleTranslation of an existing Article for the given Locale, replacing text fields, the ArticleContent document, and NodeImage entries wholesale. Never touches the CoverImage. Returns 201 when the translation was created and 200 when an existing one was replaced."
+      }
+    }
+  )
+  .patch(
+    "/articles/:id",
+    async ({ params, body, request, status }) => {
+      return status(200, await articleService.updateArticle(params, body, request.signal))
+    },
+    {
+      permissions: { article: ["update"] },
+      params: updateArticleParamsSchema,
+      body: updateArticleSchema.describe("Article-level fields to change: lifecycle status, category, or cover"),
+      response: {
+        200: updateArticleResponseSchema.describe(
+          "The updated article-level fields with the CoverImage resolved to its host URL"
+        ),
+        404: notFoundSchema.describe(
+          "No article exists with the given id, or the given categoryId does not reference an existing article category"
+        )
+      },
+      detail: {
+        summary: "Update an article's status, category, or cover",
+        description:
+          "Admin only. Updates article-level fields without touching any translation: lifecycle Status, ArticleCategory reassignment (null unsets it), and optional CoverImage replacement. An absent cover part keeps the stored cover; a supplied one uploads under a fresh key and deletes the superseded key. publishedAt is set when the status first becomes published and is never cleared. Translation payloads are rejected as validation errors."
       }
     }
   )
