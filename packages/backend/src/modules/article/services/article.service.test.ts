@@ -132,7 +132,7 @@ function createTestStorage() {
     return { key: keyString, contentType: headers?.contentType, size }
   })
   storage.delete.mockImplementation(async key => {
-    objects.delete(key.toString())
+    for (const item of Array.isArray(key) ? key : [key]) objects.delete(item.toString())
   })
 
   return { storage, objects }
@@ -903,8 +903,15 @@ describe("ArticleService", () => {
       const service = new ArticleService(database, storage)
       const created = await service.create(
         createBody({
-          content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://en-inline" } }] },
-          "en-inline": filePart(jpegFile("en-inline"), "image/jpeg", "jpg")
+          content: {
+            type: "doc",
+            content: [
+              { type: "image", attrs: { src: "upload://en-inline-1" } },
+              { type: "image", attrs: { src: "upload://en-inline-2" } }
+            ]
+          },
+          "en-inline-1": filePart(jpegFile("en-inline-1"), "image/jpeg", "jpg"),
+          "en-inline-2": filePart(pngFile("en-inline-2"), "image/png", "png")
         })
       )
       await service.upsertTranslation(
@@ -914,7 +921,7 @@ describe("ArticleService", () => {
           "id-inline": filePart(pngFile("id-inline"), "image/png", "png")
         })
       )
-      expect(objects.size).toBe(3)
+      expect(objects.size).toBe(4)
 
       await service.delete({ id: created.id })
 
