@@ -26,6 +26,9 @@ import type {
   ArticleTranslationParams,
   CreateArticleBody,
   ListArticlesQuery,
+  UpdateArticleBody,
+  UpdateArticleParams,
+  UpdatedArticle,
   UpsertArticleTranslationBody
 } from "../schemas/article.schema.js"
 import { articleSchema, createArticleSchema, upsertArticleTranslationSchema } from "../schemas/article.schema.js"
@@ -130,14 +133,7 @@ export class ArticleService {
       })
       uploaded.push(...inlineKeys)
 
-      const coverKey = new StorageKey(this.articleCollection, `${randomUUIDv7()}.${cover.extension}`)
-      await this.storage.upload({
-        key: coverKey,
-        // SAFETY: File.stream() yields a web ReadableStream; fromWeb adapts it to the Node Readable upload expects
-        stream: Readable.fromWeb(cover.file.stream() as never),
-        headers: { contentType: cover.mime, contentLength: cover.file.size },
-        signal
-      })
+      const coverKey = await this.uploadCover(cover, signal)
       uploaded.push(coverKey)
 
       const articleId = randomUUIDv7()
@@ -203,11 +199,7 @@ export class ArticleService {
       uploaded.push(...inlineKeys)
 
       const upserted = await this.database.transaction(async tx => {
-        const [article] = await tx
-          .select()
-          .from(articles)
-          .where(eq(articles.id, params.id))
-          .limit(1)
+        const [article] = await tx.select().from(articles).where(eq(articles.id, params.id)).limit(1)
         if (!article) throw new NotFoundError("Article not found")
 
         const [old] = await tx
@@ -252,6 +244,43 @@ export class ArticleService {
     }
   }
 
+  public async updateArticle(
+    params: UpdateArticleParams,
+    body: UpdateArticleBody,
+    signal?: AbortSignal
+  ): Promise<UpdatedArticle> {
+    let newCoverKey: StorageKey | undefined
+    try {
+      if (body.cover) newCoverKey = await this.uploadCover(body.cover, signal)
+
+      const { row, previousCoverKey } = await this.database.transaction(async tx => {
+        const [article] = await tx.select().from(articles).where(eq(articles.id, params.id)).limit(1)
+        if (!article) throw new NotFoundError("Article not found")
+
+        const changes: Partial<typeof articles.$inferInsert> = {}
+        if (body.status !== undefined) {
+          changes.status = body.status
+          if (body.status === "published" && article.publishedAt === null) changes.publishedAt = new Date()
+        }
+        if (body.categoryId !== undefined) changes.categoryId = body.categoryId
+        if (newCoverKey) changes.coverKey = newCoverKey.toString()
+        if (Object.keys(changes).length === 0) return { row: article, previousCoverKey: null }
+
+        const [updated] = await tx.update(articles).set(changes).where(eq(articles.id, params.id)).returning()
+        if (!updated) throw new Error("Failed to update article")
+        return { row: updated, previousCoverKey: newCoverKey ? article.coverKey : null }
+      })
+
+      if (previousCoverKey !== null) await this.storage.delete(new StorageKey(previousCoverKey))
+
+      return this.mapArticle(row)
+    } catch (error) {
+      if (newCoverKey) await this.storage.delete(newCoverKey)
+      if (hasPgCode(error, "23503")) throw new NotFoundError("Category not found")
+      throw error
+    }
+  }
+
   private uploadMismatchError(
     body: CreateArticleBody | UpsertArticleTranslationBody,
     error: UploadRefMismatchError,
@@ -279,7 +308,19 @@ export class ArticleService {
     return new ValidationError("body", schema, body, false, [{ code: "custom", path, message }] as never)
   }
 
-  private mapRow(row: JoinedArticleRow): Article {
+  private async uploadCover(cover: FileSchema, signal?: AbortSignal): Promise<StorageKey> {
+    const key = new StorageKey(this.articleCollection, `${randomUUIDv7()}.${cover.extension}`)
+    await this.storage.upload({
+      key,
+      // SAFETY: File.stream() yields a web ReadableStream; fromWeb adapts it to the Node Readable upload expects
+      stream: Readable.fromWeb(cover.file.stream() as never),
+      headers: { contentType: cover.mime, contentLength: cover.file.size },
+      signal
+    })
+    return key
+  }
+
+  private mapArticle(row: Omit<typeof articles.$inferSelect, "authorId">): UpdatedArticle {
     return {
       id: row.id,
       createdAt: row.createdAt,
@@ -287,14 +328,20 @@ export class ArticleService {
       status: row.status,
       publishedAt: row.publishedAt,
       categoryId: row.categoryId,
+      cover: new StorageKey(row.coverKey).toPublicUrl()
+    }
+  }
+
+  private mapRow(row: JoinedArticleRow): Article {
+    return {
+      ...this.mapArticle(row),
       locale: row.locale,
       title: row.title,
       slug: row.slug,
       excerpt: row.excerpt,
       content: resolveImageSrc(row.content),
       metaTitle: row.metaTitle,
-      metaDescription: row.metaDescription,
-      cover: new StorageKey(row.coverKey).toPublicUrl()
+      metaDescription: row.metaDescription
     }
   }
 }
