@@ -896,4 +896,78 @@ describe("ArticleService", () => {
       for (const call of storage.upload.mock.calls) expect(call[0].signal).toBe(controller.signal)
     })
   })
+
+  describe("delete", () => {
+    test("removes the article row, every translation, and every stored key", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(
+        createBody({
+          content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://en-inline" } }] },
+          "en-inline": filePart(jpegFile("en-inline"), "image/jpeg", "jpg")
+        })
+      )
+      await service.upsertTranslation(
+        { id: created.id, locale: "id" },
+        createUpsertBody({
+          content: { type: "doc", content: [{ type: "image", attrs: { src: "upload://id-inline" } }] },
+          "id-inline": filePart(pngFile("id-inline"), "image/png", "png")
+        })
+      )
+      expect(objects.size).toBe(3)
+
+      await service.delete({ id: created.id })
+
+      const [article] = await database.select().from(articles).where(eq(articles.id, created.id)).limit(1)
+      const translations = await database
+        .select()
+        .from(articleTranslations)
+        .where(eq(articleTranslations.articleId, created.id))
+      expect(article).toBeUndefined()
+      expect(translations).toEqual([])
+      expect(objects.size).toBe(0)
+    })
+
+    test("answers not-found for an unknown article id, deleting nothing", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+
+      const error = await service.delete({ id: faker.string.uuid({ version: 7 }) }).catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).status).toBe(404)
+      expect(objects.size).toBe(1)
+      expect((await readStoredArticle(created.id)).article.id).toBe(created.id)
+    })
+
+    test("keeps deleted identifiers not-found on subsequent reads", async () => {
+      const { storage } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+
+      await service.delete({ id: created.id })
+
+      await expect(service.getByIdentifier(created.id, "en", true)).rejects.toThrow("Article not found")
+      await expect(service.getByIdentifier(created.slug, "en", true)).rejects.toThrow("Article not found")
+    })
+
+    test("leaves a referencing category alive", async () => {
+      const { storage } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const [category] = await database.insert(articleCategories).values({}).returning()
+      if (!category) throw new Error("category not persisted")
+      const created = await service.create(createBody({ categoryId: category.id }))
+
+      await service.delete({ id: created.id })
+
+      const [survivor] = await database
+        .select()
+        .from(articleCategories)
+        .where(eq(articleCategories.id, category.id))
+        .limit(1)
+      expect(survivor?.id).toBe(category.id)
+    })
+  })
 })

@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker"
 
 import {
   createArticleSchema,
+  deleteArticleParamsSchema,
   updateArticleResponseSchema,
   updateArticleSchema,
   upsertArticleTranslationSchema
@@ -322,4 +323,24 @@ describe("updateArticleSchema", () => {
       ["categoryId", "cover", "createdAt", "id", "publishedAt", "status", "updatedAt"].sort()
     )
   })
+})
+
+describe("deleteArticleParamsSchema", () => {
+  test("accepts a uuidv7 article id", () => {
+    const id = faker.string.uuid({ version: 7 })
+    const result = deleteArticleParamsSchema.safeParse({ id })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.id).toBe(id)
+  })
+
+  test.each(["not-an-id", faker.string.uuid({ version: 4 }), faker.lorem.slug()])(
+    "rejects the non-uuidv7 identifier %s",
+    id => {
+      const result = deleteArticleParamsSchema.safeParse({ id })
+
+      expect(result.success).toBe(false)
+    }
+  )
 })
