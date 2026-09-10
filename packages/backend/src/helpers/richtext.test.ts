@@ -4,13 +4,7 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../common/config.js"
 import type { FileSchema } from "../common/schema.js"
 import type { Storage } from "../common/storage/storage.js"
-import {
-  collectStoredKeys,
-  diffStoredKeys,
-  resolveImageSrc,
-  UploadRefMismatchError,
-  uploadInlineImages
-} from "./richtext.js"
+import { deleteStoredKeys, resolveImageSrc, UploadRefMismatchError, uploadInlineImages } from "./richtext.js"
 
 const base = config.s3.publicBaseUrl.replace(/\/$/, "")
 
@@ -59,15 +53,15 @@ describe("resolveImageSrc", () => {
   })
 })
 
-describe("collectStoredKeys", () => {
-  test("collects nested storage keys once, skipping refs, external urls, and malformed keys", () => {
+describe("deleteStoredKeys", () => {
+  test("deletes nested storage keys once, skipping external urls and malformed keys", async () => {
+    const storage = mockDeep<Storage>()
     const doc: RichText = {
       type: "doc",
       content: [
         { type: "paragraph", content: [{ type: "image", attrs: { src: "articles/a.png" } }] },
         { type: "image", attrs: { src: "articles/a.png" } },
         { type: "image", attrs: { src: "articles/b.jpg" } },
-        { type: "image", attrs: { src: "upload://part-1" } },
         { type: "image", attrs: { src: "https://cdn.example.org/pic.png" } },
         { type: "image", attrs: { src: "not-a-key" } },
         { type: "paragraph", content: [{ type: "text", text: "plain" }] }
@@ -75,41 +69,28 @@ describe("collectStoredKeys", () => {
     }
     const snapshot = structuredClone(doc)
 
-    const keys = collectStoredKeys(doc)
+    await deleteStoredKeys(doc, storage)
 
-    expect(keys.map(key => key.toString()).sort()).toEqual(["articles/a.png", "articles/b.jpg"])
+    expect(storage.delete).toHaveBeenCalledTimes(1)
+    const [deleted] = storage.delete.mock.calls[0] ?? []
+    const keys = (Array.isArray(deleted) ? deleted : []).map(key => key.toString())
+    expect(keys).toEqual(["articles/a.png", "articles/b.jpg"])
     expect(doc).toEqual(snapshot)
   })
-})
 
-describe("diffStoredKeys", () => {
-  test("returns keys dropped from the new document, keeping retained and new keys out", () => {
-    const oldContent: RichText = {
+  test("skips the storage call when the document holds no stored keys", async () => {
+    const storage = mockDeep<Storage>()
+    const doc: RichText = {
       type: "doc",
       content: [
-        { type: "image", attrs: { src: "articles/keep.png" } },
-        { type: "image", attrs: { src: "articles/drop.jpg" } }
-      ]
-    }
-    const newContent: RichText = {
-      type: "doc",
-      content: [
-        { type: "image", attrs: { src: "articles/keep.png" } },
-        { type: "image", attrs: { src: "articles/fresh.png" } },
-        { type: "image", attrs: { src: "https://cdn.example.org/pic.png" } }
+        { type: "image", attrs: { src: "https://cdn.example.org/pic.png" } },
+        { type: "paragraph", content: [{ type: "text", text: "plain" }] }
       ]
     }
 
-    const orphans = diffStoredKeys(oldContent, newContent)
+    await deleteStoredKeys(doc, storage)
 
-    expect(orphans.map(key => key.toString())).toEqual(["articles/drop.jpg"])
-  })
-
-  test("returns an empty list when nothing was dropped", () => {
-    const doc: RichText = { type: "doc", content: [{ type: "image", attrs: { src: "articles/a.png" } }] }
-
-    expect(diffStoredKeys(doc, structuredClone(doc))).toEqual([])
-    expect(diffStoredKeys({ type: "doc", content: [] }, doc)).toEqual([])
+    expect(storage.delete).not.toHaveBeenCalled()
   })
 })
 

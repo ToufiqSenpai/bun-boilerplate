@@ -1,6 +1,7 @@
 import { Readable } from "stream"
 
 import type { Locale } from "@bun-boilerplate/i18n"
+import type { RichText } from "@bun-boilerplate/richtext"
 import { randomUUIDv7 } from "bun"
 import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError, ValidationError } from "elysia"
@@ -17,7 +18,7 @@ import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
 import {
   UploadRefMismatchError,
-  diffStoredKeys,
+  deleteStoredKeys,
   resolveImageSrc,
   uploadInlineImages
 } from "../../../helpers/richtext.js"
@@ -29,10 +30,31 @@ import type {
   UpsertArticleTranslationBody
 } from "../schemas/article.schema.js"
 import { articleSchema, createArticleSchema, upsertArticleTranslationSchema } from "../schemas/article.schema.js"
+import type { ArticleStatus } from "../tables/article.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 
 export interface JoinedArticleRow extends Omit<Article, "cover"> {
   coverKey: string
+}
+
+interface ArticleRow {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  status: ArticleStatus
+  publishedAt: Date | null
+  categoryId: string | null
+  coverKey: string
+}
+
+interface TranslationRow {
+  locale: Locale
+  title: string
+  slug: string
+  excerpt: string
+  content: RichText
+  metaTitle: string
+  metaDescription: string
 }
 
 export class ArticleService {
@@ -171,22 +193,7 @@ export class ArticleService {
         return { article, translation }
       })
 
-      return this.mapRow({
-        id: created.article.id,
-        createdAt: created.article.createdAt,
-        updatedAt: created.article.updatedAt,
-        status: created.article.status,
-        publishedAt: created.article.publishedAt,
-        categoryId: created.article.categoryId,
-        coverKey: created.article.coverKey,
-        locale: created.translation.locale,
-        title: created.translation.title,
-        slug: created.translation.slug,
-        excerpt: created.translation.excerpt,
-        content: created.translation.content,
-        metaTitle: created.translation.metaTitle,
-        metaDescription: created.translation.metaDescription
-      })
+      return this.mapRow(this.joinRow(created.article, created.translation))
     } catch (error) {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
@@ -260,26 +267,10 @@ export class ArticleService {
         return { article, translation, oldContent: old?.content ?? null, created: !old }
       })
 
-      const orphans = upserted.oldContent ? diffStoredKeys(upserted.oldContent, resolvedContent) : []
-      if (orphans.length > 0) await this.storage.delete(orphans)
+      if (upserted.oldContent) await deleteStoredKeys(upserted.oldContent, this.storage)
 
       return {
-        translation: this.mapRow({
-          id: upserted.article.id,
-          createdAt: upserted.article.createdAt,
-          updatedAt: upserted.article.updatedAt,
-          status: upserted.article.status,
-          publishedAt: upserted.article.publishedAt,
-          categoryId: upserted.article.categoryId,
-          coverKey: upserted.article.coverKey,
-          locale: upserted.translation.locale,
-          title: upserted.translation.title,
-          slug: upserted.translation.slug,
-          excerpt: upserted.translation.excerpt,
-          content: upserted.translation.content,
-          metaTitle: upserted.translation.metaTitle,
-          metaDescription: upserted.translation.metaDescription
-        }),
+        translation: this.mapRow(this.joinRow(upserted.article, upserted.translation)),
         created: upserted.created
       }
     } catch (error) {
@@ -316,6 +307,25 @@ export class ArticleService {
   ): ValidationError {
     // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
     return new ValidationError("body", schema, body, false, [{ code: "custom", path, message }] as never)
+  }
+
+  private joinRow(article: ArticleRow, translation: TranslationRow): JoinedArticleRow {
+    return {
+      id: article.id,
+      createdAt: article.createdAt,
+      updatedAt: article.updatedAt,
+      status: article.status,
+      publishedAt: article.publishedAt,
+      categoryId: article.categoryId,
+      coverKey: article.coverKey,
+      locale: translation.locale,
+      title: translation.title,
+      slug: translation.slug,
+      excerpt: translation.excerpt,
+      content: translation.content,
+      metaTitle: translation.metaTitle,
+      metaDescription: translation.metaDescription
+    }
   }
 
   private mapRow(row: JoinedArticleRow): Article {

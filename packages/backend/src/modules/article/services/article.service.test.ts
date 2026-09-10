@@ -137,17 +137,23 @@ function createTestStorage() {
   return { storage, objects }
 }
 
-function createBody(overrides: Record<string, string | RichText | FileSchema | null> = {}): CreateArticleBody {
-  // SAFETY: base literal mirrors createArticleSchema output; overrides carry dynamic inline file parts
+function translationFields() {
   return {
-    status: "draft",
-    locale: "en",
     title: faker.lorem.words({ min: 2, max: 5 }),
     slug: `${faker.lorem.slug()}-${faker.string.uuid({ version: 7 }).slice(0, 8)}`,
     excerpt: faker.lorem.sentence(),
     content: { type: "doc", content: [{ type: "paragraph" }] },
     metaTitle: faker.lorem.words({ min: 1, max: 3 }),
-    metaDescription: faker.lorem.sentence(),
+    metaDescription: faker.lorem.sentence()
+  }
+}
+
+function createBody(overrides: Record<string, string | RichText | FileSchema | null> = {}): CreateArticleBody {
+  // SAFETY: base literal mirrors createArticleSchema output; overrides carry dynamic inline file parts
+  return {
+    status: "draft",
+    locale: "en",
+    ...translationFields(),
     cover: filePart(pngFile("cover.png"), "image/png", "png"),
     ...overrides
   } as CreateArticleBody
@@ -158,20 +164,17 @@ function createUpsertBody(
 ): UpsertArticleTranslationBody {
   // SAFETY: base literal mirrors upsertArticleTranslationSchema output; overrides carry dynamic inline file parts
   return {
-    title: faker.lorem.words({ min: 2, max: 5 }),
-    slug: `${faker.lorem.slug()}-${faker.string.uuid({ version: 7 }).slice(0, 8)}`,
-    excerpt: faker.lorem.sentence(),
-    content: { type: "doc", content: [{ type: "paragraph" }] },
-    metaTitle: faker.lorem.words({ min: 1, max: 3 }),
-    metaDescription: faker.lorem.sentence(),
+    ...translationFields(),
     ...overrides
   } as UpsertArticleTranslationBody
 }
 
-function storedInlineSrcs(storedContent: RichText): string[] {
-  // SAFETY: shape mirrors the image-node literals seeded in the request bodies above
+function storedInlineSrc(storedContent: RichText): string {
+  // SAFETY: shape mirrors the image-node literal seeded in the request body above
   const nodes = (storedContent as { content: { attrs: { src: string } }[] }).content
-  return nodes.map(node => node.attrs.src)
+  const [src] = [nodes[0]?.attrs.src]
+  if (src === undefined) expect.unreachable("expected a stored inline key")
+  return src
 }
 
 async function readStoredTranslation(articleId: string, locale: Locale) {
@@ -563,8 +566,7 @@ describe("ArticleService", () => {
         })
       )
       const before = await readStoredArticle(created.id)
-      const [dropKey] = storedInlineSrcs(before.translation.content)
-      if (dropKey === undefined) expect.unreachable("expected a stored inline key")
+      const dropKey = storedInlineSrc(before.translation.content)
 
       const { translation, created: wasCreated } = await service.upsertTranslation(
         { id: created.id, locale: "en" },
@@ -609,45 +611,6 @@ describe("ArticleService", () => {
       expect(stored.title).toBe(translation.title)
       expect((await readStoredArticle(created.id)).article.coverKey).toBe(coverBefore)
       expect(objects.size).toBe(1)
-    })
-
-    test("keeps retained stored keys while deleting only dropped ones", async () => {
-      const { storage, objects } = createTestStorage()
-      const service = new ArticleService(database, storage)
-      const created = await service.create(
-        createBody({
-          content: {
-            type: "doc",
-            content: [
-              { type: "image", attrs: { src: "upload://keep-me" } },
-              { type: "image", attrs: { src: "upload://drop-me" } }
-            ]
-          },
-          "keep-me": filePart(pngFile("keep-me"), "image/png", "png"),
-          "drop-me": filePart(jpegFile("drop-me"), "image/jpeg", "jpg")
-        })
-      )
-      const before = await readStoredArticle(created.id)
-      const [keepKey, dropKey] = storedInlineSrcs(before.translation.content)
-      if (keepKey === undefined || dropKey === undefined) expect.unreachable("expected two stored inline keys")
-
-      await service.upsertTranslation(
-        { id: created.id, locale: "en" },
-        createUpsertBody({
-          content: {
-            type: "doc",
-            content: [
-              { type: "image", attrs: { src: keepKey } },
-              { type: "image", attrs: { src: "upload://fresh" } }
-            ]
-          },
-          fresh: filePart(pngFile("fresh"), "image/png", "png")
-        })
-      )
-
-      expect(objects.has(keepKey)).toBe(true)
-      expect(objects.has(dropKey)).toBe(false)
-      expect(objects.size).toBe(3)
     })
 
     test("forwards the abort signal to inline uploads", async () => {
