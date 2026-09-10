@@ -54,6 +54,6 @@ export class StorageKey {
   }
 
   public static sanitize(s: string): string {
-    return s.replace(/[/\\\u0000-\u001f]/g, "")
+    return s.replace(/[/\\\p{Cc}]/gu, "")
   }
 }

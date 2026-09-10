@@ -15,6 +15,11 @@ describe("StorageKey", () => {
       expect(key.toString()).toBe("..avatars/a....etc.png")
     })
 
+    it("should strip C0, DEL, and C1 control characters", () => {
+      const key = new StorageKey("avatars", "a\u0007b\u007fc\u009fd.png")
+      expect(key.toString()).toBe("avatars/abcd.png")
+    })
+
     it("should throw when collection or name is empty", () => {
       expect(() => new StorageKey("", "a.png")).toThrow("Collection/name must be non-empty")
       expect(() => new StorageKey("avatars", "")).toThrow("Collection/name must be non-empty")
