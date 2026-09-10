@@ -1,8 +1,9 @@
 import { faker } from "@faker-js/faker"
-import { Elysia } from "elysia"
+import { Elysia, t } from "elysia"
 
 import {
   ConflictError,
+  badRequestSchema,
   conflictSchema,
   errorPlugin,
   internalServerErrorSchema,
@@ -131,6 +132,71 @@ describe("errorPlugin", () => {
       expect(res.status).toBe(500)
       expect(await res.text()).toBe("fallback")
     })
+  })
+
+  describe("PARSE", () => {
+    test("returns a JSON envelope for a malformed JSON body", async () => {
+      const app = new Elysia().use(errorPlugin).post("/json", ({ body }) => body, {
+        body: t.Object({ name: t.String() })
+      })
+
+      const res = await app.handle(
+        new Request("http://localhost/json", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{invalid"
+        })
+      )
+      // SAFETY: malformed JSON body is { message: "Bad Request" }
+      const body = (await res.json()) as { message: string }
+
+      expect(res.status).toBe(400)
+      expect(body).toEqual({ message: "Bad Request" })
+      expect(res.headers.get("content-type")).toContain("application/json")
+    })
+
+    test("leaves a valid JSON body untouched", async () => {
+      const app = new Elysia().use(errorPlugin).post("/json", ({ body }) => body, {
+        body: t.Object({ name: t.String() })
+      })
+
+      const res = await app.handle(
+        new Request("http://localhost/json", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: "valid" })
+        })
+      )
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ name: "valid" })
+    })
+  })
+})
+
+describe("badRequestSchema", () => {
+  test("accepts any string message", () => {
+    const message = faker.lorem.sentence()
+
+    const result = badRequestSchema.safeParse({ message })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual({ message })
+    }
+  })
+
+  test("rejects a missing message", () => {
+    expect(badRequestSchema.safeParse({}).success).toBe(false)
+  })
+
+  test("rejects a non-string message", () => {
+    expect(badRequestSchema.safeParse({ message: faker.number.int() }).success).toBe(false)
+  })
+
+  test("has descriptions on the root and the message field", () => {
+    expect(badRequestSchema.description).toBe("Bad request response")
+    expect(badRequestSchema.shape.message.description).toBe("Bad Request message")
   })
 })
 

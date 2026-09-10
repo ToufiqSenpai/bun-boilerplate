@@ -15,6 +15,12 @@ export const notFoundSchema = z
   })
   .describe("Not found response")
 
+export const badRequestSchema = z
+  .object({
+    message: z.string().describe("Bad Request message")
+  })
+  .describe("Bad request response")
+
 export const conflictSchema = z
   .object({
     message: z.string().describe("Conflict message")
@@ -56,11 +62,17 @@ export const errorPlugin = new Elysia({ name: "error" })
   .guard({
     as: "global",
     response: {
+      400: badRequestSchema,
       422: validationErrorSchema,
       500: internalServerErrorSchema
     }
   })
   .onError({ as: "global" }, ({ code, error, request, status }) => {
+    if (code === "PARSE") {
+      // SAFETY: 400 is declared in the global guard, so the message envelope is validated
+      return status(400, { message: error.message })
+    }
+
     if (code === "NOT_FOUND" && error instanceof NotFoundError) {
       // SAFETY: 404 intentionally not declared in global guard; routes document it per-endpoint via notFoundSchema
       return status(404 as never, { message: error.message } as never)
