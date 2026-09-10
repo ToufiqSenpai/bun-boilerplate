@@ -153,3 +153,13 @@ export const updateArticleResponseSchema = articleSchema.omit({
 })
 
 export type UpdatedArticle = z.output<typeof updateArticleResponseSchema>
+
+// DELETE /articles/:id (params + 204 response) — status code without a response body. Deletion is
+// total: the article row, its cascading translations, and every storage key its CoverImage and
+// NodeImage entries reference are removed together.
+export const deleteArticleParamsSchema = z.object({
+  id: z.uuidv7({ error: "Invalid article id" }).describe("Article id")
+})
+export const deleteArticleNoContentSchema = z.undefined().describe("Empty response body on successful deletion")
+
+export type DeleteArticleParams = z.output<typeof deleteArticleParamsSchema>

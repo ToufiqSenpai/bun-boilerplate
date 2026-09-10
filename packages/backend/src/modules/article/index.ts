@@ -22,6 +22,8 @@ import {
   articleSchema,
   articleTranslationParamsSchema,
   createArticleSchema,
+  deleteArticleNoContentSchema,
+  deleteArticleParamsSchema,
   getArticleParamsSchema,
   listArticlesQuerySchema,
   listArticlesResponseSchema,
@@ -163,6 +165,26 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
         summary: "Update an article's status, category, or cover",
         description:
           "Admin only. Updates article-level fields without touching any translation: lifecycle Status, ArticleCategory reassignment (null unsets it), and optional CoverImage replacement. An absent cover part keeps the stored cover; a supplied one uploads under a fresh key and deletes the superseded key. publishedAt is set when the status first becomes published and is never cleared. Translation payloads are rejected as validation errors."
+      }
+    }
+  )
+  .delete(
+    "/articles/:id",
+    async ({ params, status }) => {
+      await articleService.delete(params)
+      return status(204, undefined)
+    },
+    {
+      permissions: { article: ["delete"] },
+      params: deleteArticleParamsSchema,
+      response: {
+        204: deleteArticleNoContentSchema,
+        404: notFoundSchema.describe("No article exists with the given id")
+      },
+      detail: {
+        summary: "Delete an article",
+        description:
+          "Admin only. Permanently removes the article, all of its translations, and every storage key referenced by its CoverImage and NodeImage entries. Returns 204 with no response body. A deleted identifier resolves as not-found on subsequent reads."
       }
     }
   )

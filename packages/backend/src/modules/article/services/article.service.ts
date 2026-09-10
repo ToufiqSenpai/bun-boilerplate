@@ -25,6 +25,7 @@ import type {
   Article,
   ArticleTranslationParams,
   CreateArticleBody,
+  DeleteArticleParams,
   ListArticlesQuery,
   UpdateArticleBody,
   UpdateArticleParams,
@@ -279,6 +280,29 @@ export class ArticleService {
       if (hasPgCode(error, "23503")) throw new NotFoundError("Category not found")
       throw error
     }
+  }
+
+  public async delete(params: DeleteArticleParams): Promise<void> {
+    const { coverKey, contents } = await this.database.transaction(async tx => {
+      const [article] = await tx
+        .select({ coverKey: articles.coverKey })
+        .from(articles)
+        .where(eq(articles.id, params.id))
+        .limit(1)
+      if (!article) throw new NotFoundError("Article not found")
+
+      const translations = await tx
+        .select({ content: articleTranslations.content })
+        .from(articleTranslations)
+        .where(eq(articleTranslations.articleId, params.id))
+
+      await tx.delete(articles).where(eq(articles.id, params.id))
+
+      return { coverKey: article.coverKey, contents: translations.map(translation => translation.content) }
+    })
+
+    if (coverKey !== "") await this.storage.delete(new StorageKey(coverKey))
+    await Promise.all(contents.map(content => deleteStoredKeys(content, this.storage)))
   }
 
   private uploadMismatchError(
