@@ -103,17 +103,17 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
     {
       permissions: { article: ["create"] },
       body: createArticleSchema.describe(
-        "Article fields with the first translation, content document, and image files"
+        "Article fields with the author, first translation, content document, and image files"
       ),
       response: {
         201: articleSchema.describe("The created article with its first translation"),
-        404: notFoundSchema.describe("The given categoryId does not reference an existing article category"),
+        404: notFoundSchema.describe("The given categoryId or authorId does not reference an existing row"),
         409: conflictSchema.describe("The slug already exists for the requested locale")
       },
       detail: {
         summary: "Create an article",
         description:
-          "Admin only. Creates a new article together with its first translation, TipTap content document, mandatory cover image, and inline images matched to upload references in the document."
+          "Admin only. Creates a new article together with its first translation, TipTap content document, mandatory cover image, and inline images matched to upload references in the document. The mandatory authorId must reference an existing User."
       }
     }
   )
@@ -151,19 +151,19 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
     {
       permissions: { article: ["update"] },
       params: updateArticleParamsSchema,
-      body: updateArticleSchema.describe("Article-level fields to change: lifecycle status, category, or cover"),
+      body: updateArticleSchema.describe("Article-level fields to change: lifecycle status, category, author, or cover"),
       response: {
         200: updateArticleResponseSchema.describe(
           "The updated article-level fields with the CoverImage resolved to its host URL"
         ),
         404: notFoundSchema.describe(
-          "No article exists with the given id, or the given categoryId does not reference an existing article category"
+          "No article exists with the given id, or the given categoryId or authorId does not reference an existing row"
         )
       },
       detail: {
-        summary: "Update an article's status, category, or cover",
+        summary: "Update an article's status, category, author, or cover",
         description:
-          "Admin only. Updates article-level fields without touching any translation: lifecycle Status, ArticleCategory reassignment (null unsets it), and optional CoverImage replacement. An absent cover part keeps the stored cover; a supplied one uploads under a fresh key and deletes the superseded key. publishedAt is set when the status first becomes published and is never cleared. Translation payloads are rejected as validation errors."
+          "Admin only. Updates article-level fields without touching any translation: lifecycle Status, ArticleCategory reassignment (null unsets it), Author reassignment (authorId is never nullable), and optional CoverImage replacement. An absent cover part keeps the stored cover; a supplied one uploads under a fresh key and deletes the superseded key. publishedAt is set when the status first becomes published and is never cleared. Translation payloads are rejected as validation errors."
       }
     }
   )

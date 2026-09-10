@@ -18,6 +18,18 @@ const articleImage = fileSchema.refine(async ({ mime }) => COMMON_IMAGE_MIMETYPE
   error: `Cover image mimetype must be ${COMMON_IMAGE_MIMETYPE.join(", ")}.`
 })
 
+export const articleAuthorSchema = z
+  .object({
+    id: z.uuidv7({ error: "Author id must be UUIDv7" }).describe("Author's User id"),
+    name: z.string().describe("Author's display name"),
+    image: z.url({ error: "Author profile image must be a URL" }).nullable().describe("Author profile image URL")
+  })
+  .describe("User credited with the article")
+
+const authorIdSchema = z
+  .uuidv7({ error: "Author id must be UUIDv7" })
+  .describe("Id of the User credited as the article author")
+
 export const articleSchema = z
   .object({
     status: z.enum(articleStatusEnum.enumValues).default("draft").describe("Lifecycle status of the article"),
@@ -26,6 +38,7 @@ export const articleSchema = z
       .uuidv7({ error: "Category id must be UUIDv7" })
       .nullable()
       .describe("Article category id, null when uncategorised"),
+    author: articleAuthorSchema.nullable().describe("Article author, null when the account was deleted"),
     locale: z
       .enum(LOCALES, { error: "Invalid locale" })
       .default(DEFAULT_LOCALE)
@@ -73,9 +86,10 @@ export type ListArticlesQuery = z.output<typeof listArticlesQuerySchema>
 
 export const createArticleSchema = z
   .looseObject({
-    ...omitCollection(articleSchema).omit({ publishedAt: true }).shape,
+    ...omitCollection(articleSchema).omit({ publishedAt: true, author: true }).shape,
     content: jsonStringSchema.pipe(richTextContentSchema),
-    cover: articleImage
+    cover: articleImage,
+    authorId: authorIdSchema
   })
   .catchall(articleImage)
 
@@ -102,7 +116,8 @@ export const upsertArticleTranslationSchema = z
       categoryId: true,
       locale: true,
       cover: true,
-      content: true
+      content: true,
+      author: true
     }).shape,
     content: jsonStringSchema.pipe(richTextContentSchema)
   })
@@ -134,7 +149,8 @@ export const updateArticleSchema = z
     // removeDefault keeps an absent Status from parsing as the articleSchema default and resetting it
     status: articleSchema.shape.status.removeDefault(),
     categoryId: articleSchema.shape.categoryId,
-    cover: articleImage
+    cover: articleImage,
+    authorId: authorIdSchema
   })
   .partial()
 

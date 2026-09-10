@@ -48,6 +48,10 @@ _Avoid_: Onboarding, Bootstrap, Install
 A publishable content item that may belong to an ArticleCategory and carries translatable fields.
 _Avoid_: Post, Page, Entry, Content
 
+**Author**:
+The User credited with an Article. Every Article has an Author at creation; reassignment is allowed but clearing is not, and removing the User leaves the Article author-less.
+_Avoid_: Writer, Creator, Owner
+
 **ArticleCategory**:
 An optional grouping for Articles (one-to-many); an Article may exist without an ArticleCategory.
 _Avoid_: Category, Topic, Section, Tag

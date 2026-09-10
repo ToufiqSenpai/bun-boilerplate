@@ -15,6 +15,7 @@ import type { FileSchema } from "../../../common/schema.js"
 import { StorageKey } from "../../../common/storage/storage-key.js"
 import type { FileMetadata, Storage, UploadFileParams } from "../../../common/storage/storage.js"
 import type { CreateArticleBody, ListArticlesQuery, UpsertArticleTranslationBody } from "../schemas/article.schema.js"
+import { users } from "../../auth/tables/auth.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
@@ -28,6 +29,9 @@ function createJoinedRow(overrides: Partial<JoinedArticleRow> = {}): JoinedArtic
     publishedAt: overrides.publishedAt ?? faker.date.recent(),
     categoryId: overrides.categoryId ?? null,
     coverKey: overrides.coverKey ?? `articles/${faker.string.uuid({ version: 7 })}.png`,
+    authorId: overrides.authorId ?? null,
+    authorName: overrides.authorName ?? null,
+    authorImage: overrides.authorImage ?? null,
     locale: overrides.locale ?? faker.helpers.arrayElement(["en", "id"] as const),
     title: overrides.title ?? faker.lorem.words({ min: 2, max: 5 }),
     slug: overrides.slug ?? faker.lorem.slug(),
@@ -43,17 +47,19 @@ function buildRowsChain(rows: JoinedArticleRow[]) {
   const limit = vi.fn<(limit: number) => { offset: typeof offset }>().mockReturnValue({ offset })
   const orderBy = vi.fn<() => { limit: typeof limit }>().mockReturnValue({ limit })
   const where = vi.fn<(predicate: unknown) => { orderBy: typeof orderBy }>().mockReturnValue({ orderBy })
-  const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
+  const leftJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
+  const innerJoin = vi.fn<() => { leftJoin: typeof leftJoin }>().mockReturnValue({ leftJoin })
   const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
-  return { from, innerJoin, where, orderBy, limit, offset }
+  return { from, innerJoin, leftJoin, where, orderBy, limit, offset }
 }
 
 function buildJoinedLimitChain(rows: JoinedArticleRow[]) {
   const limit = vi.fn<(limit: number) => Promise<JoinedArticleRow[]>>().mockResolvedValue(rows)
   const where = vi.fn<(predicate: unknown) => { limit: typeof limit }>().mockReturnValue({ limit })
-  const innerJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
+  const leftJoin = vi.fn<() => { where: typeof where }>().mockReturnValue({ where })
+  const innerJoin = vi.fn<() => { leftJoin: typeof leftJoin }>().mockReturnValue({ leftJoin })
   const from = vi.fn<() => { innerJoin: typeof innerJoin }>().mockReturnValue({ innerJoin })
-  return { from, innerJoin, where, limit }
+  return { from, innerJoin, leftJoin, where, limit }
 }
 
 function mockGetSelect(database: Database, rows: JoinedArticleRow[]) {
@@ -154,6 +160,7 @@ function createBody(overrides: Record<string, string | RichText | FileSchema | n
   return {
     status: "draft",
     locale: "en",
+    authorId: faker.string.uuid({ version: 7 }),
     ...translationFields(),
     cover: filePart(pngFile("cover.png"), "image/png", "png"),
     ...overrides
@@ -178,7 +185,7 @@ interface ArticleRow {
   publishedAt: Date | null
   categoryId: string | null
   coverKey: string
-  authorId: null
+  authorId: string | null
 }
 
 interface InsertedArticle {
@@ -186,6 +193,7 @@ interface InsertedArticle {
   status: string
   coverKey: string
   categoryId: string | null
+  authorId: string
 }
 
 interface InsertedTranslation {
@@ -204,6 +212,21 @@ interface ArticleChanges {
   publishedAt?: Date
   categoryId?: string | null
   coverKey?: string
+  authorId?: string
+}
+
+interface AuthorRow {
+  authorId: string
+  authorName: string
+  authorImage: string | null
+}
+
+function createAuthorRow(overrides: Partial<AuthorRow> = {}): AuthorRow {
+  return {
+    authorId: overrides.authorId ?? faker.string.uuid({ version: 7 }),
+    authorName: overrides.authorName ?? faker.person.fullName(),
+    authorImage: overrides.authorImage ?? faker.image.url()
+  }
 }
 
 type StubFn = ReturnType<typeof vi.fn>
@@ -226,6 +249,7 @@ function selectChain<Row>(rows: Row[]) {
   const chain = {
     from: vi.fn<() => object>(),
     innerJoin: vi.fn<() => object>(),
+    leftJoin: vi.fn<() => object>(),
     where: vi.fn<() => object>(),
     limit: vi.fn<() => object>(),
     for: vi.fn<() => object>(),
@@ -233,6 +257,7 @@ function selectChain<Row>(rows: Row[]) {
   }
   chain.from.mockReturnValue(chain)
   chain.innerJoin.mockReturnValue(chain)
+  chain.leftJoin.mockReturnValue(chain)
   chain.where.mockReturnValue(chain)
   chain.limit.mockReturnValue(chain)
   chain.for.mockReturnValue(chain)
@@ -348,14 +373,14 @@ describe("ArticleService", () => {
           content: row.content,
           metaTitle: row.metaTitle,
           metaDescription: row.metaDescription,
-          cover: `${config.s3.publicBaseUrl.replace(/\/$/, "")}/${row.coverKey}`
+          cover: `${config.s3.publicBaseUrl.replace(/\/$/, "")}/${row.coverKey}`,
+          author: null
         }
       ])
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 })
     })
 
-    test("resolves a stored cover key against the configured public host", async () => {
-      const database = mockDeep<Database>()
+    test("resolves a stored cover key against the configured public host", async () => {      const database = mockDeep<Database>()
       const key = `articles/${faker.string.uuid({ version: 7 })}.png`
       mockListSelect(database, [createJoinedRow({ coverKey: key })], 1)
 
@@ -367,6 +392,23 @@ describe("ArticleService", () => {
       const url = new URL(cover ?? "")
       expect(url.origin).toBe(new URL(config.s3.publicBaseUrl).origin)
       expect(url.pathname.endsWith(`/${key}`)).toBe(true)
+    })
+
+    test("maps the joined author and joins the users table", async () => {
+      const database = mockDeep<Database>()
+      const author = createAuthorRow()
+      const row = createJoinedRow(author)
+      const { rowsChain } = mockListSelect(database, [row], 1)
+
+      const service = new ArticleService(database, mockDeep<Storage>())
+      const result = await service.list(query(), "en")
+
+      expect(result.data[0]?.author).toEqual({
+        id: author.authorId,
+        name: author.authorName,
+        image: author.authorImage
+      })
+      expect(rowsChain.leftJoin).toHaveBeenCalledWith(users, expect.anything())
     })
 
     test("rewrites nested NodeImage src keys to host URLs, passing external and upload refs through", async () => {
@@ -471,10 +513,12 @@ describe("ArticleService", () => {
         content: row.content,
         metaTitle: row.metaTitle,
         metaDescription: row.metaDescription,
-        cover: `${config.s3.publicBaseUrl.replace(/\/$/, "")}/${row.coverKey}`
+        cover: `${config.s3.publicBaseUrl.replace(/\/$/, "")}/${row.coverKey}`,
+        author: null
       })
       expect(chain.from).toHaveBeenCalledWith(articles)
       expect(chain.innerJoin).toHaveBeenCalledWith(articleTranslations, expect.anything())
+      expect(chain.leftJoin).toHaveBeenCalledWith(users, expect.anything())
       expect(chain.limit).toHaveBeenCalledWith(1)
 
       const rendered = renderWhere(chain.where.mock.calls[0]?.[0])
@@ -535,22 +579,58 @@ describe("ArticleService", () => {
       vi.restoreAllMocks()
     })
 
-    function setupCreate() {
+    function setupCreate(author = createAuthorRow()) {
       const articleInsert = insertHandle<InsertedArticle>(values => ({
         ...values,
         createdAt: new Date(),
         updatedAt: new Date(),
-        publishedAt: null,
-        authorId: null
+        publishedAt: null
       }))
       const translationInsert = insertHandle<InsertedTranslation>(values => values)
       const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([author]))
       tx.insert
         .mockReturnValueOnce({ values: articleInsert.values })
         .mockReturnValueOnce({ values: translationInsert.values })
       const transaction = spyTransaction(tx.handles)
-      return { articleInsert, translationInsert, transaction }
+      return { articleInsert, translationInsert, transaction, author }
     }
+
+    test("persists the author id and returns the resolved author", async () => {
+      const { storage } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const author = createAuthorRow()
+      const { articleInsert } = setupCreate(author)
+
+      const result = await service.create(createBody({ authorId: author.authorId }))
+
+      // SAFETY: the create flow inserted exactly one article payload
+      const articleValues = articleInsert.values.mock.calls[0]?.[0] as { authorId: string }
+      expect(articleValues.authorId).toBe(author.authorId)
+      expect(result.author).toEqual({
+        id: author.authorId,
+        name: author.authorName,
+        image: author.authorImage
+      })
+    })
+
+    test("rejects an unknown author id with a 404, persisting nothing", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([]))
+      spyTransaction(tx.handles)
+
+      const error = await service.create(createBody()).catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).status).toBe(404)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).message).toBe("Author not found")
+      expect(tx.insert).not.toHaveBeenCalled()
+      expect(objects.size).toBe(0)
+    })
 
     test("persists resolved keys for cover and inline images and serves host urls", async () => {
       const { storage, objects } = createTestStorage()
@@ -741,6 +821,29 @@ describe("ArticleService", () => {
       expect(objects.size).toBe(1)
     })
 
+    test("maps the stored author into the translation response", async () => {
+      const { storage } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const author = createAuthorRow()
+      const row = articleRow({ authorId: author.authorId })
+      const translationInsert = insertHandle<InsertedTranslation>(values => values)
+      const tx = createTransaction()
+      tx.select
+        .mockReturnValueOnce(selectChain([row]))
+        .mockReturnValueOnce(selectChain([]))
+        .mockReturnValueOnce(selectChain([author]))
+      tx.insert.mockReturnValueOnce({ values: translationInsert.values })
+      spyTransaction(tx.handles)
+
+      const { translation } = await service.upsertTranslation({ id: row.id, locale: "en" }, createUpsertBody())
+
+      expect(translation.author).toEqual({
+        id: author.authorId,
+        name: author.authorName,
+        image: author.authorImage
+      })
+    })
+
     test("forwards the abort signal to inline uploads", async () => {
       const storage = mockDeep<Storage>()
       storage.upload.mockResolvedValue({ key: "articles/a.png" })
@@ -906,7 +1009,8 @@ describe("ArticleService", () => {
         status: "published",
         publishedAt: expect.any(Date),
         categoryId: null,
-        cover: expect.stringMatching(/^https?:\/\//)
+        cover: expect.stringMatching(/^https?:\/\//),
+        author: null
       })
       // SAFETY: update() received exactly one change payload
       const changes = update.set.mock.calls[0]?.[0] as { status: string; publishedAt: Date }
@@ -963,6 +1067,69 @@ describe("ArticleService", () => {
       const unassignChanges = unassign.set.mock.calls[0]?.[0] as Partial<ArticleChanges>
       expect(assignChanges.categoryId).toBe(categoryId)
       expect(unassignChanges.categoryId).toBeNull()
+    })
+
+    test("reassigns the author and returns the resolved author", async () => {
+      const service = new ArticleService(database, mockDeep<Storage>())
+      const row = articleRow({ status: "published", publishedAt: faker.date.recent() })
+      const author = createAuthorRow()
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row])).mockReturnValueOnce(selectChain([author]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
+
+      const result = await service.updateArticle({ id: row.id }, { authorId: author.authorId })
+
+      expect(result.author).toEqual({
+        id: author.authorId,
+        name: author.authorName,
+        image: author.authorImage
+      })
+      // SAFETY: update() received exactly one change payload
+      const changes = update.set.mock.calls[0]?.[0] as Partial<ArticleChanges>
+      expect(changes.authorId).toBe(author.authorId)
+    })
+
+    test("returns the stored author when the patch leaves it untouched", async () => {
+      const service = new ArticleService(database, mockDeep<Storage>())
+      const author = createAuthorRow()
+      const row = articleRow({ authorId: author.authorId })
+      const update = updateHandle<ArticleChanges>(changes => ({ ...row, ...changes }))
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row])).mockReturnValueOnce(selectChain([author]))
+      tx.update.mockReturnValueOnce({ set: update.set })
+      spyTransaction(tx.handles)
+
+      const result = await service.updateArticle({ id: row.id }, { status: "published" })
+
+      expect(result.author).toEqual({
+        id: author.authorId,
+        name: author.authorName,
+        image: author.authorImage
+      })
+      // SAFETY: update() received exactly one change payload
+      const changes = update.set.mock.calls[0]?.[0] as Partial<ArticleChanges>
+      expect(changes).not.toHaveProperty("authorId")
+    })
+
+    test("rejects an unknown author id with a 404, leaving the article untouched", async () => {
+      const service = new ArticleService(database, mockDeep<Storage>())
+      const row = articleRow()
+      const tx = createTransaction()
+      tx.select.mockReturnValueOnce(selectChain([row])).mockReturnValueOnce(selectChain([]))
+      spyTransaction(tx.handles)
+
+      const error = await service
+        .updateArticle({ id: row.id }, { authorId: faker.string.uuid({ version: 7 }) })
+        .catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).status).toBe(404)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).message).toBe("Author not found")
+      expect(tx.update).not.toHaveBeenCalled()
     })
 
     test("keeps the stored cover byte-identical when no cover part is supplied", async () => {
