@@ -4,6 +4,7 @@ import { database } from "../../common/database.js"
 import { conflictSchema, notFoundSchema } from "../../common/error.js"
 import { localeHeadersSchema, localePlugin } from "../../common/i18n.js"
 import type { OpenApiTag } from "../../common/openapi.js"
+import { noContentSchema } from "../../common/schema.js"
 import { storage } from "../../common/storage/storage.js"
 import { authPlugin, auth } from "../auth/index.js"
 import { isKnownRole } from "../auth/permissions.js"
@@ -11,7 +12,6 @@ import {
   articleCategorySchema,
   articleCategoryTranslationParamsSchema,
   createArticleCategorySchema,
-  deleteArticleCategoryNoContentSchema,
   deleteArticleCategoryParamsSchema,
   getArticleCategoryParamsSchema,
   listArticleCategoriesQuerySchema,
@@ -22,6 +22,7 @@ import {
   articleSchema,
   articleTranslationParamsSchema,
   createArticleSchema,
+  deleteArticleParamsSchema,
   getArticleParamsSchema,
   listArticlesQuerySchema,
   listArticlesResponseSchema,
@@ -166,6 +167,26 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       }
     }
   )
+  .delete(
+    "/articles/:id",
+    async ({ params, status }) => {
+      await articleService.delete(params)
+      return status(204, undefined)
+    },
+    {
+      permissions: { article: ["delete"] },
+      params: deleteArticleParamsSchema,
+      response: {
+        204: noContentSchema,
+        404: notFoundSchema.describe("No article exists with the given id")
+      },
+      detail: {
+        summary: "Delete an article",
+        description:
+          "Admin only. Permanently removes the article, all of its translations, and every storage key referenced by its CoverImage and NodeImage entries. Returns 204 with no response body. A deleted identifier resolves as not-found on subsequent reads."
+      }
+    }
+  )
   .get(
     "/article-categories",
     ({ query, locale, set }) => {
@@ -261,7 +282,7 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
       permissions: { articleCategory: ["delete"] },
       params: deleteArticleCategoryParamsSchema,
       response: {
-        204: deleteArticleCategoryNoContentSchema,
+        204: noContentSchema,
         404: notFoundSchema.describe("No article category exists with the given id")
       },
       detail: {

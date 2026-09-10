@@ -62,6 +62,5 @@ export type UpsertArticleCategoryTranslationBody = z.output<typeof upsertArticle
 export const deleteArticleCategoryParamsSchema = z.object({
   id: z.uuidv7({ error: "Invalid category id" }).describe("Article category id")
 })
-export const deleteArticleCategoryNoContentSchema = z.undefined().describe("Empty response body on successful deletion")
 
 export type DeleteArticleCategoryParams = z.output<typeof deleteArticleCategoryParamsSchema>

@@ -18,6 +18,8 @@ export const jsonStringSchema = z
   ])
   .describe("JSON string parsed into a value, or an already-parsed JSON object")
 
+export const noContentSchema = z.undefined().describe("Empty response body on successful deletion")
+
 export const timestampSchema = z
   .codec(z.union([z.iso.datetime(), z.date()]), z.date(), {
     decode: value => (value instanceof Date ? value : new Date(value)),
