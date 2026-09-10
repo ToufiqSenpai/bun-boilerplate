@@ -304,7 +304,7 @@ export class ArticleService {
       return { coverKey: article.coverKey, contents: translations.map(translation => translation.content) }
     })
 
-    if (coverKey !== "") await this.storage.delete(new StorageKey(coverKey))
+    if (coverKey) await this.storage.delete(new StorageKey(coverKey))
     await Promise.all(contents.map(content => deleteStoredKeys(content, this.storage)))
   }
 

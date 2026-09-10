@@ -1,9 +1,10 @@
 import { Elysia } from "elysia"
 
 import { database } from "../../common/database.js"
-import { conflictSchema, noContentSchema, notFoundSchema } from "../../common/error.js"
+import { conflictSchema, notFoundSchema } from "../../common/error.js"
 import { localeHeadersSchema, localePlugin } from "../../common/i18n.js"
 import type { OpenApiTag } from "../../common/openapi.js"
+import { noContentSchema } from "../../common/schema.js"
 import { storage } from "../../common/storage/storage.js"
 import { authPlugin, auth } from "../auth/index.js"
 import { isKnownRole } from "../auth/permissions.js"
