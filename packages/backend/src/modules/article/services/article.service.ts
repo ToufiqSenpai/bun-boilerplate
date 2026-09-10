@@ -284,11 +284,14 @@ export class ArticleService {
 
   public async delete(params: DeleteArticleParams): Promise<void> {
     const { coverKey, contents } = await this.database.transaction(async tx => {
+      // Locks the article row before reading translations so a concurrent translation upsert
+      // either lands in the snapshot below or fails against the cascade instead of leaking keys
       const [article] = await tx
         .select({ coverKey: articles.coverKey })
         .from(articles)
         .where(eq(articles.id, params.id))
         .limit(1)
+        .for("update")
       if (!article) throw new NotFoundError("Article not found")
 
       const translations = await tx

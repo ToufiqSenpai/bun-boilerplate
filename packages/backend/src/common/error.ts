@@ -21,6 +21,8 @@ export const conflictSchema = z
   })
   .describe("Conflict response")
 
+export const noContentSchema = z.undefined().describe("Empty response body on successful deletion")
+
 export class ConflictError extends Error {
   public readonly status = 409
 
