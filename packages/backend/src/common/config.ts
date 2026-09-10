@@ -40,6 +40,7 @@ export const configSchema = z
               .describe("Lifetime in seconds of password reset tokens")
           })
           .strict()
+          .prefault({})
           .describe("Auth email token configuration"),
         google: z
           .object({
@@ -100,10 +101,6 @@ export const config = configSchema.parse({
   },
   auth: {
     secret: process.env.BETTER_AUTH_SECRET,
-    email: {
-      verifyEmailTtl: defaultEnvironment({ development: 1800, test: 1800, production: 1800 }),
-      resetPasswordTtl: defaultEnvironment({ development: 1800, test: 1800, production: 1800 })
-    },
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET
