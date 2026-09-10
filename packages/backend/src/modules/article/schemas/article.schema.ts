@@ -119,3 +119,38 @@ export const getArticleParamsSchema = z.object({
 })
 
 export type GetArticleParams = z.output<typeof getArticleParamsSchema>
+
+// PATCH /articles/:id (params + body) — article-level changes only and no Locale: Status,
+// ArticleCategory reassignment (null unsets it), and optional CoverImage replacement. The body is
+// strict, so translation fields and stray file parts are rejected as validation errors.
+export const updateArticleParamsSchema = z.object({
+  id: z.uuidv7({ error: "Invalid article id" }).describe("Article id")
+})
+
+export type UpdateArticleParams = z.output<typeof updateArticleParamsSchema>
+
+export const updateArticleSchema = z.strictObject({
+  status: z.enum(articleStatusEnum.enumValues).optional().describe("New lifecycle status"),
+  categoryId: z
+    .uuidv7({ error: "Category id must be UUIDv7" })
+    .nullable()
+    .optional()
+    .describe("Article category id, null to unassign"),
+  cover: articleImage.optional().describe("Replacement cover image file")
+})
+
+export type UpdateArticleBody = z.output<typeof updateArticleSchema>
+
+// Response body for PATCH /articles/:id — the article-level half of the read schema, since the
+// request carries no Locale and there is no single translation to localize.
+export const updateArticleResponseSchema = articleSchema.omit({
+  locale: true,
+  title: true,
+  slug: true,
+  excerpt: true,
+  content: true,
+  metaTitle: true,
+  metaDescription: true
+})
+
+export type UpdatedArticle = z.output<typeof updateArticleResponseSchema>

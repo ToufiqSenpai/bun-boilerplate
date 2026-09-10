@@ -2,7 +2,12 @@ import { COMMON_IMAGE_MIMETYPE } from "@bun-boilerplate/constants"
 import type { RichText } from "@bun-boilerplate/richtext"
 import { faker } from "@faker-js/faker"
 
-import { createArticleSchema, upsertArticleTranslationSchema } from "./article.schema.js"
+import {
+  createArticleSchema,
+  updateArticleResponseSchema,
+  updateArticleSchema,
+  upsertArticleTranslationSchema
+} from "./article.schema.js"
 
 // Minimal valid headers, verified against file-type: detection reads structure, not just magic.
 const PNG_1X1 = [
@@ -189,6 +194,12 @@ async function parseUpsertIssues(input: Payload) {
   return result.error.issues
 }
 
+async function parseUpdateIssues(input: Payload) {
+  const result = await updateArticleSchema.safeParseAsync(input)
+  if (result.success) expect.unreachable("expected validation to fail")
+  return result.error.issues
+}
+
 describe("upsertArticleTranslationSchema", () => {
   test("parses a valid multipart payload, keeping dynamic file parts", async () => {
     const inline = pngFile("inline-1", 512)
@@ -225,5 +236,82 @@ describe("upsertArticleTranslationSchema", () => {
     expect(await parseUpsertIssues(upsertInput({ "inline-1": part }))).toEqual([
       expect.objectContaining({ path: ["inline-1"], message: COVER_MIME_MESSAGE })
     ])
+  })
+})
+
+describe("updateArticleSchema", () => {
+  test("parses a status-only patch", async () => {
+    const result = await updateArticleSchema.safeParseAsync({ status: "published" })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.status).toBe("published")
+  })
+
+  test("parses a category-only patch, accepting null to unassign", async () => {
+    const categoryId = faker.string.uuid({ version: 7 })
+    const assigned = await updateArticleSchema.safeParseAsync({ categoryId })
+    const unassigned = await updateArticleSchema.safeParseAsync({ categoryId: null })
+
+    expect(assigned.success && assigned.data.categoryId).toBe(categoryId)
+    expect(unassigned.success && unassigned.data.categoryId).toBeNull()
+  })
+
+  test("parses a cover-only patch, sniffing the image mime", async () => {
+    const cover = pngFile("cover.png", 1024)
+    const result = await updateArticleSchema.safeParseAsync({ cover })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.cover?.file).toBe(cover)
+    expect(result.data.cover?.mime).toBe("image/png")
+  })
+
+  test("rejects translation fields as unrecognized keys", async () => {
+    for (const field of ["locale", "title", "slug", "excerpt", "content", "metaTitle", "metaDescription"]) {
+      const issues = await parseUpdateIssues({ [field]: "value" })
+
+      expect(issues).toEqual([expect.objectContaining({ code: "unrecognized_keys", keys: [field] })])
+    }
+  })
+
+  test("rejects a stray inline file part", async () => {
+    const inline = pngFile("inline-1", 512)
+
+    expect(await parseUpdateIssues({ "inline-1": inline })).toEqual([
+      expect.objectContaining({ code: "unrecognized_keys", keys: ["inline-1"] })
+    ])
+  })
+
+  test("rejects an invalid status", async () => {
+    expect(await parseUpdateIssues({ status: "deleted" })).toEqual([expect.objectContaining({ path: ["status"] })])
+  })
+
+  test("rejects a non-uuid category id", async () => {
+    expect(await parseUpdateIssues({ categoryId: "not-an-id" })).toEqual([
+      expect.objectContaining({ path: ["categoryId"] })
+    ])
+  })
+
+  test("rejects a detectable but disallowed cover mime", async () => {
+    const cover = imageFile("cover.gif", GIF_MINIMAL, "image/gif")
+
+    expect(await parseUpdateIssues({ cover })).toEqual([
+      expect.objectContaining({ path: ["cover"], message: COVER_MIME_MESSAGE })
+    ])
+  })
+
+  test("rejects an undetectable cover file", async () => {
+    const cover = new File(["not an image"], "cover.png", { type: "text/plain" })
+
+    expect(await parseUpdateIssues({ cover })).toEqual([
+      expect.objectContaining({ path: ["cover"], message: "File type could not be detected" })
+    ])
+  })
+
+  test("exposes only article-level fields in the response schema", () => {
+    expect(Object.keys(updateArticleResponseSchema.shape).sort()).toEqual(
+      ["categoryId", "cover", "createdAt", "id", "publishedAt", "status", "updatedAt"].sort()
+    )
   })
 })
