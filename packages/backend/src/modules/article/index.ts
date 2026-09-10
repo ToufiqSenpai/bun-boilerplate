@@ -20,10 +20,12 @@ import {
 } from "./schemas/article-category.schema.js"
 import {
   articleSchema,
+  articleTranslationParamsSchema,
   createArticleSchema,
   getArticleParamsSchema,
   listArticlesQuerySchema,
-  listArticlesResponseSchema
+  listArticlesResponseSchema,
+  upsertArticleTranslationSchema
 } from "./schemas/article.schema.js"
 import { ArticleCategoryService } from "./services/article-category.service.js"
 import { ArticleService } from "./services/article.service.js"
@@ -108,6 +110,32 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
         summary: "Create an article",
         description:
           "Admin only. Creates a new article together with its first translation, TipTap content document, mandatory cover image, and inline images matched to upload references in the document."
+      }
+    }
+  )
+  .put(
+    "/articles/:id/translations/:locale",
+    async ({ params, body, request, set, status }) => {
+      set.headers["content-language"] = params.locale
+      const { translation, created } = await articleService.upsertTranslation(params, body, request.signal)
+      return status(created ? 201 : 200, translation)
+    },
+    {
+      permissions: { article: ["update"] },
+      params: articleTranslationParamsSchema,
+      body: upsertArticleTranslationSchema.describe(
+        "ArticleTranslation fields with ArticleContent document and NodeImage files"
+      ),
+      response: {
+        200: articleSchema.describe("The article with the replaced translation"),
+        201: articleSchema.describe("The article with the newly created translation"),
+        404: notFoundSchema.describe("No article exists with the given id"),
+        409: conflictSchema.describe("The slug already exists for the requested locale")
+      },
+      detail: {
+        summary: "Create or replace an article translation",
+        description:
+          "Admin only. Upserts the ArticleTranslation of an existing Article for the given Locale, replacing text fields, the ArticleContent document, and NodeImage entries wholesale. Never touches the CoverImage. Returns 201 when the translation was created and 200 when an existing one was replaced."
       }
     }
   )

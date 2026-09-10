@@ -4,7 +4,7 @@ import { mockDeep } from "vitest-mock-extended"
 import { config } from "../common/config.js"
 import type { FileSchema } from "../common/schema.js"
 import type { Storage } from "../common/storage/storage.js"
-import { resolveImageSrc, UploadRefMismatchError, uploadInlineImages } from "./richtext.js"
+import { deleteStoredKeys, resolveImageSrc, UploadRefMismatchError, uploadInlineImages } from "./richtext.js"
 
 const base = config.s3.publicBaseUrl.replace(/\/$/, "")
 
@@ -50,6 +50,47 @@ describe("resolveImageSrc", () => {
     const result = resolveImageSrc(doc)
     expect(result.content?.[0]?.attrs?.src).toBe(`${base}/avatars/a%20b.png`)
     expect(doc).toEqual(snapshot)
+  })
+})
+
+describe("deleteStoredKeys", () => {
+  test("deletes nested storage keys once, skipping external urls and malformed keys", async () => {
+    const storage = mockDeep<Storage>()
+    const doc: RichText = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "image", attrs: { src: "articles/a.png" } }] },
+        { type: "image", attrs: { src: "articles/a.png" } },
+        { type: "image", attrs: { src: "articles/b.jpg" } },
+        { type: "image", attrs: { src: "https://cdn.example.org/pic.png" } },
+        { type: "image", attrs: { src: "not-a-key" } },
+        { type: "paragraph", content: [{ type: "text", text: "plain" }] }
+      ]
+    }
+    const snapshot = structuredClone(doc)
+
+    await deleteStoredKeys(doc, storage)
+
+    expect(storage.delete).toHaveBeenCalledTimes(1)
+    const [deleted] = storage.delete.mock.calls[0] ?? []
+    const keys = (Array.isArray(deleted) ? deleted : []).map(key => key.toString())
+    expect(keys).toEqual(["articles/a.png", "articles/b.jpg"])
+    expect(doc).toEqual(snapshot)
+  })
+
+  test("skips the storage call when the document holds no stored keys", async () => {
+    const storage = mockDeep<Storage>()
+    const doc: RichText = {
+      type: "doc",
+      content: [
+        { type: "image", attrs: { src: "https://cdn.example.org/pic.png" } },
+        { type: "paragraph", content: [{ type: "text", text: "plain" }] }
+      ]
+    }
+
+    await deleteStoredKeys(doc, storage)
+
+    expect(storage.delete).not.toHaveBeenCalled()
   })
 })
 

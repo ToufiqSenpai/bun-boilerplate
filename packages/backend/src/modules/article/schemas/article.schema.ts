@@ -3,21 +3,24 @@ import { DEFAULT_LOCALE, LOCALES } from "@bun-boilerplate/i18n"
 import { richTextContentSchema } from "@bun-boilerplate/richtext"
 import { z } from "zod"
 
-import { collectionSchema, fileSchema, jsonStringSchema, omitCollection, slugSchema, timestampSchema } from "../../../common/schema.js"
+import {
+  collectionSchema,
+  fileSchema,
+  jsonStringSchema,
+  omitCollection,
+  slugSchema,
+  timestampSchema
+} from "../../../common/schema.js"
 import { paginatedSchema, paginationQuerySchema } from "../../../helpers/pagination.js"
 import { articleStatusEnum } from "../tables/article.table.js"
 
-const articleImage = fileSchema
-  .refine(async ({ mime }) => COMMON_IMAGE_MIMETYPE.includes(mime), {
-    error: `Cover image mimetype must be ${COMMON_IMAGE_MIMETYPE.join(", ")}.`
-  })
+const articleImage = fileSchema.refine(async ({ mime }) => COMMON_IMAGE_MIMETYPE.includes(mime), {
+  error: `Cover image mimetype must be ${COMMON_IMAGE_MIMETYPE.join(", ")}.`
+})
 
 export const articleSchema = z
   .object({
-    status: z
-      .enum(articleStatusEnum.enumValues)
-      .default("draft")
-      .describe("Lifecycle status of the article"),
+    status: z.enum(articleStatusEnum.enumValues).default("draft").describe("Lifecycle status of the article"),
     publishedAt: timestampSchema.nullable().readonly().describe("Publication timestamp, null when never published"),
     categoryId: z
       .uuidv7({ error: "Category id must be UUIDv7" })
@@ -77,6 +80,35 @@ export const createArticleSchema = z
   .catchall(articleImage)
 
 export type CreateArticleBody = z.output<typeof createArticleSchema>
+
+// PUT /articles/:id/translations/:locale (params + body) — full replacement of one Locale
+// ArticleTranslation with no CoverImage part; per-Locale Slug uniqueness is owned by the article
+// service through the UNIQUE(locale, slug) constraint (23505 → 409 Slug-conflict)
+export const articleTranslationParamsSchema = z.object({
+  id: z.uuidv7({ error: "Invalid article id" }).describe("Article id"),
+  locale: z.enum(LOCALES, { error: "Invalid locale" }).describe("Locale of the translation to create or replace")
+})
+
+export type ArticleTranslationParams = z.output<typeof articleTranslationParamsSchema>
+
+// Body reuses the articleSchema translation fields with the same multipart overrides as
+// creation; the object stays loose with a file catchall so dynamically named inline file
+// parts survive validation, and the service cross-checks them.
+export const upsertArticleTranslationSchema = z
+  .looseObject({
+    ...omitCollection(articleSchema).omit({
+      publishedAt: true,
+      status: true,
+      categoryId: true,
+      locale: true,
+      cover: true,
+      content: true
+    }).shape,
+    content: jsonStringSchema.pipe(richTextContentSchema)
+  })
+  .catchall(articleImage)
+
+export type UpsertArticleTranslationBody = z.output<typeof upsertArticleTranslationSchema>
 
 // GET /articles/:identifier (params) — resolves an Article by uuidv7 id or per-locale Slug.
 // The uuidv7 branch is tried first, so an identifier that looks like an id is always treated as an id, never as a Slug.

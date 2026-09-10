@@ -113,3 +113,33 @@ function rewriteUploadRefs(node: RichText, keyByRef: ReadonlyMap<string, Storage
   if (!current.content) return current
   return { ...current, content: current.content.map(child => rewriteUploadRefs(child, keyByRef)) }
 }
+
+export async function deleteStoredKeys(content: RichText, storage: Storage): Promise<void> {
+  const keys = collectStoredKeys(content)
+  if (keys.length > 0) await storage.delete(keys)
+}
+
+function collectStoredKeys(node: RichText): StorageKey[] {
+  const seen = new Map<string, StorageKey>()
+  const visit = (current: RichText): void => {
+    const parsed = imageNodeSchema.safeParse(current)
+    if (parsed.success) {
+      const src = parsed.data.attrs.src
+      if (!URL.canParse(src)) {
+        const key = toStorageKey(src)
+        if (key !== undefined) seen.set(key.toString(), key)
+      }
+    }
+    for (const child of current.content ?? []) visit(child)
+  }
+  visit(node)
+  return [...seen.values()]
+}
+
+function toStorageKey(src: string): StorageKey | undefined {
+  try {
+    return new StorageKey(src)
+  } catch {
+    return undefined
+  }
+}

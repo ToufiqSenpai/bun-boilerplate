@@ -15,9 +15,20 @@ import { StorageKey } from "../../../common/storage/storage-key.js"
 import type { Storage } from "../../../common/storage/storage.js"
 import type { Paginated } from "../../../helpers/pagination.js"
 import { pageMeta } from "../../../helpers/pagination.js"
-import { UploadRefMismatchError, resolveImageSrc, uploadInlineImages } from "../../../helpers/richtext.js"
-import type { Article, CreateArticleBody, ListArticlesQuery } from "../schemas/article.schema.js"
-import { articleSchema, createArticleSchema } from "../schemas/article.schema.js"
+import {
+  UploadRefMismatchError,
+  deleteStoredKeys,
+  resolveImageSrc,
+  uploadInlineImages
+} from "../../../helpers/richtext.js"
+import type {
+  Article,
+  ArticleTranslationParams,
+  CreateArticleBody,
+  ListArticlesQuery,
+  UpsertArticleTranslationBody
+} from "../schemas/article.schema.js"
+import { articleSchema, createArticleSchema, upsertArticleTranslationSchema } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 
 export interface JoinedArticleRow extends Omit<Article, "cover"> {
@@ -160,22 +171,7 @@ export class ArticleService {
         return { article, translation }
       })
 
-      return this.mapRow({
-        id: created.article.id,
-        createdAt: created.article.createdAt,
-        updatedAt: created.article.updatedAt,
-        status: created.article.status,
-        publishedAt: created.article.publishedAt,
-        categoryId: created.article.categoryId,
-        coverKey: created.article.coverKey,
-        locale: created.translation.locale,
-        title: created.translation.title,
-        slug: created.translation.slug,
-        excerpt: created.translation.excerpt,
-        content: created.translation.content,
-        metaTitle: created.translation.metaTitle,
-        metaDescription: created.translation.metaDescription
-      })
+      return this.mapRow({ ...created.translation, ...created.article })
     } catch (error) {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
@@ -185,17 +181,102 @@ export class ArticleService {
     }
   }
 
-  private uploadMismatchError(body: CreateArticleBody, error: UploadRefMismatchError): ValidationError {
-    if (error.missing.length > 0) {
-      return this.createValidationError(body, ["content"], `Unresolved upload references: ${error.missing.join(", ")}`)
+  public async upsertTranslation(
+    params: ArticleTranslationParams,
+    body: UpsertArticleTranslationBody,
+    signal?: AbortSignal
+  ): Promise<{ translation: Article; created: boolean }> {
+    const { content, ...rest } = body
+    const inlineFiles: Record<string, FileSchema> = {}
+    for (const [name, value] of Object.entries(rest)) {
+      if (isFilePart(value)) inlineFiles[name] = value
     }
-    const [firstStray = "content"] = error.stray
-    return this.createValidationError(body, [firstStray], `Unreferenced file parts: ${error.stray.join(", ")}`)
+    const uploaded: StorageKey[] = []
+    try {
+      const [inlineKeys, resolvedContent] = await uploadInlineImages({
+        richText: content,
+        files: inlineFiles,
+        storage: this.storage,
+        collection: this.articleCollection,
+        signal
+      })
+      uploaded.push(...inlineKeys)
+
+      const upserted = await this.database.transaction(async tx => {
+        const [article] = await tx
+          .select()
+          .from(articles)
+          .where(eq(articles.id, params.id))
+          .limit(1)
+        if (!article) throw new NotFoundError("Article not found")
+
+        const [old] = await tx
+          .select({ content: articleTranslations.content })
+          .from(articleTranslations)
+          .where(and(eq(articleTranslations.articleId, params.id), eq(articleTranslations.locale, params.locale)))
+          .limit(1)
+
+        const translationValues = {
+          title: body.title,
+          slug: body.slug,
+          excerpt: body.excerpt,
+          content: resolvedContent,
+          metaTitle: body.metaTitle,
+          metaDescription: body.metaDescription
+        }
+        const [translation] = await tx
+          .insert(articleTranslations)
+          .values({ articleId: params.id, locale: params.locale, ...translationValues })
+          .onConflictDoUpdate({
+            target: [articleTranslations.articleId, articleTranslations.locale],
+            set: translationValues
+          })
+          .returning()
+        if (!translation) throw new Error("Failed to upsert article translation")
+
+        return { article, translation, oldContent: old?.content ?? null, created: !old }
+      })
+
+      if (upserted.oldContent) await deleteStoredKeys(upserted.oldContent, this.storage)
+
+      return {
+        translation: this.mapRow({ ...upserted.translation, ...upserted.article }),
+        created: upserted.created
+      }
+    } catch (error) {
+      await this.storage.delete(uploaded)
+      if (error instanceof UploadRefMismatchError)
+        throw this.uploadMismatchError(body, error, upsertArticleTranslationSchema)
+      if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
+      throw error
+    }
   }
 
-  private createValidationError(body: CreateArticleBody, path: string[], message: string): ValidationError {
+  private uploadMismatchError(
+    body: CreateArticleBody | UpsertArticleTranslationBody,
+    error: UploadRefMismatchError,
+    schema: typeof createArticleSchema | typeof upsertArticleTranslationSchema = createArticleSchema
+  ): ValidationError {
+    if (error.missing.length > 0) {
+      return this.createValidationError(
+        body,
+        schema,
+        ["content"],
+        `Unresolved upload references: ${error.missing.join(", ")}`
+      )
+    }
+    const [firstStray = "content"] = error.stray
+    return this.createValidationError(body, schema, [firstStray], `Unreferenced file parts: ${error.stray.join(", ")}`)
+  }
+
+  private createValidationError(
+    body: CreateArticleBody | UpsertArticleTranslationBody,
+    schema: typeof createArticleSchema | typeof upsertArticleTranslationSchema,
+    path: string[],
+    message: string
+  ): ValidationError {
     // SAFETY: StandardSchema-style issue list is accepted by Elysia ValidationError to keep the 422 payload shape
-    return new ValidationError("body", createArticleSchema, body, false, [{ code: "custom", path, message }] as never)
+    return new ValidationError("body", schema, body, false, [{ code: "custom", path, message }] as never)
   }
 
   private mapRow(row: JoinedArticleRow): Article {
