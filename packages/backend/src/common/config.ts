@@ -13,7 +13,7 @@ export const configSchema = z
   .object({
     app: z
       .object({
-        name: z.string().min(1).max(64).default("NestJS Boilerplate").describe("Application name"),
+        name: z.string().min(1).max(64).default("Bun Boilerplate").describe("Application name"),
         environment: environmentSchema,
         port: z.uint32().min(1).max(65535).default(8080).describe("Application HTTP port (1-65535)"),
         origins: z.array(z.url().max(128)).default([]).describe("Allowed CORS origin URLs"),
