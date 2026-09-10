@@ -7,7 +7,7 @@ import { NotFoundError, ValidationError } from "elysia"
 import { z } from "zod"
 
 import type { Database } from "../../../common/database.js"
-import { hasPgCode, isUniqueViolation } from "../../../common/database.js"
+import { hasPgCode, hasPgConstraint, isUniqueViolation } from "../../../common/database.js"
 import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
 import { isFilePart } from "../../../common/schema.js"
@@ -21,6 +21,7 @@ import {
   resolveImageSrc,
   uploadInlineImages
 } from "../../../helpers/richtext.js"
+import { users } from "../../auth/tables/auth.table.js"
 import type {
   Article,
   ArticleTranslationParams,
@@ -33,7 +34,6 @@ import type {
   UpsertArticleTranslationBody
 } from "../schemas/article.schema.js"
 import { articleSchema, createArticleSchema, upsertArticleTranslationSchema } from "../schemas/article.schema.js"
-import { users } from "../../auth/tables/auth.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 
 interface AuthorFields {
@@ -153,8 +153,7 @@ export class ArticleService {
 
       const articleId = randomUUIDv7()
       const created = await this.database.transaction(async tx => {
-        const author = await this.loadAuthor(tx, body.authorId)
-        if (!author) throw new NotFoundError("Author not found")
+        const author = await this.requireAuthor(tx, body.authorId)
 
         const [article] = await tx
           .insert(articles)
@@ -191,7 +190,7 @@ export class ArticleService {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
       if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
-      if (hasPgCode(error, "23503")) throw new NotFoundError("Category not found")
+      if (hasPgCode(error, "23503")) throw new NotFoundError(this.missingReferenceMessage(error))
       throw error
     }
   }
@@ -284,8 +283,12 @@ export class ArticleService {
         if (!article) throw new NotFoundError("Article not found")
 
         const targetAuthorId = body.authorId !== undefined ? body.authorId : article.authorId
-        const author = targetAuthorId ? await this.loadAuthor(tx, targetAuthorId) : undefined
-        if (body.authorId !== undefined && !author) throw new NotFoundError("Author not found")
+        const author =
+          body.authorId !== undefined
+            ? await this.requireAuthor(tx, body.authorId)
+            : targetAuthorId
+              ? await this.loadAuthor(tx, targetAuthorId)
+              : undefined
 
         const changes: Partial<typeof articles.$inferInsert> = {}
         if (body.status !== undefined) {
@@ -307,7 +310,7 @@ export class ArticleService {
       return this.mapArticle(row, this.mapAuthor(author))
     } catch (error) {
       if (newCoverKey) await this.storage.delete(newCoverKey)
-      if (hasPgCode(error, "23503")) throw new NotFoundError("Category not found")
+      if (hasPgCode(error, "23503")) throw new NotFoundError(this.missingReferenceMessage(error))
       throw error
     }
   }
@@ -387,15 +390,27 @@ export class ArticleService {
     return author
   }
 
-  private mapAuthor(row: AuthorFields | undefined): Article["author"] {
-    if (!row?.authorId || !row.authorName) return null
-    return { id: row.authorId, name: row.authorName, image: row.authorImage || null }
+  private async requireAuthor(tx: Transaction, authorId: string): Promise<AuthorFields> {
+    const author = await this.loadAuthor(tx, authorId)
+    if (!author) throw new NotFoundError("Author not found")
+
+    return author
   }
 
-  private mapArticle(
-    row: Omit<typeof articles.$inferSelect, "authorId">,
-    author: Article["author"]
-  ): UpdatedArticle {
+  private missingReferenceMessage(error: unknown): string {
+    return hasPgConstraint(error, "author") ? "Author not found" : "Category not found"
+  }
+
+  private mapAuthor(row: AuthorFields | undefined): Article["author"] {
+    if (!row?.authorId) return null
+    return {
+      id: row.authorId,
+      name: row.authorName ?? "",
+      image: row.authorImage && URL.canParse(row.authorImage) ? row.authorImage : null
+    }
+  }
+
+  private mapArticle(row: Omit<typeof articles.$inferSelect, "authorId">, author: Article["author"]): UpdatedArticle {
     return {
       id: row.id,
       createdAt: row.createdAt,

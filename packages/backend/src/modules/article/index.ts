@@ -151,7 +151,9 @@ export const articlePlugin = new Elysia({ name: "article", tags: ["Article"] })
     {
       permissions: { article: ["update"] },
       params: updateArticleParamsSchema,
-      body: updateArticleSchema.describe("Article-level fields to change: lifecycle status, category, author, or cover"),
+      body: updateArticleSchema.describe(
+        "Article-level fields to change: lifecycle status, category, author, or cover"
+      ),
       response: {
         200: updateArticleResponseSchema.describe(
           "The updated article-level fields with the CoverImage resolved to its host URL"

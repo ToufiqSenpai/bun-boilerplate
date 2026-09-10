@@ -18,7 +18,7 @@ const articleImage = fileSchema.refine(async ({ mime }) => COMMON_IMAGE_MIMETYPE
   error: `Cover image mimetype must be ${COMMON_IMAGE_MIMETYPE.join(", ")}.`
 })
 
-export const articleAuthorSchema = z
+const articleAuthorSchema = z
   .object({
     id: z.uuidv7({ error: "Author id must be UUIDv7" }).describe("Author's User id"),
     name: z.string().describe("Author's display name"),

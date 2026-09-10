@@ -14,8 +14,8 @@ import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
 import { StorageKey } from "../../../common/storage/storage-key.js"
 import type { FileMetadata, Storage, UploadFileParams } from "../../../common/storage/storage.js"
-import type { CreateArticleBody, ListArticlesQuery, UpsertArticleTranslationBody } from "../schemas/article.schema.js"
 import { users } from "../../auth/tables/auth.table.js"
+import type { CreateArticleBody, ListArticlesQuery, UpsertArticleTranslationBody } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
@@ -271,12 +271,12 @@ function insertHandle<Values extends object>(buildRow: (values: Values) => objec
     return [buildRow(captured)]
   })
   const onConflictDoUpdate = vi.fn<() => { returning: typeof returning }>(() => ({ returning }))
-  const values = vi.fn<(input: Values) => { returning: typeof returning; onConflictDoUpdate: typeof onConflictDoUpdate }>(
-    input => {
-      captured = input
-      return { returning, onConflictDoUpdate }
-    }
-  )
+  const values = vi.fn<
+    (input: Values) => { returning: typeof returning; onConflictDoUpdate: typeof onConflictDoUpdate }
+  >(input => {
+    captured = input
+    return { returning, onConflictDoUpdate }
+  })
   return { values, onConflictDoUpdate }
 }
 
@@ -299,12 +299,12 @@ function deleteHandle() {
   return { where }
 }
 
-function codedError(code: string): Error {
-  return Object.assign(new Error(`pg error ${code}`), { code })
+function codedError(code: string, constraint?: string): Error {
+  return Object.assign(new Error(`pg error ${code}`), constraint ? { code, constraint } : { code })
 }
 
-function wrappedError(code: string): Error {
-  return new Error("query failed", { cause: codedError(code) })
+function wrappedError(code: string, constraint?: string): Error {
+  return new Error("query failed", { cause: codedError(code, constraint) })
 }
 
 function articleRow(overrides: Partial<ArticleRow> = {}): ArticleRow {
@@ -380,7 +380,8 @@ describe("ArticleService", () => {
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 })
     })
 
-    test("resolves a stored cover key against the configured public host", async () => {      const database = mockDeep<Database>()
+    test("resolves a stored cover key against the configured public host", async () => {
+      const database = mockDeep<Database>()
       const key = `articles/${faker.string.uuid({ version: 7 })}.png`
       mockListSelect(database, [createJoinedRow({ coverKey: key })], 1)
 
@@ -409,6 +410,17 @@ describe("ArticleService", () => {
         image: author.authorImage
       })
       expect(rowsChain.leftJoin).toHaveBeenCalledWith(users, expect.anything())
+    })
+
+    test("keeps the author when the name is empty and drops a non-URL profile image", async () => {
+      const database = mockDeep<Database>()
+      const author = createAuthorRow({ authorName: "", authorImage: "not-a-url" })
+      mockListSelect(database, [createJoinedRow(author)], 1)
+
+      const service = new ArticleService(database, mockDeep<Storage>())
+      const result = await service.list(query(), "en")
+
+      expect(result.data[0]?.author).toEqual({ id: author.authorId, name: "", image: null })
     })
 
     test("rewrites nested NodeImage src keys to host URLs, passing external and upload refs through", async () => {
@@ -750,6 +762,19 @@ describe("ArticleService", () => {
       expect((error as NotFoundError).status).toBe(404)
       // SAFETY: error is NotFoundError per previous expect
       expect((error as NotFoundError).message).toBe("Category not found")
+      expect(objects.size).toBe(0)
+    })
+
+    test("maps an author foreign-key race to an author 404", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      vi.spyOn(database, "transaction").mockRejectedValue(wrappedError("23503", "articles_author_id_users_id_fk"))
+
+      const error = await service.create(createBody()).catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).message).toBe("Author not found")
       expect(objects.size).toBe(0)
     })
   })
@@ -1298,9 +1323,7 @@ describe("ArticleService", () => {
       const row = articleRow()
       const service = new ArticleService(database, storage)
       const tx = createTransaction()
-      tx.select
-        .mockReturnValueOnce(selectChain([{ coverKey: row.coverKey }]))
-        .mockReturnValueOnce(selectChain([]))
+      tx.select.mockReturnValueOnce(selectChain([{ coverKey: row.coverKey }])).mockReturnValueOnce(selectChain([]))
       tx.remove.mockReturnValueOnce({ where: deleteHandle().where })
       spyTransaction(tx.handles)
 
