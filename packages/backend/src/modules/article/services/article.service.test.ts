@@ -797,12 +797,13 @@ describe("ArticleService", () => {
       const service = new ArticleService(database, storage)
       const [category] = await database.insert(articleCategories).values({}).returning()
       if (!category) throw new Error("category not persisted")
-      const created = await service.create(createBody())
+      const created = await service.create(createBody({ status: "published" }))
       const before = await readStoredArticle(created.id)
 
       const assigned = await service.updateArticle({ id: created.id }, { categoryId: category.id })
 
       expect(assigned.categoryId).toBe(category.id)
+      expect(assigned.status).toBe("published")
 
       const unassigned = await service.updateArticle({ id: created.id }, { categoryId: null })
 

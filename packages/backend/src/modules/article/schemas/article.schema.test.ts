@@ -248,6 +248,14 @@ describe("updateArticleSchema", () => {
     expect(result.data.status).toBe("published")
   })
 
+  test("leaves absent fields out so a partial patch never resets them", async () => {
+    const result = await updateArticleSchema.safeParseAsync({})
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data).toEqual({})
+  })
+
   test("parses a category-only patch, accepting null to unassign", async () => {
     const categoryId = faker.string.uuid({ version: 7 })
     const assigned = await updateArticleSchema.safeParseAsync({ categoryId })

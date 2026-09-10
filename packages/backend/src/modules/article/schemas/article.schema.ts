@@ -129,15 +129,14 @@ export const updateArticleParamsSchema = z.object({
 
 export type UpdateArticleParams = z.output<typeof updateArticleParamsSchema>
 
-export const updateArticleSchema = z.strictObject({
-  status: z.enum(articleStatusEnum.enumValues).optional().describe("New lifecycle status"),
-  categoryId: z
-    .uuidv7({ error: "Category id must be UUIDv7" })
-    .nullable()
-    .optional()
-    .describe("Article category id, null to unassign"),
-  cover: articleImage.optional().describe("Replacement cover image file")
-})
+export const updateArticleSchema = z
+  .strictObject({
+    // removeDefault keeps an absent Status from parsing as the articleSchema default and resetting it
+    status: articleSchema.shape.status.removeDefault(),
+    categoryId: articleSchema.shape.categoryId,
+    cover: articleImage
+  })
+  .partial()
 
 export type UpdateArticleBody = z.output<typeof updateArticleSchema>
 
