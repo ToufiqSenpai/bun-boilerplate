@@ -92,7 +92,7 @@ export class ArticleService {
     const total = countResult?.value ?? 0
 
     return {
-      data: rows.map(row => this.mapRow(row)),
+      data: rows.map(row => this.mapTranslation(row)),
       meta: pageMeta(query, total)
     }
   }
@@ -113,7 +113,7 @@ export class ArticleService {
       .limit(1)
     if (!row) throw new NotFoundError("Article not found")
 
-    return this.mapRow(row)
+    return this.mapTranslation(row)
   }
 
   public async create(body: CreateArticleBody, signal?: AbortSignal): Promise<Article> {
@@ -167,7 +167,7 @@ export class ArticleService {
         return { article, translation }
       })
 
-      return this.mapRow({ ...created.translation, ...created.article })
+      return this.mapTranslation({ ...created.translation, ...created.article })
     } catch (error) {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
@@ -232,7 +232,7 @@ export class ArticleService {
       if (upserted.oldContent) await deleteStoredKeys(upserted.oldContent, this.storage)
 
       return {
-        translation: this.mapRow({ ...upserted.translation, ...upserted.article }),
+        translation: this.mapTranslation({ ...upserted.translation, ...upserted.article }),
         created: upserted.created
       }
     } catch (error) {
@@ -332,7 +332,7 @@ export class ArticleService {
     }
   }
 
-  private mapRow(row: JoinedArticleRow): Article {
+  private mapTranslation(row: JoinedArticleRow): Article {
     return {
       ...this.mapArticle(row),
       locale: row.locale,
