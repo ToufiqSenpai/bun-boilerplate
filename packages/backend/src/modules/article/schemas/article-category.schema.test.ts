@@ -5,13 +5,14 @@ import type { z } from "zod"
 import { createArticleCategorySchema, getArticleCategoryParamsSchema } from "./article-category.schema.js"
 
 type SchemaInput = z.input<typeof createArticleCategorySchema>
-type Input = Omit<SchemaInput, "slug"> & { slug?: string | number }
+type Input = Omit<SchemaInput, "slug" | "description"> & { slug?: string | number; description?: string }
 
 function createInput(overrides: Partial<Input> = {}): Input {
   return {
     locale: faker.helpers.arrayElement(["en", "id"] as const),
     name: faker.lorem.words({ min: 1, max: 3 }),
     slug: faker.lorem.slug(),
+    description: faker.lorem.sentence(),
     ...overrides
   }
 }
@@ -115,6 +116,31 @@ describe("createArticleCategorySchema", () => {
         expect.objectContaining({
           path: ["name"],
           message: "Name must not be empty"
+        })
+      ])
+    })
+  })
+
+  describe("description", () => {
+    test("rejects a missing description", () => {
+      const { description: _ignored, ...withoutDescription } = createInput()
+      const issues = parseIssues(withoutDescription)
+
+      expect(issues).toEqual([
+        expect.objectContaining({
+          path: ["description"],
+          message: "Description is required"
+        })
+      ])
+    })
+
+    test("rejects an empty description", () => {
+      const issues = parseIssues(createInput({ description: "" }))
+
+      expect(issues).toEqual([
+        expect.objectContaining({
+          path: ["description"],
+          message: "Description must not be empty"
         })
       ])
     })

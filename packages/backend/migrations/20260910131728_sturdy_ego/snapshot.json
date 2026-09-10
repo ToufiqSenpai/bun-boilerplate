@@ -1,11 +1,17 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "5c17ae62-c1b4-40a2-ab66-1adf40928493",
-  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "id": "341ec0d9-dce7-451f-ac4c-60440073eca0",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
   "ddl": [
     {
-      "values": ["draft", "published", "archived"],
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ],
       "name": "article_status",
       "entityType": "enums",
       "schema": "public"
@@ -191,7 +197,7 @@
     {
       "type": "text",
       "typeSchema": null,
-      "notNull": false,
+      "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -397,6 +403,19 @@
       "table": "articles"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cover_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "articles"
+    },
+    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
@@ -425,7 +444,7 @@
     {
       "type": "uuid",
       "typeSchema": null,
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -600,6 +619,19 @@
       "generated": null,
       "identity": null,
       "name": "password",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "accounts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issuer",
       "entityType": "columns",
       "schema": "public",
       "table": "accounts"
@@ -1007,10 +1039,14 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["category_id"],
+      "columns": [
+        "category_id"
+      ],
       "schemaTo": "public",
       "tableTo": "article_categories",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "article_category_translations_LZ1QnwsdOSlT_fkey",
@@ -1020,10 +1056,14 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["article_id"],
+      "columns": [
+        "article_id"
+      ],
       "schemaTo": "public",
       "tableTo": "articles",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "article_translations_article_id_articles_id_fkey",
@@ -1033,10 +1073,14 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["author_id"],
+      "columns": [
+        "author_id"
+      ],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "articles_author_id_users_id_fkey",
@@ -1046,12 +1090,16 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["category_id"],
+      "columns": [
+        "category_id"
+      ],
       "schemaTo": "public",
       "tableTo": "article_categories",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
+      "onDelete": "SET NULL",
       "name": "articles_category_id_article_categories_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -1059,10 +1107,14 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["user_id"],
+      "columns": [
+        "user_id"
+      ],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "accounts_user_id_users_id_fkey",
@@ -1072,10 +1124,14 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["user_id"],
+      "columns": [
+        "user_id"
+      ],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "sessions_user_id_users_id_fkey",
@@ -1084,7 +1140,9 @@
       "table": "sessions"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "article_categories_pkey",
       "schema": "public",
@@ -1092,7 +1150,9 @@
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "article_category_translations_pkey",
       "schema": "public",
@@ -1100,7 +1160,9 @@
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "article_translations_pkey",
       "schema": "public",
@@ -1108,7 +1170,9 @@
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "articles_pkey",
       "schema": "public",
@@ -1116,7 +1180,9 @@
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "accounts_pkey",
       "schema": "public",
@@ -1124,7 +1190,9 @@
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "sessions_pkey",
       "schema": "public",
@@ -1132,7 +1200,9 @@
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "users_pkey",
       "schema": "public",
@@ -1140,7 +1210,9 @@
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "verifications_pkey",
       "schema": "public",
@@ -1149,7 +1221,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": ["category_id", "locale"],
+      "columns": [
+        "category_id",
+        "locale"
+      ],
       "nullsNotDistinct": false,
       "name": "article_category_translations_category_id_locale_key",
       "entityType": "uniques",
@@ -1158,7 +1233,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": ["locale", "slug"],
+      "columns": [
+        "locale",
+        "slug"
+      ],
       "nullsNotDistinct": false,
       "name": "article_category_translations_locale_slug_key",
       "entityType": "uniques",
@@ -1167,7 +1245,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": ["article_id", "locale"],
+      "columns": [
+        "article_id",
+        "locale"
+      ],
       "nullsNotDistinct": false,
       "name": "article_translations_article_id_locale_key",
       "entityType": "uniques",
@@ -1176,7 +1257,10 @@
     },
     {
       "nameExplicit": true,
-      "columns": ["locale", "slug"],
+      "columns": [
+        "locale",
+        "slug"
+      ],
       "nullsNotDistinct": false,
       "name": "article_translations_locale_slug_key",
       "entityType": "uniques",
@@ -1185,7 +1269,9 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["token"],
+      "columns": [
+        "token"
+      ],
       "nullsNotDistinct": false,
       "name": "sessions_token_key",
       "schema": "public",
@@ -1194,7 +1280,9 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["email"],
+      "columns": [
+        "email"
+      ],
       "nullsNotDistinct": false,
       "name": "users_email_key",
       "schema": "public",

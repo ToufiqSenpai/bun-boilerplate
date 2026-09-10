@@ -27,12 +27,12 @@ function createCategoryRow() {
 }
 
 function createTranslationRow(
-  overrides: Partial<{ locale: string; name: string; slug: string; description: string | null | undefined }> = {}
+  overrides: Partial<{ locale: string; name: string; slug: string; description: string }> = {}
 ) {
   const locale = overrides.locale ?? faker.helpers.arrayElement(["en", "id"] as const)
   const name = overrides.name ?? faker.lorem.words({ min: 1, max: 3 })
   const slug = overrides.slug ?? faker.lorem.slug()
-  const description = overrides.description === undefined ? faker.lorem.sentence() : overrides.description
+  const description = overrides.description ?? faker.lorem.sentence()
   return {
     locale,
     name,
@@ -109,7 +109,7 @@ interface ListRow {
   locale: string
   name: string
   slug: string
-  description: string | null
+  description: string
 }
 
 function createListRow(overrides: Partial<ListRow> = {}): ListRow {
@@ -120,7 +120,7 @@ function createListRow(overrides: Partial<ListRow> = {}): ListRow {
     locale: overrides.locale ?? faker.helpers.arrayElement(["en", "id"] as const),
     name: overrides.name ?? faker.lorem.words({ min: 1, max: 3 }),
     slug: overrides.slug ?? faker.lorem.slug(),
-    description: overrides.description === undefined ? faker.lorem.sentence() : overrides.description
+    description: overrides.description ?? faker.lorem.sentence()
   }
 }
 
@@ -262,35 +262,6 @@ describe("ArticleCategoryService", () => {
         slug: input.slug,
         description: input.description
       })
-    })
-
-    test("returns description as undefined when translation description is null", async () => {
-      const database = mockDeep<Database>()
-      const categoryRow = createCategoryRow()
-      const input = createCategoryInput({ description: faker.lorem.sentence() })
-      const translationRow = createTranslationRow({
-        locale: input.locale,
-        name: input.name,
-        slug: input.slug,
-        description: null
-      })
-
-      const category = buildCategoryChain(categoryRow)
-      const translation = buildTranslationChain(translationRow)
-
-      const txMock = {
-        insert: vi
-          .fn<(table: unknown) => Chain>()
-          .mockReturnValueOnce(category.chain)
-          .mockReturnValueOnce(translation.chain)
-      }
-
-      mockTransaction(database, txMock)
-
-      const service = new ArticleCategoryService(database)
-      const result = await service.create(input)
-
-      expect(result.description).toBeUndefined()
     })
 
     test("returns description when provided", async () => {
@@ -539,7 +510,7 @@ describe("ArticleCategoryService", () => {
       })
       expect(upsert.onConflictDoUpdate).toHaveBeenCalledWith({
         target: [articleCategoryTranslations.categoryId, articleCategoryTranslations.locale],
-        set: { name: body.name, slug: body.slug, description: body.description ?? null }
+        set: { name: body.name, slug: body.slug, description: body.description }
       })
     })
 
@@ -558,33 +529,6 @@ describe("ArticleCategoryService", () => {
       const { created } = await service.upsertTranslation(params, body)
 
       expect(created).toBe(false)
-    })
-
-    test("clears description when omitted from the body", async () => {
-      const database = mockDeep<Database>()
-      const categoryRow = createCategoryRow()
-      const params = createUpsertParams({ id: categoryRow.id })
-      const body = createUpsertBody()
-      delete body.description
-      const savedRow = createTranslationRow({ locale: params.locale, name: body.name, slug: body.slug })
-      const upsert = buildUpsertChain(savedRow)
-
-      setupUpsert(database, [categoryRow], [], upsert)
-
-      const service = new ArticleCategoryService(database)
-      await service.upsertTranslation(params, body)
-
-      expect(upsert.values).toHaveBeenCalledWith({
-        categoryId: categoryRow.id,
-        locale: params.locale,
-        name: body.name,
-        slug: body.slug,
-        description: undefined
-      })
-      expect(upsert.onConflictDoUpdate).toHaveBeenCalledWith({
-        target: [articleCategoryTranslations.categoryId, articleCategoryTranslations.locale],
-        set: { name: body.name, slug: body.slug, description: null }
-      })
     })
 
     test("throws NotFoundError when the category does not exist", async () => {
@@ -649,7 +593,7 @@ describe("ArticleCategoryService", () => {
           locale: row1.locale,
           name: row1.name,
           slug: row1.slug,
-          description: row1.description ?? undefined
+          description: row1.description
         },
         {
           id: row2.id,
@@ -658,7 +602,7 @@ describe("ArticleCategoryService", () => {
           locale: row2.locale,
           name: row2.name,
           slug: row2.slug,
-          description: row2.description ?? undefined
+          description: row2.description
         }
       ])
       expect(result.meta).toEqual({
@@ -667,17 +611,6 @@ describe("ArticleCategoryService", () => {
         total,
         totalPages: Math.ceil(total / 2)
       })
-    })
-
-    test("maps null description to undefined", async () => {
-      const database = mockDeep<Database>()
-      const row = createListRow({ description: null })
-      mockListSelect(database, [row], 1)
-
-      const service = new ArticleCategoryService(database)
-      const result = await service.list({ page: 1, limit: 10 }, "en")
-
-      expect(result.data[0]?.description).toBeUndefined()
     })
 
     test("preserves description when provided", async () => {
@@ -811,7 +744,7 @@ describe("ArticleCategoryService", () => {
         locale: row.locale,
         name: row.name,
         slug: row.slug,
-        description: row.description ?? undefined
+        description: row.description
       })
       expect(chain.from).toHaveBeenCalledWith(articleCategories)
       expect(chain.limit).toHaveBeenCalledWith(1)
@@ -837,17 +770,6 @@ describe("ArticleCategoryService", () => {
       expect(sql).toContain(`"article_category_translations"."locale"`)
       expect(sql).toContain(`"article_category_translations"."slug"`)
       expect(sql).not.toContain(`"article_categories"."id"`)
-    })
-
-    test("maps null description to undefined", async () => {
-      const database = mockDeep<Database>()
-      const row = createListRow({ description: null })
-      mockJoinedSelect(database, [row])
-
-      const service = new ArticleCategoryService(database)
-      const result = await service.getByIdentifier(row.slug, "en")
-
-      expect(result.description).toBeUndefined()
     })
 
     test("throws NotFoundError without a probe when the id has no translation in the locale", async () => {

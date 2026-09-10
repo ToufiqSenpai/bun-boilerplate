@@ -18,10 +18,10 @@ export const articleCategorySchema = z
       .describe("Display name of the category"),
     slug: slugSchema.describe("Article category slug"),
     description: z
-      .string({ error: "Description must be a string" })
+      .string({ error: "Description is required" })
+      .min(1, { error: "Description must not be empty" })
       .max(1000, { error: "Description must be at most 1000 characters" })
-      .optional()
-      .describe("Optional description of the category")
+      .describe("Description of the category")
   })
   .extend(collectionSchema.shape)
   .describe("Article category schema")

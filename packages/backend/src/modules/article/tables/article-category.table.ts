@@ -17,7 +17,7 @@ export const articleCategoryTranslations = pgTable(
       .references(() => articleCategories.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
-    description: text("description")
+    description: text("description").notNull()
   },
   table => [
     unique("article_category_translations_category_id_locale_key").on(table.categoryId, table.locale),

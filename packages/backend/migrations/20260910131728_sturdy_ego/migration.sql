@@ -13,7 +13,7 @@ CREATE TABLE "article_category_translations" (
 	"category_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"slug" text NOT NULL,
-	"description" text,
+	"description" text NOT NULL,
 	CONSTRAINT "article_category_translations_category_id_locale_key" UNIQUE("category_id","locale"),
 	CONSTRAINT "article_category_translations_locale_slug_key" UNIQUE("locale","slug")
 );
@@ -39,9 +39,10 @@ CREATE TABLE "articles" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"status" "article_status" DEFAULT 'draft'::"article_status" NOT NULL,
+	"cover_key" text NOT NULL,
 	"published_at" timestamp with time zone,
 	"author_id" uuid,
-	"category_id" uuid NOT NULL
+	"category_id" uuid
 );
 --> statement-breakpoint
 CREATE TABLE "accounts" (
@@ -57,7 +58,8 @@ CREATE TABLE "accounts" (
 	"access_token_expires_at" timestamp with time zone,
 	"refresh_token_expires_at" timestamp with time zone,
 	"scope" text,
-	"password" text
+	"password" text,
+	"issuer" text
 );
 --> statement-breakpoint
 CREATE TABLE "sessions" (
@@ -101,6 +103,6 @@ CREATE INDEX "verifications_identifier_idx" ON "verifications" ("identifier");--
 ALTER TABLE "article_category_translations" ADD CONSTRAINT "article_category_translations_LZ1QnwsdOSlT_fkey" FOREIGN KEY ("category_id") REFERENCES "article_categories"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "article_translations" ADD CONSTRAINT "article_translations_article_id_articles_id_fkey" FOREIGN KEY ("article_id") REFERENCES "articles"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "articles" ADD CONSTRAINT "articles_author_id_users_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE SET NULL;--> statement-breakpoint
-ALTER TABLE "articles" ADD CONSTRAINT "articles_category_id_article_categories_id_fkey" FOREIGN KEY ("category_id") REFERENCES "article_categories"("id") ON DELETE RESTRICT;--> statement-breakpoint
+ALTER TABLE "articles" ADD CONSTRAINT "articles_category_id_article_categories_id_fkey" FOREIGN KEY ("category_id") REFERENCES "article_categories"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;
