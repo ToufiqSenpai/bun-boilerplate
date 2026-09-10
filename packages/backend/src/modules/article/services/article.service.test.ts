@@ -14,6 +14,7 @@ import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
 import type { FileMetadata, Storage, UploadFileParams } from "../../../common/storage/storage.js"
 import type { CreateArticleBody, ListArticlesQuery, UpsertArticleTranslationBody } from "../schemas/article.schema.js"
+import { articleCategories } from "../tables/article-category.table.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 import type { JoinedArticleRow } from "./article.service.js"
 import { ArticleService } from "./article.service.js"
@@ -748,6 +749,151 @@ describe("ArticleService", () => {
       ])
       expect((await readStoredArticle(created.id)).article.coverKey).toBe(coverBefore)
       expect(objects.size).toBe(sizeAfterCreate)
+    })
+  })
+
+  describe("updateArticle", () => {
+    test("publishes a draft on the first transition, leaving translation and stored keys untouched", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const before = await readStoredArticle(created.id)
+
+      const result = await service.updateArticle({ id: created.id }, { status: "published" })
+
+      expect(result).toEqual({
+        id: created.id,
+        createdAt: before.article.createdAt,
+        updatedAt: expect.any(Date),
+        status: "published",
+        publishedAt: expect.any(Date),
+        categoryId: null,
+        cover: expect.stringMatching(/^https?:\/\//)
+      })
+
+      const after = await readStoredArticle(created.id)
+      expect(after.article.status).toBe("published")
+      expect(after.article.publishedAt).toBeInstanceOf(Date)
+      expect(after.article.coverKey).toBe(before.article.coverKey)
+      expect(after.translation).toEqual(before.translation)
+      expect(objects.size).toBe(1)
+    })
+
+    test("keeps the first publishedAt across later status changes", async () => {
+      const { storage } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+
+      const first = await service.updateArticle({ id: created.id }, { status: "published" })
+      await service.updateArticle({ id: created.id }, { status: "archived" })
+      const again = await service.updateArticle({ id: created.id }, { status: "published" })
+
+      expect(first.publishedAt).toBeInstanceOf(Date)
+      expect(again.publishedAt?.getTime()).toBe(first.publishedAt?.getTime())
+    })
+
+    test("reassigns and unassigns the article category without touching the translation", async () => {
+      const { storage } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const [category] = await database.insert(articleCategories).values({}).returning()
+      if (!category) throw new Error("category not persisted")
+      const created = await service.create(createBody({ status: "published" }))
+      const before = await readStoredArticle(created.id)
+
+      const assigned = await service.updateArticle({ id: created.id }, { categoryId: category.id })
+
+      expect(assigned.categoryId).toBe(category.id)
+      expect(assigned.status).toBe("published")
+
+      const unassigned = await service.updateArticle({ id: created.id }, { categoryId: null })
+
+      expect(unassigned.categoryId).toBeNull()
+      expect((await readStoredArticle(created.id)).translation).toEqual(before.translation)
+    })
+
+    test("keeps the stored cover byte-identical when no cover part is supplied", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const before = await readStoredArticle(created.id)
+
+      const result = await service.updateArticle({ id: created.id }, { status: "archived" })
+
+      expect((await readStoredArticle(created.id)).article.coverKey).toBe(before.article.coverKey)
+      expect(objects.has(before.article.coverKey)).toBe(true)
+      expect(result.cover.endsWith(`/${before.article.coverKey}`)).toBe(true)
+    })
+
+    test("replaces the cover, deleting the superseded stored key", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const before = await readStoredArticle(created.id)
+
+      const result = await service.updateArticle(
+        { id: created.id },
+        { cover: filePart(jpegFile("new.jpg"), "image/jpeg", "jpg") }
+      )
+
+      const after = await readStoredArticle(created.id)
+      expect(after.article.coverKey).not.toBe(before.article.coverKey)
+      expect(after.article.coverKey).toMatch(/^articles\/.+\.jpg$/)
+      expect(objects.has(before.article.coverKey)).toBe(false)
+      expect(objects.has(after.article.coverKey)).toBe(true)
+      expect(objects.size).toBe(1)
+      expect(result.cover.endsWith(`/${after.article.coverKey}`)).toBe(true)
+    })
+
+    test("answers not-found for an unknown article id, uploading nothing", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+
+      const error = await service
+        .updateArticle({ id: faker.string.uuid({ version: 7 }) }, { status: "published" })
+        .catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).status).toBe(404)
+      expect(objects.size).toBe(0)
+    })
+
+    test("rejects an unknown category id with a 404, deleting the uploaded cover", async () => {
+      const { storage, objects } = createTestStorage()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody())
+      const before = await readStoredArticle(created.id)
+
+      const error = await service
+        .updateArticle(
+          { id: created.id },
+          { categoryId: faker.string.uuid({ version: 7 }), cover: filePart(pngFile("new.png"), "image/png", "png") }
+        )
+        .catch((error: unknown) => error)
+
+      expect(error).toBeInstanceOf(NotFoundError)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).message).toBe("Category not found")
+      expect((await readStoredArticle(created.id)).article.coverKey).toBe(before.article.coverKey)
+      expect(objects.has(before.article.coverKey)).toBe(true)
+      expect(objects.size).toBe(1)
+    })
+
+    test("forwards the abort signal to the cover upload", async () => {
+      const storage = mockDeep<Storage>()
+      storage.upload.mockResolvedValue({ key: "articles/a.png" })
+      const controller = new AbortController()
+      const service = new ArticleService(database, storage)
+      const created = await service.create(createBody(), controller.signal)
+
+      await service.updateArticle(
+        { id: created.id },
+        { cover: filePart(jpegFile("new.jpg"), "image/jpeg", "jpg") },
+        controller.signal
+      )
+
+      expect(storage.upload).toHaveBeenCalledTimes(2)
+      for (const call of storage.upload.mock.calls) expect(call[0].signal).toBe(controller.signal)
     })
   })
 })

@@ -76,7 +76,7 @@ export const app = Sentry.withElysia(new Elysia({ name: "app" }))
   .use(
     cors({
       origin: config.app.origins,
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       credentials: true,
       allowedHeaders: ["Content-Type", "Authorization", "X-Locale", "Accept-Language"],
       exposeHeaders: ["Content-Language"]
