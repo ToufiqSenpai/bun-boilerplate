@@ -43,4 +43,3 @@ export const richTextContentSchema = z
     return doc as RichText
   })
   .describe("Rich text document validated against the shared tiptap schema")
-  .describe("Rich text document validated against the shared tiptap schema")
