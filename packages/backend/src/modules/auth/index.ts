@@ -4,7 +4,6 @@ import { hash, verify, type Options } from "@node-rs/argon2"
 import { betterAuth } from "better-auth"
 import { admin, openAPI } from "better-auth/plugins"
 import { randomUUIDv7 } from "bun"
-import { count, eq } from "drizzle-orm"
 import { Elysia } from "elysia"
 
 import { config } from "../../common/config.js"
@@ -29,6 +28,8 @@ const ARGON2_OPTIONS: Options = {
   outputLen: 32, // 32 byte output
   algorithm: 2 // Argon2id variant (Algorithm.Argon2id)
 }
+
+const authService = new AuthService(database)
 
 export const auth = betterAuth({
   database: drizzleAdapter(database, {
@@ -168,12 +169,9 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async user => {
-          const [result] = await database.select({ value: count() }).from(users)
+          const promoted = await authService.ensureSuperadmin(user.id)
 
-          if ((result?.value ?? 0) === 1) {
-            await database.update(users).set({ role: "superadmin" }).where(eq(users.id, user.id))
-            logger.info({ userId: user.id }, "First user auto-promoted to superadmin")
-          }
+          if (promoted) logger.info({ userId: user.id }, "First user auto-promoted to superadmin")
         }
       },
       update: {
@@ -197,8 +195,6 @@ export const auth = betterAuth({
     }
   }
 })
-
-const authService = new AuthService(database)
 
 export const authTags: OpenApiTag[] = [
   { name: "Auth", description: "Session-based authentication (better-auth) and setup status" }
