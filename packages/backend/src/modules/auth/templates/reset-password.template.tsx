@@ -49,6 +49,6 @@ ResetPassword.PreviewProps = {
 export const resetPasswordOptions = (props: ResetPasswordProps) => ({
   to: props.email,
   subject: getTranslator(props.locale)("email.resetPassword.subject"),
-  idempotencyKey: `reset-password/${props.email.toLowerCase().trim()}`,
+  idempotencyKey: `reset-password/${props.email.toLowerCase().trim()}/${props.resetUrl}`,
   react: <ResetPassword {...props} />
 })

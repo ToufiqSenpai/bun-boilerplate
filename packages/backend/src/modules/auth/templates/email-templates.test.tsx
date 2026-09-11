@@ -87,12 +87,15 @@ describe.each(CASES)("$name template", templateCase => {
     expect(templateCase.options(props).subject).toBe(getTranslator("id")(`${templateCase.keys}.subject`))
   })
 
-  test("derives the idempotency key from the email address, not the url", () => {
+  test("derives the idempotency key from the email address and url, so re-sends are unique", () => {
     const props = baseProps()
-    const expectedKey = `${templateCase.keyPrefix}/${props.email.toLowerCase().trim()}`
+    const expectedKey = `${templateCase.keyPrefix}/${props.email.toLowerCase().trim()}/${props.url}`
 
     expect(templateCase.options(props).idempotencyKey).toBe(expectedKey)
-    expect(templateCase.options({ ...props, url: faker.internet.url() }).idempotencyKey).toBe(expectedKey)
+
+    const resentKey = templateCase.options({ ...props, url: faker.internet.url() }).idempotencyKey
+
+    expect(resentKey).not.toBe(expectedKey)
   })
 })
 
