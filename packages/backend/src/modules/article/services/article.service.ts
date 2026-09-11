@@ -7,7 +7,7 @@ import { NotFoundError, ValidationError } from "elysia"
 import { z } from "zod"
 
 import type { Database } from "../../../common/database.js"
-import { hasPgCode, hasPgConstraint, isUniqueViolation } from "../../../common/database.js"
+import { hasPgCode, isUniqueViolation } from "../../../common/database.js"
 import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
 import { isFilePart } from "../../../common/schema.js"
@@ -48,6 +48,8 @@ export interface JoinedArticleRow extends Omit<Article, "cover" | "author">, Aut
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0]
 
+const authorSelection = { authorId: users.id, authorName: users.name, authorImage: users.image }
+
 export class ArticleService {
   private readonly articleCollection = "articles"
 
@@ -59,9 +61,7 @@ export class ArticleService {
     publishedAt: articles.publishedAt,
     categoryId: articles.categoryId,
     coverKey: articles.coverKey,
-    authorId: articles.authorId,
-    authorName: users.name,
-    authorImage: users.image,
+    ...authorSelection,
     locale: articleTranslations.locale,
     title: articleTranslations.title,
     slug: articleTranslations.slug,
@@ -190,7 +190,7 @@ export class ArticleService {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
       if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
-      if (hasPgCode(error, "23503")) throw new NotFoundError(this.missingReferenceMessage(error))
+      if (hasPgCode(error, "23503")) throw new NotFoundError("Referenced row not found")
       throw error
     }
   }
@@ -255,8 +255,7 @@ export class ArticleService {
         translation: this.mapTranslation({
           ...upserted.translation,
           ...upserted.article,
-          authorName: upserted.author?.authorName ?? null,
-          authorImage: upserted.author?.authorImage ?? null
+          ...(upserted.author ?? { authorName: null, authorImage: null })
         }),
         created: upserted.created
       }
@@ -282,12 +281,11 @@ export class ArticleService {
         const [article] = await tx.select().from(articles).where(eq(articles.id, params.id)).limit(1)
         if (!article) throw new NotFoundError("Article not found")
 
-        const targetAuthorId = body.authorId !== undefined ? body.authorId : article.authorId
         const author =
           body.authorId !== undefined
             ? await this.requireAuthor(tx, body.authorId)
-            : targetAuthorId
-              ? await this.loadAuthor(tx, targetAuthorId)
+            : article.authorId
+              ? await this.loadAuthor(tx, article.authorId)
               : undefined
 
         const changes: Partial<typeof articles.$inferInsert> = {}
@@ -310,7 +308,7 @@ export class ArticleService {
       return this.mapArticle(row, this.mapAuthor(author))
     } catch (error) {
       if (newCoverKey) await this.storage.delete(newCoverKey)
-      if (hasPgCode(error, "23503")) throw new NotFoundError(this.missingReferenceMessage(error))
+      if (hasPgCode(error, "23503")) throw new NotFoundError("Referenced row not found")
       throw error
     }
   }
@@ -381,11 +379,7 @@ export class ArticleService {
   }
 
   private async loadAuthor(tx: Transaction, authorId: string): Promise<AuthorFields | undefined> {
-    const [author] = await tx
-      .select({ authorId: users.id, authorName: users.name, authorImage: users.image })
-      .from(users)
-      .where(eq(users.id, authorId))
-      .limit(1)
+    const [author] = await tx.select(authorSelection).from(users).where(eq(users.id, authorId)).limit(1)
 
     return author
   }
@@ -395,10 +389,6 @@ export class ArticleService {
     if (!author) throw new NotFoundError("Author not found")
 
     return author
-  }
-
-  private missingReferenceMessage(error: unknown): string {
-    return hasPgConstraint(error, "author") ? "Author not found" : "Category not found"
   }
 
   private mapAuthor(row: AuthorFields | undefined): Article["author"] {

@@ -36,15 +36,6 @@ export function hasPgCode(error: unknown, code: string): boolean {
   return false
 }
 
-export function hasPgConstraint(error: unknown, fragment: string): boolean {
-  let current: unknown = error
-  while (current instanceof Error) {
-    if ("constraint" in current && String(current.constraint).includes(fragment)) return true
-    current = current.cause
-  }
-  return false
-}
-
 export const isUniqueViolation = (error: unknown): boolean => hasPgCode(error, "23505")
 
 if (!isTest) {

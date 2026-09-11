@@ -299,12 +299,12 @@ function deleteHandle() {
   return { where }
 }
 
-function codedError(code: string, constraint?: string): Error {
-  return Object.assign(new Error(`pg error ${code}`), constraint ? { code, constraint } : { code })
+function codedError(code: string): Error {
+  return Object.assign(new Error(`pg error ${code}`), { code })
 }
 
-function wrappedError(code: string, constraint?: string): Error {
-  return new Error("query failed", { cause: codedError(code, constraint) })
+function wrappedError(code: string): Error {
+  return new Error("query failed", { cause: codedError(code) })
 }
 
 function articleRow(overrides: Partial<ArticleRow> = {}): ArticleRow {
@@ -761,20 +761,7 @@ describe("ArticleService", () => {
       // SAFETY: error is NotFoundError per previous expect
       expect((error as NotFoundError).status).toBe(404)
       // SAFETY: error is NotFoundError per previous expect
-      expect((error as NotFoundError).message).toBe("Category not found")
-      expect(objects.size).toBe(0)
-    })
-
-    test("maps an author foreign-key race to an author 404", async () => {
-      const { storage, objects } = createTestStorage()
-      const service = new ArticleService(database, storage)
-      vi.spyOn(database, "transaction").mockRejectedValue(wrappedError("23503", "articles_author_id_users_id_fk"))
-
-      const error = await service.create(createBody()).catch((error: unknown) => error)
-
-      expect(error).toBeInstanceOf(NotFoundError)
-      // SAFETY: error is NotFoundError per previous expect
-      expect((error as NotFoundError).message).toBe("Author not found")
+      expect((error as NotFoundError).message).toBe("Referenced row not found")
       expect(objects.size).toBe(0)
     })
   })
@@ -1240,7 +1227,9 @@ describe("ArticleService", () => {
 
       expect(error).toBeInstanceOf(NotFoundError)
       // SAFETY: error is NotFoundError per previous expect
-      expect((error as NotFoundError).message).toBe("Category not found")
+      expect((error as NotFoundError).status).toBe(404)
+      // SAFETY: error is NotFoundError per previous expect
+      expect((error as NotFoundError).message).toBe("Referenced row not found")
       expect(objects.has(row.coverKey)).toBe(true)
       expect(objects.size).toBe(1)
     })
