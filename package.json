@@ -7,15 +7,15 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run --filter '*' build",
-    "dev": "concurrently --names \"backend,web\" --prefix \"[{name}]\" --prefix-colors \"cyan,magenta\" --kill-others --kill-others-on-fail \"cd packages/backend && bun run --silent dev\" \"wait-on tcp:127.0.0.1:8080 --timeout 60000 --interval 500 && cd packages/web && bun run --silent dev\"",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "format": "oxfmt .",
-    "format:check": "oxfmt . --check",
-    "lint": "oxlint . --type-aware",
-    "lint:fix": "oxlint . --type-aware --fix"
+    "build": "bun --bun run --filter '*' build",
+    "dev": "bun --bun concurrently --names \"backend,web\" --prefix \"[{name}]\" --prefix-colors \"cyan,magenta\" --kill-others --kill-others-on-fail \"cd packages/backend && bun run --silent dev\" \"wait-on tcp:127.0.0.1:8080 --timeout 60000 --interval 500 && cd packages/web && bun run --silent dev\"",
+    "test": "bun --bun vitest run",
+    "test:watch": "bun --bun vitest",
+    "test:coverage": "bun --bun vitest run --coverage",
+    "format": "bun --bun oxfmt .",
+    "format:check": "bun --bun oxfmt . --check",
+    "lint": "bun --bun oxlint . --type-aware",
+    "lint:fix": "bun --bun oxlint . --type-aware --fix"
   },
   "dependencies": {
     "better-auth": "^1.7.1",

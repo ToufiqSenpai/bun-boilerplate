@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "dotenv -e .env.local -- bun --bun vite dev --port 3000",
-    "generate-routes": "tsr generate",
-    "typecheck": "tsc --noEmit",
+    "dev": "bun --bun dotenv -e .env.local -- bun --bun vite dev --port 3000",
+    "generate-routes": "bun --bun tsr generate",
+    "typecheck": "bun --bun tsc --noEmit",
     "build": "bun --bun vite build",
     "package": "bun run build && bun scripts/package-exe.ts",
     "preview": "bun --bun vite preview",
