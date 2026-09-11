@@ -6,7 +6,7 @@ import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError, ValidationError } from "elysia"
 import { z } from "zod"
 
-import type { Database } from "../../../common/database.js"
+import type { Database, Transaction } from "../../../common/database.js"
 import { hasPgCode, isUniqueViolation } from "../../../common/database.js"
 import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
@@ -46,12 +46,10 @@ export interface JoinedArticleRow extends Omit<Article, "cover" | "author">, Aut
   coverKey: string
 }
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0]
-
-const authorSelection = { authorId: users.id, authorName: users.name, authorImage: users.image }
-
 export class ArticleService {
   private readonly articleCollection = "articles"
+
+  private readonly authorSelection = { authorId: users.id, authorName: users.name, authorImage: users.image }
 
   private readonly articleProjection = {
     id: articles.id,
@@ -61,7 +59,7 @@ export class ArticleService {
     publishedAt: articles.publishedAt,
     categoryId: articles.categoryId,
     coverKey: articles.coverKey,
-    ...authorSelection,
+    ...this.authorSelection,
     locale: articleTranslations.locale,
     title: articleTranslations.title,
     slug: articleTranslations.slug,
@@ -281,12 +279,9 @@ export class ArticleService {
         const [article] = await tx.select().from(articles).where(eq(articles.id, params.id)).limit(1)
         if (!article) throw new NotFoundError("Article not found")
 
-        const author =
-          body.authorId !== undefined
-            ? await this.requireAuthor(tx, body.authorId)
-            : article.authorId
-              ? await this.loadAuthor(tx, article.authorId)
-              : undefined
+        let author: AuthorFields | undefined
+        if (body.authorId !== undefined) author = await this.requireAuthor(tx, body.authorId)
+        else if (article.authorId) author = await this.loadAuthor(tx, article.authorId)
 
         const changes: Partial<typeof articles.$inferInsert> = {}
         if (body.status !== undefined) {
@@ -379,7 +374,7 @@ export class ArticleService {
   }
 
   private async loadAuthor(tx: Transaction, authorId: string): Promise<AuthorFields | undefined> {
-    const [author] = await tx.select(authorSelection).from(users).where(eq(users.id, authorId)).limit(1)
+    const [author] = await tx.select(this.authorSelection).from(users).where(eq(users.id, authorId)).limit(1)
 
     return author
   }
