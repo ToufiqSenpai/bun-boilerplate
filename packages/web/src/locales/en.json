@@ -80,6 +80,44 @@
         },
         "invalidCredentials": "Email or password is incorrect"
       }
+    },
+    "users": {
+      "title": "Users",
+      "description": "Manage Users and their Sessions.",
+      "search": {
+        "placeholder": "Search by name or email",
+        "submit": "Search"
+      },
+      "columns": {
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "verification": "Verification",
+        "ban": "Ban",
+        "created": "Created"
+      },
+      "verification": {
+        "verified": "Verified",
+        "unverified": "Unverified"
+      },
+      "ban": {
+        "banned": "Banned",
+        "active": "Active"
+      },
+      "empty": {
+        "title": "No Users found",
+        "description": "No User matches the current search."
+      },
+      "error": {
+        "generic": "Something went wrong. Please try again."
+      },
+      "drawer": {
+        "sessions": "Sessions",
+        "sessionsEmpty": "No active Sessions.",
+        "unknownDevice": "Unknown device",
+        "expires": "Expires",
+        "close": "Close"
+      }
     }
   }
 }

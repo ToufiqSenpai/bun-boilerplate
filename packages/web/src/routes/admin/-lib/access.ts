@@ -1,5 +1,7 @@
 export type AdminAccess = "setup-needed" | "sign-in" | "verification-pending" | "forbidden" | "allowed"
 
+export type AdminRouteGate = "shell" | "users"
+
 export interface AdminSetupStatus {
   readonly needed: boolean
 }
@@ -30,7 +32,11 @@ const DEFAULT_RETURN_ADDRESS = "/admin/"
 const RETURN_ADDRESS_PATTERN = /^\/admin(?:\/|$)/
 const PRINTABLE_ASCII_PATTERN = /^[\x20-\x7E]*$/
 
-export function resolveAdminAccess(setup: AdminSetupResult, session: AdminSessionResult): AdminAccess {
+export function resolveAdminAccess(
+  setup: AdminSetupResult,
+  session: AdminSessionResult,
+  gate: AdminRouteGate = "shell"
+): AdminAccess {
   if (setup.error === null && setup.status === 200 && setup.data?.needed) return "setup-needed"
 
   const user = session.data?.user
@@ -38,6 +44,7 @@ export function resolveAdminAccess(setup: AdminSetupResult, session: AdminSessio
   if (!user) return "sign-in"
   if (!user.emailVerified) return "verification-pending"
   if (!user.role || !KNOWN_ROLES.has(user.role)) return "forbidden"
+  if (gate === "users" && user.role !== "superadmin") return "forbidden"
 
   return "allowed"
 }

@@ -5,7 +5,8 @@
   "type": "module",
   "main": "src/main.ts",
   "exports": {
-    ".": "./src/main.ts"
+    ".": "./src/main.ts",
+    "./auth": "./src/modules/auth/permissions.ts"
   },
   "scripts": {
     "dev": "bun src/main.ts",

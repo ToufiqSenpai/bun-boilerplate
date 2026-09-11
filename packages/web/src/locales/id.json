@@ -80,6 +80,44 @@
         },
         "invalidCredentials": "Email atau password salah"
       }
+    },
+    "users": {
+      "title": "Pengguna",
+      "description": "Kelola Pengguna dan Sesi mereka.",
+      "search": {
+        "placeholder": "Cari berdasarkan nama atau email",
+        "submit": "Cari"
+      },
+      "columns": {
+        "name": "Nama",
+        "email": "Email",
+        "role": "Peran",
+        "verification": "Verifikasi",
+        "ban": "Ban",
+        "created": "Dibuat"
+      },
+      "verification": {
+        "verified": "Terverifikasi",
+        "unverified": "Belum Terverifikasi"
+      },
+      "ban": {
+        "banned": "Diban",
+        "active": "Aktif"
+      },
+      "empty": {
+        "title": "Pengguna tidak ditemukan",
+        "description": "Tidak ada Pengguna yang cocok dengan pencarian saat ini."
+      },
+      "error": {
+        "generic": "Terjadi kesalahan. Silakan coba lagi."
+      },
+      "drawer": {
+        "sessions": "Sesi",
+        "sessionsEmpty": "Tidak ada Sesi aktif.",
+        "unknownDevice": "Perangkat tidak dikenal",
+        "expires": "Kedaluwarsa",
+        "close": "Tutup"
+      }
     }
   }
 }

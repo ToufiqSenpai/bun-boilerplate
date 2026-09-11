@@ -51,6 +51,31 @@ describe("resolveAdminAccess", () => {
   test("a failed setup check falls through to session evaluation", () => {
     expect(resolveAdminAccess(failedSetup(), sessionFor(verifiedAdmin))).toBe("allowed")
   })
+
+  describe("users gate (superadmin-only)", () => {
+    test("content-only admin is forbidden while superadmin is allowed", () => {
+      expect(resolveAdminAccess(okSetup(false), sessionFor(verifiedAdmin), "users")).toBe("forbidden")
+      expect(resolveAdminAccess(okSetup(false), sessionFor({ ...verifiedAdmin, role: "superadmin" }), "users")).toBe(
+        "allowed"
+      )
+    })
+
+    test("the shell gate keeps both known roles allowed", () => {
+      expect(resolveAdminAccess(okSetup(false), sessionFor(verifiedAdmin), "shell")).toBe("allowed")
+      expect(resolveAdminAccess(okSetup(false), sessionFor(verifiedAdmin))).toBe("allowed")
+    })
+
+    test("unverified and anonymous keep their existing outcomes on the users gate", () => {
+      expect(
+        resolveAdminAccess(
+          okSetup(false),
+          sessionFor({ ...verifiedAdmin, emailVerified: false, role: "superadmin" }),
+          "users"
+        )
+      ).toBe("verification-pending")
+      expect(resolveAdminAccess(okSetup(false), sessionFor(null), "users")).toBe("sign-in")
+    })
+  })
 })
 
 describe("sanitizeReturnAddress", () => {
