@@ -6,7 +6,7 @@ import { and, count, desc, eq } from "drizzle-orm"
 import { NotFoundError, ValidationError } from "elysia"
 import { z } from "zod"
 
-import type { Database } from "../../../common/database.js"
+import type { Database, Transaction } from "../../../common/database.js"
 import { hasPgCode, isUniqueViolation } from "../../../common/database.js"
 import { ConflictError } from "../../../common/error.js"
 import type { FileSchema } from "../../../common/schema.js"
@@ -21,6 +21,7 @@ import {
   resolveImageSrc,
   uploadInlineImages
 } from "../../../helpers/richtext.js"
+import { users } from "../../auth/tables/auth.table.js"
 import type {
   Article,
   ArticleTranslationParams,
@@ -35,12 +36,20 @@ import type {
 import { articleSchema, createArticleSchema, upsertArticleTranslationSchema } from "../schemas/article.schema.js"
 import { articles, articleTranslations } from "../tables/article.table.js"
 
-export interface JoinedArticleRow extends Omit<Article, "cover"> {
+interface AuthorFields {
+  authorId: string | null
+  authorName: string | null
+  authorImage: string | null
+}
+
+export interface JoinedArticleRow extends Omit<Article, "cover" | "author">, AuthorFields {
   coverKey: string
 }
 
 export class ArticleService {
   private readonly articleCollection = "articles"
+
+  private readonly authorSelection = { authorId: users.id, authorName: users.name, authorImage: users.image }
 
   private readonly articleProjection = {
     id: articles.id,
@@ -50,6 +59,7 @@ export class ArticleService {
     publishedAt: articles.publishedAt,
     categoryId: articles.categoryId,
     coverKey: articles.coverKey,
+    ...this.authorSelection,
     locale: articleTranslations.locale,
     title: articleTranslations.title,
     slug: articleTranslations.slug,
@@ -79,6 +89,7 @@ export class ArticleService {
         .select(this.articleProjection)
         .from(articles)
         .innerJoin(articleTranslations, eq(articles.id, articleTranslations.articleId))
+        .leftJoin(users, eq(articles.authorId, users.id))
         .where(wherePredicate)
         .orderBy(desc(articles.createdAt))
         .limit(query.limit)
@@ -110,6 +121,7 @@ export class ArticleService {
       .select(this.articleProjection)
       .from(articles)
       .innerJoin(articleTranslations, eq(articles.id, articleTranslations.articleId))
+      .leftJoin(users, eq(articles.authorId, users.id))
       .where(predicate)
       .limit(1)
     if (!row) throw new NotFoundError("Article not found")
@@ -139,13 +151,16 @@ export class ArticleService {
 
       const articleId = randomUUIDv7()
       const created = await this.database.transaction(async tx => {
+        const author = await this.requireAuthor(tx, body.authorId)
+
         const [article] = await tx
           .insert(articles)
           .values({
             id: articleId,
             status: body.status,
             coverKey: coverKey.toString(),
-            categoryId: body.categoryId ?? null
+            categoryId: body.categoryId ?? null,
+            authorId: body.authorId
           })
           .returning()
         if (!article) throw new Error("Failed to create article")
@@ -165,15 +180,15 @@ export class ArticleService {
           .returning()
         if (!translation) throw new Error("Failed to create article translation")
 
-        return { article, translation }
+        return { article, translation, author }
       })
 
-      return this.mapTranslation({ ...created.translation, ...created.article })
+      return this.mapTranslation({ ...created.translation, ...created.article, ...created.author })
     } catch (error) {
       await this.storage.delete(uploaded)
       if (error instanceof UploadRefMismatchError) throw this.uploadMismatchError(body, error)
       if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
-      if (hasPgCode(error, "23503")) throw new NotFoundError("Category not found")
+      if (hasPgCode(error, "23503")) throw new NotFoundError("Referenced row not found")
       throw error
     }
   }
@@ -209,6 +224,8 @@ export class ArticleService {
           .where(and(eq(articleTranslations.articleId, params.id), eq(articleTranslations.locale, params.locale)))
           .limit(1)
 
+        const author = article.authorId ? await this.loadAuthor(tx, article.authorId) : undefined
+
         const translationValues = {
           title: body.title,
           slug: body.slug,
@@ -227,13 +244,17 @@ export class ArticleService {
           .returning()
         if (!translation) throw new Error("Failed to upsert article translation")
 
-        return { article, translation, oldContent: old?.content ?? null, created: !old }
+        return { article, translation, oldContent: old?.content ?? null, created: !old, author }
       })
 
       if (upserted.oldContent) await deleteStoredKeys(upserted.oldContent, this.storage)
 
       return {
-        translation: this.mapTranslation({ ...upserted.translation, ...upserted.article }),
+        translation: this.mapTranslation({
+          ...upserted.translation,
+          ...upserted.article,
+          ...(upserted.author ?? { authorName: null, authorImage: null })
+        }),
         created: upserted.created
       }
     } catch (error) {
@@ -254,9 +275,13 @@ export class ArticleService {
     try {
       if (body.cover) newCoverKey = await this.uploadCover(body.cover, signal)
 
-      const { row, previousCoverKey } = await this.database.transaction(async tx => {
+      const { row, author, previousCoverKey } = await this.database.transaction(async tx => {
         const [article] = await tx.select().from(articles).where(eq(articles.id, params.id)).limit(1)
         if (!article) throw new NotFoundError("Article not found")
+
+        let author: AuthorFields | undefined
+        if (body.authorId !== undefined) author = await this.requireAuthor(tx, body.authorId)
+        else if (article.authorId) author = await this.loadAuthor(tx, article.authorId)
 
         const changes: Partial<typeof articles.$inferInsert> = {}
         if (body.status !== undefined) {
@@ -264,20 +289,21 @@ export class ArticleService {
           if (body.status === "published" && article.publishedAt === null) changes.publishedAt = new Date()
         }
         if (body.categoryId !== undefined) changes.categoryId = body.categoryId
+        if (body.authorId !== undefined) changes.authorId = body.authorId
         if (newCoverKey) changes.coverKey = newCoverKey.toString()
-        if (Object.keys(changes).length === 0) return { row: article, previousCoverKey: null }
+        if (Object.keys(changes).length === 0) return { row: article, author, previousCoverKey: null }
 
         const [updated] = await tx.update(articles).set(changes).where(eq(articles.id, params.id)).returning()
         if (!updated) throw new Error("Failed to update article")
-        return { row: updated, previousCoverKey: newCoverKey ? article.coverKey : null }
+        return { row: updated, author, previousCoverKey: newCoverKey ? article.coverKey : null }
       })
 
       if (previousCoverKey !== null) await this.storage.delete(new StorageKey(previousCoverKey))
 
-      return this.mapArticle(row)
+      return this.mapArticle(row, this.mapAuthor(author))
     } catch (error) {
       if (newCoverKey) await this.storage.delete(newCoverKey)
-      if (hasPgCode(error, "23503")) throw new NotFoundError("Category not found")
+      if (hasPgCode(error, "23503")) throw new NotFoundError("Referenced row not found")
       throw error
     }
   }
@@ -347,7 +373,29 @@ export class ArticleService {
     return key
   }
 
-  private mapArticle(row: Omit<typeof articles.$inferSelect, "authorId">): UpdatedArticle {
+  private async loadAuthor(tx: Transaction, authorId: string): Promise<AuthorFields | undefined> {
+    const [author] = await tx.select(this.authorSelection).from(users).where(eq(users.id, authorId)).limit(1)
+
+    return author
+  }
+
+  private async requireAuthor(tx: Transaction, authorId: string): Promise<AuthorFields> {
+    const author = await this.loadAuthor(tx, authorId)
+    if (!author) throw new NotFoundError("Author not found")
+
+    return author
+  }
+
+  private mapAuthor(row: AuthorFields | undefined): Article["author"] {
+    if (!row?.authorId) return null
+    return {
+      id: row.authorId,
+      name: row.authorName ?? "",
+      image: row.authorImage && URL.canParse(row.authorImage) ? row.authorImage : null
+    }
+  }
+
+  private mapArticle(row: Omit<typeof articles.$inferSelect, "authorId">, author: Article["author"]): UpdatedArticle {
     return {
       id: row.id,
       createdAt: row.createdAt,
@@ -355,13 +403,14 @@ export class ArticleService {
       status: row.status,
       publishedAt: row.publishedAt,
       categoryId: row.categoryId,
-      cover: new StorageKey(row.coverKey).toPublicUrl()
+      cover: new StorageKey(row.coverKey).toPublicUrl(),
+      author
     }
   }
 
   private mapTranslation(row: JoinedArticleRow): Article {
     return {
-      ...this.mapArticle(row),
+      ...this.mapArticle(row, this.mapAuthor(row)),
       locale: row.locale,
       title: row.title,
       slug: row.slug,

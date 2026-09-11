@@ -58,6 +58,7 @@ function createInput(overrides: Payload = {}) {
     metaTitle: faker.lorem.words({ min: 1, max: 3 }),
     metaDescription: faker.lorem.sentence(),
     cover: pngFile("cover.png", 1024),
+    authorId: faker.string.uuid({ version: 7 }),
     ...overrides
   }
 }
@@ -93,6 +94,28 @@ describe("createArticleSchema", () => {
     void _ignored
 
     expect(await parseIssues(withoutCover)).toEqual([expect.objectContaining({ path: ["cover"] })])
+  })
+
+  test("parses the author id into the output", async () => {
+    const authorId = faker.string.uuid({ version: 7 })
+    const result = await createArticleSchema.safeParseAsync(createInput({ authorId }))
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.authorId).toBe(authorId)
+  })
+
+  test("rejects a missing author id", async () => {
+    const { authorId: _ignored, ...withoutAuthor } = createInput()
+    void _ignored
+
+    expect(await parseIssues(withoutAuthor)).toEqual([expect.objectContaining({ path: ["authorId"] })])
+  })
+
+  test("rejects a non-uuid author id", async () => {
+    expect(await parseIssues(createInput({ authorId: "not-an-id" }))).toEqual([
+      expect.objectContaining({ path: ["authorId"] })
+    ])
   })
 
   test("rejects an undetectable cover file", async () => {
@@ -266,6 +289,19 @@ describe("updateArticleSchema", () => {
     expect(unassigned.success && unassigned.data.categoryId).toBeNull()
   })
 
+  test("parses an author-only patch", async () => {
+    const authorId = faker.string.uuid({ version: 7 })
+    const result = await updateArticleSchema.safeParseAsync({ authorId })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.authorId).toBe(authorId)
+  })
+
+  test("rejects a null author id", async () => {
+    expect(await parseUpdateIssues({ authorId: null })).toEqual([expect.objectContaining({ path: ["authorId"] })])
+  })
+
   test("parses a cover-only patch, sniffing the image mime", async () => {
     const cover = pngFile("cover.png", 1024)
     const result = await updateArticleSchema.safeParseAsync({ cover })
@@ -320,7 +356,7 @@ describe("updateArticleSchema", () => {
 
   test("exposes only article-level fields in the response schema", () => {
     expect(Object.keys(updateArticleResponseSchema.shape).sort()).toEqual(
-      ["categoryId", "cover", "createdAt", "id", "publishedAt", "status", "updatedAt"].sort()
+      ["author", "categoryId", "cover", "createdAt", "id", "publishedAt", "status", "updatedAt"].sort()
     )
   })
 })

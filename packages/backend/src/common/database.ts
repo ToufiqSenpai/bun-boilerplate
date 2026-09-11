@@ -24,6 +24,8 @@ export const database = drizzleNeon(config.database.url, {
 
 export type Database = typeof database
 
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0]
+
 // Postgres reports integrity violations as SQLSTATE codes on the driver error
 // (NeonDbError), wrapped by Drizzle in a DrizzleQueryError cause chain — so match
 // the duck-typed code, not the class.
