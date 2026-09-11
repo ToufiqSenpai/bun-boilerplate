@@ -48,6 +48,6 @@ VerifyEmail.PreviewProps = {
 export const verifyEmailOptions = (props: VerifyEmailProps) => ({
   to: props.email,
   subject: getTranslator(props.locale)("email.verifyEmail.subject"),
-  idempotencyKey: `verify-email/${props.email.toLowerCase().trim()}`,
+  idempotencyKey: `verify-email/${props.email.toLowerCase().trim()}/${props.verificationUrl}`,
   react: <VerifyEmail {...props} />
 })
