@@ -9,23 +9,14 @@ export const internalServerErrorSchema = z
   })
   .describe("Generic internal server error response")
 
-export const notFoundSchema = z
-  .object({
-    message: z.string().describe("Not Found message")
-  })
-  .describe("Not found response")
+const messageEnvelope = (message: string, description: string) =>
+  z.object({ message: z.string().describe(message) }).describe(description)
 
-export const badRequestSchema = z
-  .object({
-    message: z.string().describe("Bad Request message")
-  })
-  .describe("Bad request response")
+export const notFoundSchema = messageEnvelope("Not Found message", "Not found response")
 
-export const conflictSchema = z
-  .object({
-    message: z.string().describe("Conflict message")
-  })
-  .describe("Conflict response")
+export const badRequestSchema = messageEnvelope("Bad Request message", "Bad request response")
+
+export const conflictSchema = messageEnvelope("Conflict message", "Conflict response")
 
 export class ConflictError extends Error {
   public readonly status = 409

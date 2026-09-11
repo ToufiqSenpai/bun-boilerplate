@@ -40,10 +40,6 @@ export class StorageKey {
     return new URL(encoded, `${config.s3.publicBaseUrl.replace(/\/$/, "")}/`).href
   }
 
-  public equals(other: StorageKey): boolean {
-    return this.collection === other.collection && this.name === other.name
-  }
-
   private parseOrThrow<T extends z.ZodType>(schema: T, value: unknown): z.output<T> {
     try {
       return schema.parse(value)

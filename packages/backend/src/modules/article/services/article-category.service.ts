@@ -57,7 +57,7 @@ export class ArticleCategoryService {
     const total = countResult?.value ?? 0
 
     return {
-      data: rows.map(row => this.mapTranslation(row)),
+      data: rows,
       meta: pageMeta(query, total)
     }
   }
@@ -76,7 +76,7 @@ export class ArticleCategoryService {
       .limit(1)
     if (!row) throw new NotFoundError("Article category not found")
 
-    return this.mapTranslation(row)
+    return row
   }
 
   public async create(data: CreateArticleCategoryBody): Promise<ArticleCategory> {
@@ -100,7 +100,7 @@ export class ArticleCategoryService {
         return { category, translation }
       })
 
-      return this.mapTranslation({ ...translation, ...category })
+      return { ...translation, ...category }
     } catch (error) {
       if (isUniqueViolation(error)) throw new ConflictError("Slug already exists")
       throw error
@@ -152,7 +152,7 @@ export class ArticleCategoryService {
         if (!translation) throw new Error("Failed to upsert article category translation")
 
         return {
-          translation: this.mapTranslation({ ...translation, ...category }),
+          translation: { ...translation, ...category },
           created: !current
         }
       })
@@ -168,17 +168,5 @@ export class ArticleCategoryService {
       .where(eq(articleCategories.id, params.id))
       .returning()
     if (!deleted) throw new NotFoundError("Article category not found")
-  }
-
-  private mapTranslation(row: ArticleCategory): ArticleCategory {
-    return {
-      id: row.id,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      locale: row.locale,
-      name: row.name,
-      slug: row.slug,
-      description: row.description
-    }
   }
 }

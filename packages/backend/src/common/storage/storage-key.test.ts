@@ -65,14 +65,4 @@ describe("StorageKey", () => {
       expect(url).toBe(`${config.s3.publicBaseUrl.replace(/\/$/, "")}/avatars/a%20b.png`)
     })
   })
-
-  describe("equals", () => {
-    it("should return true for equal keys", () => {
-      expect(new StorageKey("a", "b").equals(new StorageKey("a/b"))).toBe(true)
-    })
-
-    it("should return false for different keys", () => {
-      expect(new StorageKey("a", "b").equals(new StorageKey("a", "c"))).toBe(false)
-    })
-  })
 })

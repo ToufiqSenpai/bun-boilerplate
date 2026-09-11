@@ -36,33 +36,16 @@ export const auth = betterAuth({
     provider: "pg",
     usePlural: true,
     schema: {
-      user: users,
       users,
-      session: sessions,
       sessions,
-      account: accounts,
       accounts,
-      verification: verifications,
       verifications
     }
   }),
   logger: {
     level: "info",
     log: (level, message, ...args) => {
-      switch (level) {
-        case "debug":
-          logger.debug(message, ...args)
-          break
-        case "info":
-          logger.info(message, ...args)
-          break
-        case "warn":
-          logger.warn(message, ...args)
-          break
-        case "error":
-          logger.error(message, ...args)
-          break
-      }
+      logger[level](message, ...args)
     }
   },
   secret: config.auth.secret,
@@ -145,51 +128,18 @@ export const auth = betterAuth({
     },
     expiresIn: config.auth.email.verifyEmailTtl,
     sendOnSignUp: true,
-    beforeEmailVerification: async user => {
-      logger.debug({ userId: user.id }, "Email verification processed")
-    },
     afterEmailVerification: async user => {
       logger.info({ userId: user.id }, "Email verified successfully")
     }
   },
   plugins: [admin({ ac, roles }), ...(config.app.environment === "development" ? [openAPI()] : [])],
   databaseHooks: {
-    session: {
-      create: {
-        after: async session => {
-          logger.debug({ userId: session.userId }, "Session created")
-        }
-      },
-      delete: {
-        before: async session => {
-          logger.debug({ sessionId: session.id }, "Session revoked")
-        }
-      }
-    },
     user: {
       create: {
         after: async user => {
           const promoted = await authService.ensureSuperadmin(user.id)
 
           if (promoted) logger.info({ userId: user.id }, "First user auto-promoted to superadmin")
-        }
-      },
-      update: {
-        after: async user => {
-          logger.debug({ userId: user.id }, "User updated")
-        }
-      }
-    },
-    account: {
-      create: {
-        after: async account => {
-          logger.debug(
-            {
-              userId: account.userId,
-              provider: account.providerId
-            },
-            "Account linked"
-          )
         }
       }
     }

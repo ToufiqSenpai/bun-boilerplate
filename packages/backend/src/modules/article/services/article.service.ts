@@ -149,14 +149,12 @@ export class ArticleService {
       const coverKey = await this.uploadCover(cover, signal)
       uploaded.push(coverKey)
 
-      const articleId = randomUUIDv7()
       const created = await this.database.transaction(async tx => {
         const author = await this.requireAuthor(tx, body.authorId)
 
         const [article] = await tx
           .insert(articles)
           .values({
-            id: articleId,
             status: body.status,
             coverKey: coverKey.toString(),
             categoryId: body.categoryId ?? null,
@@ -168,7 +166,7 @@ export class ArticleService {
         const [translation] = await tx
           .insert(articleTranslations)
           .values({
-            articleId,
+            articleId: article.id,
             locale: body.locale,
             title: body.title,
             slug: body.slug,

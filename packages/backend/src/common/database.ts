@@ -10,8 +10,8 @@ import { assetsDir } from "./assets.js"
 import { config } from "./config.js"
 import { logger } from "./logger.js"
 
-class DatabaseLogger implements Logger {
-  public logQuery(query: string): void {
+const databaseLogger: Logger = {
+  logQuery: query => {
     logger.child({ module: "database" }).debug(query)
   }
 }
@@ -19,7 +19,7 @@ class DatabaseLogger implements Logger {
 const isTest = config.app.environment === "test"
 
 export const database = drizzleNeon(config.database.url, {
-  logger: new DatabaseLogger()
+  logger: databaseLogger
 })
 
 export type Database = typeof database
