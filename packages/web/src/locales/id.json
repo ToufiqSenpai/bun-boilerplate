@@ -85,8 +85,6 @@
       }
     },
     "users": {
-      "title": "Pengguna",
-      "description": "Kelola Pengguna dan Sesi mereka.",
       "actions": {
         "create": "Buat Pengguna"
       },
@@ -109,8 +107,7 @@
           "placeholder": "Pilih Peran"
         },
         "submit": "Buat Pengguna",
-        "submitting": "Membuat…",
-        "cancel": "Batal"
+        "submitting": "Membuat…"
       },
       "search": {
         "placeholder": "Cari berdasarkan nama atau email",

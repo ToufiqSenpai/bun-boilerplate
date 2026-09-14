@@ -85,8 +85,6 @@
       }
     },
     "users": {
-      "title": "Users",
-      "description": "Manage Users and their Sessions.",
       "actions": {
         "create": "Create User"
       },
@@ -109,8 +107,7 @@
           "placeholder": "Select a Role"
         },
         "submit": "Create User",
-        "submitting": "Creating…",
-        "cancel": "Cancel"
+        "submitting": "Creating…"
       },
       "search": {
         "placeholder": "Search by name or email",

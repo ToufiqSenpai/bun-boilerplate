@@ -308,10 +308,6 @@ function AdminUserPage() {
     <>
       <div className="flex w-full flex-col gap-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-lg font-semibold tracking-tight">{i18n.t("admin.users.title")}</h2>
-            <p className="text-sm text-muted-foreground">{i18n.t("admin.users.description")}</p>
-          </div>
           <form
             className="w-full sm:w-72"
             onSubmit={event => {
