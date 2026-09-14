@@ -87,6 +87,31 @@
     "users": {
       "title": "Pengguna",
       "description": "Kelola Pengguna dan Sesi mereka.",
+      "actions": {
+        "create": "Buat Pengguna"
+      },
+      "create": {
+        "title": "Buat Pengguna",
+        "description": "Provisikan akun Pengguna baru beserta Perannya.",
+        "name": {
+          "label": "Nama"
+        },
+        "email": {
+          "label": "Email"
+        },
+        "password": {
+          "label": "Kata Sandi",
+          "show": "Tampilkan kata sandi",
+          "hide": "Sembunyikan kata sandi"
+        },
+        "role": {
+          "label": "Peran",
+          "placeholder": "Pilih Peran"
+        },
+        "submit": "Buat Pengguna",
+        "submitting": "Membuat…",
+        "cancel": "Batal"
+      },
       "search": {
         "placeholder": "Cari berdasarkan nama atau email",
         "submit": "Cari"
@@ -112,14 +137,54 @@
         "description": "Tidak ada Pengguna yang cocok dengan pencarian saat ini."
       },
       "error": {
-        "generic": "Terjadi kesalahan. Silakan coba lagi."
+        "generic": "Terjadi kesalahan. Silakan coba lagi.",
+        "name": {
+          "required": "Nama wajib diisi",
+          "max": "Nama maksimal 64 karakter"
+        },
+        "email": {
+          "invalid": "Masukkan alamat email yang valid",
+          "max": "Email maksimal 128 karakter"
+        },
+        "password": {
+          "min": "Kata sandi minimal 8 karakter",
+          "max": "Kata sandi maksimal 128 karakter"
+        },
+        "role": {
+          "required": "Pilih Peran"
+        }
       },
       "drawer": {
         "sessions": "Sesi",
         "sessionsEmpty": "Tidak ada Sesi aktif.",
         "unknownDevice": "Perangkat tidak dikenal",
         "expires": "Kedaluwarsa",
-        "close": "Tutup"
+        "close": "Tutup",
+        "profile": "Profil",
+        "role": "Peran",
+        "password": "Kata Sandi",
+        "nameLabel": "Nama tampilan",
+        "newPassword": "Kata sandi baru",
+        "save": "Simpan",
+        "saving": "Menyimpan…",
+        "changeRole": "Ubah Peran",
+        "resetPassword": "Atur ulang kata sandi",
+        "confirm": {
+          "cancel": "Batal",
+          "confirm": "Konfirmasi",
+          "updateName": {
+            "title": "Perbarui nama?",
+            "description": "Nama tampilan akan diubah menjadi {{newName}}."
+          },
+          "changeRole": {
+            "title": "Ubah Peran?",
+            "description": "Peran {{role}} akan diberikan kepada Pengguna ini."
+          },
+          "setPassword": {
+            "title": "Atur ulang kata sandi?",
+            "description": "Kata sandi baru akan diatur untuk Pengguna ini."
+          }
+        }
       }
     }
   }

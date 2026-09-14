@@ -1,6 +1,7 @@
-import { IconSearch } from "@tabler/icons-react"
-import { queryOptions, skipToken, useQuery, useSuspenseQuery } from "@tanstack/react-query"
-import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router"
+import type { Role } from "@bun-boilerplate/backend/auth"
+import { IconPlus, IconSearch } from "@tabler/icons-react"
+import { queryOptions, skipToken, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
+import { Link, createFileRoute, notFound, useNavigate } from "@tanstack/react-router"
 import {
   createColumnHelper,
   functionalUpdate,
@@ -147,6 +148,7 @@ function SortHeader({ label, onClick }: { label: string; onClick: ((event: unkno
 
 function AdminUserPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const state = Route.useSearch()
   const [selected, setSelected] = useState<UserWithRole | null>(null)
   const [draft, setDraft] = useState(state.search)
@@ -165,6 +167,41 @@ function AdminUserPage() {
         }
       : skipToken
   })
+
+  const updateName = async (name: string): Promise<boolean> => {
+    if (!selected) return false
+
+    const { data: updated, error } = await authClient.admin.updateUser({ userId: selected.id, data: { name } })
+
+    if (error) return false
+
+    setSelected(updated)
+    await queryClient.invalidateQueries({ queryKey: ["users"] })
+    return true
+  }
+
+  const changeRole = async (role: Role): Promise<boolean> => {
+    if (!selected) return false
+
+    const { data: updated, error } = await authClient.admin.setRole({ userId: selected.id, role })
+
+    if (error) return false
+
+    setSelected(updated.user)
+    await queryClient.invalidateQueries({ queryKey: ["users"] })
+    return true
+  }
+
+  const setPassword = async (password: string): Promise<boolean> => {
+    if (!selected) return false
+
+    const { error } = await authClient.admin.setUserPassword({ userId: selected.id, newPassword: password })
+
+    if (error) return false
+
+    await queryClient.invalidateQueries({ queryKey: ["users"] })
+    return true
+  }
 
   const sorting = useMemo<SortingState>(
     () => [{ id: state.sortBy, desc: state.order === "desc" }],
@@ -302,6 +339,10 @@ function AdminUserPage() {
               </InputGroupAddon>
             </InputGroup>
           </form>
+          <Button render={<Link to="/admin/users/create" />}>
+            <IconPlus />
+            {i18n.t("admin.users.actions.create")}
+          </Button>
         </div>
 
         {body}
@@ -346,6 +387,9 @@ function AdminUserPage() {
           onClose={() => {
             setSelected(null)
           }}
+          onUpdateName={updateName}
+          onChangeRole={changeRole}
+          onSetPassword={setPassword}
         />
       )}
     </>

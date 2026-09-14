@@ -43,6 +43,9 @@ function renderDrawer(overrides: Partial<UserDetailDrawerProps> = {}) {
     status: "success",
     sessions,
     onClose: () => closed.push(1),
+    onUpdateName: async () => true,
+    onChangeRole: async () => true,
+    onSetPassword: async () => true,
     ...overrides
   }
 
@@ -63,7 +66,7 @@ describe("UserDetailDrawer", () => {
 
     expect(screen.getByRole("heading", { name: "Ada Lovelace" })).toBeTruthy()
     expect(screen.getByText("ada@dev.io")).toBeTruthy()
-    expect(screen.getByText("superadmin")).toBeTruthy()
+    expect(screen.getAllByText("superadmin").length).toBeGreaterThan(0)
     expect(screen.getByText("Verified")).toBeTruthy()
     expect(screen.getByText("Active")).toBeTruthy()
     expect(screen.getByText("2026-01-02")).toBeTruthy()

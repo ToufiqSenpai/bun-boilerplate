@@ -87,6 +87,31 @@
     "users": {
       "title": "Users",
       "description": "Manage Users and their Sessions.",
+      "actions": {
+        "create": "Create User"
+      },
+      "create": {
+        "title": "Create User",
+        "description": "Provision a new User account with a Role.",
+        "name": {
+          "label": "Name"
+        },
+        "email": {
+          "label": "Email"
+        },
+        "password": {
+          "label": "Password",
+          "show": "Show password",
+          "hide": "Hide password"
+        },
+        "role": {
+          "label": "Role",
+          "placeholder": "Select a Role"
+        },
+        "submit": "Create User",
+        "submitting": "Creating…",
+        "cancel": "Cancel"
+      },
       "search": {
         "placeholder": "Search by name or email",
         "submit": "Search"
@@ -112,14 +137,54 @@
         "description": "No User matches the current search."
       },
       "error": {
-        "generic": "Something went wrong. Please try again."
+        "generic": "Something went wrong. Please try again.",
+        "name": {
+          "required": "Name is required",
+          "max": "Name must be at most 64 characters"
+        },
+        "email": {
+          "invalid": "Enter a valid email address",
+          "max": "Email must be at most 128 characters"
+        },
+        "password": {
+          "min": "Password must be at least 8 characters",
+          "max": "Password must be at most 128 characters"
+        },
+        "role": {
+          "required": "Select a Role"
+        }
       },
       "drawer": {
         "sessions": "Sessions",
         "sessionsEmpty": "No active Sessions.",
         "unknownDevice": "Unknown device",
         "expires": "Expires",
-        "close": "Close"
+        "close": "Close",
+        "profile": "Profile",
+        "role": "Role",
+        "password": "Password",
+        "nameLabel": "Display name",
+        "newPassword": "New password",
+        "save": "Save",
+        "saving": "Saving…",
+        "changeRole": "Change Role",
+        "resetPassword": "Reset password",
+        "confirm": {
+          "cancel": "Cancel",
+          "confirm": "Confirm",
+          "updateName": {
+            "title": "Update name?",
+            "description": "Set the display name to {{newName}}."
+          },
+          "changeRole": {
+            "title": "Change Role?",
+            "description": "Assign the {{role}} Role to this User."
+          },
+          "setPassword": {
+            "title": "Reset password?",
+            "description": "Set a new password for this User."
+          }
+        }
       }
     }
   }
