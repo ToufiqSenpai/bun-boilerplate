@@ -29,4 +29,3 @@ function fieldValidator(schema: z.ZodType<string>) {
 }
 
 export { FieldChrome, fieldValidator }
-export type { FieldChromeProps }

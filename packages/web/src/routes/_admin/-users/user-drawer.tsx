@@ -1,3 +1,4 @@
+import type { QueryStatus } from "@tanstack/react-query"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Badge } from "src/components/ui/badge"
 import { Button } from "src/components/ui/button"
@@ -5,7 +6,7 @@ import { Separator } from "src/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "src/components/ui/sheet"
 import { Skeleton } from "src/components/ui/skeleton"
 import { i18n } from "src/i18n"
-import type { AdminSessionInfo, AdminUser, QueryStatus } from "src/routes/_admin/-users/map-record"
+import type { AdminSessionInfo, AdminUser } from "src/routes/_admin/-users/map-record"
 import { BanBadge, VerificationBadge } from "src/routes/_admin/-users/status-badges"
 
 export interface UserDetailDrawerProps {

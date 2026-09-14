@@ -10,93 +10,40 @@ import { FieldChrome, fieldValidator } from "src/components/ui/field-chrome"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
-import {
-  classifySignInError,
-  resolveAdminAccess,
-  sanitizeReturnAddress,
-  type AdminSetupResult
-} from "src/routes/admin/-lib/access"
-import { readAdminSession } from "src/routes/admin/-lib/session-reader"
-import { api, authClient } from "src/utils/client"
+import { isRequiredSetup } from "src/routes/admin/-helpers/setup"
+import { authClient } from "src/utils/client"
 import { z } from "zod"
-
-interface SignInResult {
-  readonly error: {
-    readonly code?: string | undefined
-    readonly status?: number | undefined
-    readonly message?: string | undefined
-  } | null
-}
-
-export interface AdminLoginPageProps {
-  readonly onSignIn?: (input: { readonly email: string; readonly password: string }) => Promise<SignInResult>
-  readonly onSignedIn: (returnTo: string) => void
-  readonly onGoToPending: (email: string) => void
-  readonly returnTo?: string | undefined
-}
 
 const loginSchema = z.object({
   email: z.email(i18n.t("admin.login.error.email.invalid")),
   password: z.string().min(1, i18n.t("admin.login.error.password.required"))
 })
 
-export function requireSetupComplete(result: AdminSetupResult): void {
-  const { data, error, status } = result
-
-  if (error === null && status === 200 && data?.needed) throw redirect({ to: "/admin/setup" })
-}
-
-const loginSearchSchema = z.object({
+const searchSchema = z.object({
   redirect: z
     .string()
-    .optional()
-    .transform(raw => (raw === undefined ? undefined : sanitizeReturnAddress(raw)))
+    .regex(/^\/admin(?:\/|$)[\x20-\x7E]*$/)
+    .catch("/admin/")
+    .default("/admin/")
 })
 
 export const Route = createFileRoute("/admin/login")({
-  validateSearch: loginSearchSchema,
+  validateSearch: searchSchema,
   head: () => ({
     meta: [{ title: "Admin Login" }]
   }),
-  beforeLoad: async ({ location }) => {
-    const setup = await api.auth.setup.get()
-    requireSetupComplete(setup)
+  beforeLoad: async ({ search }) => {
+    if (await isRequiredSetup()) throw redirect({ to: "/admin/setup" })
 
-    const access = resolveAdminAccess(setup, await readAdminSession())
-
-    if (access === "allowed") {
-      // SAFETY: the router has already validated location.search through loginSearchSchema, so `redirect` is either a sanitized admin path or absent.
-      const requested = (location.search as { redirect?: string | undefined }).redirect
-      throw redirect({ href: sanitizeReturnAddress(requested) })
-    }
+    const { data } = await authClient.getSession()
+    if (data?.user) throw redirect({ href: search.redirect })
   },
-  component: AdminLoginRoute
+  component: LoginPage
 })
 
-function AdminLoginRoute() {
+function LoginPage() {
   const navigate = useNavigate()
   const { redirect } = Route.useSearch()
-
-  return (
-    <AdminLoginPage
-      returnTo={redirect}
-      onSignedIn={target => {
-        void navigate({ href: target })
-      }}
-      onGoToPending={email => {
-        void navigate({ to: "/admin/setup", search: { email } })
-      }}
-    />
-  )
-}
-
-export function AdminLoginPage({ onSignIn, onSignedIn, onGoToPending, returnTo }: AdminLoginPageProps) {
-  const signIn =
-    onSignIn ??
-    (async input => {
-      const { error } = await authClient.signIn.email(input)
-      return { error }
-    })
   const [serverError, setServerError] = useState<string | null>(null)
 
   const form = useForm({
@@ -115,21 +62,19 @@ export function AdminLoginPage({ onSignIn, onSignedIn, onGoToPending, returnTo }
         return
       }
 
-      const { error } = await signIn({ email: parsed.data.email, password: parsed.data.password })
+      const { error } = await authClient.signIn.email({ email: parsed.data.email, password: parsed.data.password })
 
       if (!error) {
-        onSignedIn(sanitizeReturnAddress(returnTo))
+        void navigate({ href: redirect })
         return
       }
 
-      const failure = classifySignInError(error)
-
-      if (failure.reason === "pending-verification") {
-        onGoToPending(parsed.data.email)
+      if (error.code === "EMAIL_NOT_VERIFIED") {
+        void navigate({ to: "/admin/verify-email", search: { email: parsed.data.email } })
         return
       }
 
-      console.warn("admin sign-in failed", failure)
+      console.warn("admin sign-in failed", error.code, error.status)
       setServerError(i18n.t("admin.login.error.invalidCredentials"))
     }
   })
@@ -219,5 +164,3 @@ export function AdminLoginPage({ onSignIn, onSignedIn, onGoToPending, returnTo }
     </main>
   )
 }
-
-export type { SignInResult }

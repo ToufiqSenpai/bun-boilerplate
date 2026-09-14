@@ -23,6 +23,11 @@
         "INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET": "{env:INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}",
         "INFISICAL_HOST_URL": "{env:INFISICAL_HOST_URL}"
       }
+    },
+    "neon": {
+      "type": "remote",
+      "url": "https://mcp.neon.tech/mcp",
+      "enabled": true
     }
   }
 }

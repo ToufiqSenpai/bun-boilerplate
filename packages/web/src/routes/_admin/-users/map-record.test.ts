@@ -22,14 +22,12 @@ describe("toAdminUser", () => {
     const revived: RawUserRecord = {
       ...baseUser,
       createdAt: new Date("2026-01-02T00:00:00.000Z"),
-      banned: true,
-      banExpires: new Date("2026-09-01T00:00:00.000Z")
+      banned: true
     }
 
     const mapped = toAdminUser(revived)
 
     expect(mapped.createdAt).toBe("2026-01-02T00:00:00.000Z")
-    expect(mapped.banExpires).toBe("2026-09-01T00:00:00.000Z")
     expect(mapped.banned).toBe(true)
   })
 })

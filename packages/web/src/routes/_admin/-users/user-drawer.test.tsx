@@ -9,9 +9,7 @@ const user: AdminUser = {
   role: "superadmin",
   emailVerified: true,
   createdAt: "2026-01-02T00:00:00.000Z",
-  banned: false,
-  banReason: null,
-  banExpires: null
+  banned: false
 }
 
 const sessions = [

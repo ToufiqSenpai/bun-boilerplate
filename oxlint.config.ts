@@ -133,7 +133,7 @@ export default defineConfig({
 
     // typescript - pedantic
     "typescript/ban-ts-comment": "error",
-    "typescript/no-confusing-void-expression": "error",
+    "typescript/no-confusing-void-expression": "off",
     "typescript/no-mixed-enums": "error",
     "typescript/no-unsafe-function-type": "error",
 

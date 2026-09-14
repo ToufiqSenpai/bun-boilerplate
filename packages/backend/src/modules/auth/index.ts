@@ -66,6 +66,10 @@ export const auth = betterAuth({
       "/sign-up/email": {
         window: 60,
         max: 3
+      },
+      "/send-verification-email": {
+        window: 60,
+        max: 3
       }
     }
   },
@@ -102,12 +106,6 @@ export const auth = betterAuth({
           })
         )
         .catch(() => {})
-    },
-    onPasswordReset: async ({ user }) => {
-      logger.info({ userId: user.id }, "Password reset completed")
-    },
-    onExistingUserSignUp: async ({ user }) => {
-      logger.warn({ userId: user.id }, "Sign-up attempt for existing email")
     }
   },
   emailVerification: {
@@ -126,11 +124,7 @@ export const auth = betterAuth({
         )
         .catch(() => {})
     },
-    expiresIn: config.auth.email.verifyEmailTtl,
-    sendOnSignUp: true,
-    afterEmailVerification: async user => {
-      logger.info({ userId: user.id }, "Email verified successfully")
-    }
+    expiresIn: config.auth.email.verifyEmailTtl
   },
   plugins: [admin({ ac, roles }), ...(config.app.environment === "development" ? [openAPI()] : [])],
   databaseHooks: {

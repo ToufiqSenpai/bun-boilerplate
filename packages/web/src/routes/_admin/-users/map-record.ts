@@ -6,8 +6,6 @@ export interface AdminUser {
   readonly emailVerified: boolean
   readonly createdAt: string
   readonly banned: boolean
-  readonly banReason: string | null
-  readonly banExpires: string | null
 }
 
 export interface AdminSessionInfo {
@@ -17,25 +15,21 @@ export interface AdminSessionInfo {
   readonly userAgent: string | null
 }
 
-export type QueryStatus = "pending" | "error" | "success"
-
 export interface RawUserRecord {
   readonly id: string
   readonly name: string
   readonly email: string
   readonly emailVerified: boolean
   readonly createdAt: Date | string
-  readonly role?: string | null
-  readonly banned?: boolean | null
-  readonly banReason?: string | null
-  readonly banExpires?: Date | string | null
+  readonly role?: string | null | undefined
+  readonly banned?: boolean | null | undefined
 }
 
 export interface RawSessionRecord {
   readonly id: string
   readonly expiresAt: Date | string
-  readonly ipAddress?: string | null
-  readonly userAgent?: string | null
+  readonly ipAddress?: string | null | undefined
+  readonly userAgent?: string | null | undefined
 }
 
 export function toIsoString(value: Date | string): string {
@@ -50,9 +44,7 @@ export function toAdminUser(record: RawUserRecord): AdminUser {
     role: record.role ?? null,
     emailVerified: record.emailVerified,
     createdAt: toIsoString(record.createdAt),
-    banned: record.banned ?? false,
-    banReason: record.banReason ?? null,
-    banExpires: record.banExpires ? toIsoString(record.banExpires) : null
+    banned: record.banned ?? false
   }
 }
 

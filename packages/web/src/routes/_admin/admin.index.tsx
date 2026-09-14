@@ -12,10 +12,10 @@ export const Route = createFileRoute("/_admin/admin/")({
   head: () => ({
     meta: [{ title: "Admin Dashboard" }]
   }),
-  component: AdminDashboardPage
+  component: DashboardPage
 })
 
-function AdminDashboardPage() {
+function DashboardPage() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-2">

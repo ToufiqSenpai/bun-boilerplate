@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/_admin/route'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminSetupRouteImport } from './routes/admin/setup'
+import { Route as AdminVerifyEmailRouteImport } from './routes/admin/verify-email'
 import { Route as AdminAdminIndexRouteImport } from './routes/_admin/admin.index'
 import { Route as AdminAdminUsersRouteImport } from './routes/_admin/admin.users'
 
@@ -35,6 +36,11 @@ const AdminSetupRoute = AdminSetupRouteImport.update({
   path: '/admin/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminVerifyEmailRoute = AdminVerifyEmailRouteImport.update({
+  id: '/admin/verify-email',
+  path: '/admin/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAdminIndexRoute = AdminAdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
@@ -50,6 +56,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/setup': typeof AdminSetupRoute
+  '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
   '/admin/': typeof AdminAdminIndexRoute
 }
@@ -57,6 +64,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/setup': typeof AdminSetupRoute
+  '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
   '/admin': typeof AdminAdminIndexRoute
 }
@@ -66,20 +74,34 @@ export interface FileRoutesById {
   '/_admin': typeof AdminRouteRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/admin/setup': typeof AdminSetupRoute
+  '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/_admin/admin/users': typeof AdminAdminUsersRoute
   '/_admin/admin/': typeof AdminAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin/login' | '/admin/setup' | '/admin/users' | '/admin/'
+  fullPaths:
+    | '/'
+    | '/admin/login'
+    | '/admin/setup'
+    | '/admin/verify-email'
+    | '/admin/users'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin/login' | '/admin/setup' | '/admin/users' | '/admin'
+  to:
+    | '/'
+    | '/admin/login'
+    | '/admin/setup'
+    | '/admin/verify-email'
+    | '/admin/users'
+    | '/admin'
   id:
     | '__root__'
     | '/'
     | '/_admin'
     | '/admin/login'
     | '/admin/setup'
+    | '/admin/verify-email'
     | '/_admin/admin/users'
     | '/_admin/admin/'
   fileRoutesById: FileRoutesById
@@ -89,6 +111,7 @@ export interface RootRouteChildren {
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
   AdminSetupRoute: typeof AdminSetupRoute
+  AdminVerifyEmailRoute: typeof AdminVerifyEmailRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -119,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/setup'
       fullPath: '/admin/setup'
       preLoaderRoute: typeof AdminSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/verify-email': {
+      id: '/admin/verify-email'
+      path: '/admin/verify-email'
+      fullPath: '/admin/verify-email'
+      preLoaderRoute: typeof AdminVerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_admin/admin/': {
@@ -157,6 +187,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRouteRoute: AdminRouteRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
   AdminSetupRoute: AdminSetupRoute,
+  AdminVerifyEmailRoute: AdminVerifyEmailRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

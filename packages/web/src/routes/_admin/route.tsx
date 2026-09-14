@@ -1,3 +1,4 @@
+import type { Role } from "@bun-boilerplate/backend/auth"
 import { IconLayoutDashboard, IconSettings, IconUsers } from "@tabler/icons-react"
 import { Link, notFound, Outlet, createFileRoute, redirect, useMatchRoute } from "@tanstack/react-router"
 import { Separator } from "src/components/ui/separator"
@@ -17,54 +18,49 @@ import {
   SidebarRail,
   SidebarTrigger
 } from "src/components/ui/sidebar"
-import { resolveAdminAccess } from "src/routes/admin/-lib/access"
-import { readAdminSession } from "src/routes/admin/-lib/session-reader"
-import { api } from "src/utils/client"
+import { authClient } from "src/utils/client"
+
+const ALLOWED_ROLES: readonly Role[] = ["superadmin", "admin"]
 
 export const Route = createFileRoute("/_admin")({
-  beforeLoad: async ({ context, location }) => {
-    const setup = await api.auth.setup.get()
-    const session = await readAdminSession()
+  beforeLoad: async ({ location }) => {
+    const { data } = await authClient.getSession()
+    const user = data?.user
 
-    context.adminSetup = setup
-    context.adminSession = session
+    if (!user) throw redirect({ to: "/admin/login", search: { redirect: location.href } })
 
-    const access = resolveAdminAccess(setup, session)
+    const role = ALLOWED_ROLES.find(adminRole => adminRole === user.role)
 
-    if (access === "setup-needed") throw redirect({ to: "/admin/setup" })
-    if (access === "sign-in") throw redirect({ to: "/admin/login", search: { redirect: location.href } })
+    if (!role) throw notFound()
 
-    if (access === "verification-pending") {
-      const email = session.data?.user.email
-
-      if (email === undefined) throw redirect({ to: "/admin/setup" })
-
-      throw redirect({ to: "/admin/setup", search: { email } })
-    }
-
-    if (access === "forbidden") throw notFound()
+    return { userSession: { email: user.email, role } }
   },
   component: AdminRoute
 })
 
 interface NavItem {
   title: string
-  to?: "/admin" | "/admin/users"
+  to?: string
   icon: typeof IconLayoutDashboard
+  allowed: (role: Role) => boolean
 }
 
+const NAV_ITEMS: readonly NavItem[] = [
+  { title: "Dashboard", to: "/admin", icon: IconLayoutDashboard, allowed: () => true },
+  {
+    title: "Users",
+    to: "/admin/users",
+    icon: IconUsers,
+    allowed: role => authClient.admin.checkRolePermission({ role, permissions: { user: ["list"] } })
+  },
+  { title: "Settings", icon: IconSettings, allowed: () => true }
+]
+
 function AdminRoute() {
-  const { adminSetup, adminSession } = Route.useRouteContext()
+  const { userSession } = Route.useRouteContext()
   const matchRoute = useMatchRoute()
 
-  const canManageUsers =
-    adminSetup !== null && adminSession !== null && resolveAdminAccess(adminSetup, adminSession, "users") === "allowed"
-
-  const navItems: NavItem[] = [
-    { title: "Dashboard", to: "/admin", icon: IconLayoutDashboard },
-    ...(canManageUsers ? [{ title: "Users", to: "/admin/users" as const, icon: IconUsers }] : []),
-    { title: "Settings", icon: IconSettings }
-  ]
+  const navItems = NAV_ITEMS.filter(item => item.allowed(userSession.role))
 
   return (
     <SidebarProvider>
@@ -110,7 +106,7 @@ function AdminRoute() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton>
-                <span className="text-sm">admin@example.com</span>
+                <span className="text-sm">{userSession.email}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

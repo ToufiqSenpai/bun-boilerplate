@@ -49,13 +49,16 @@
       },
       "success": {
         "title": "Check your email",
+        "titleUnsent": "Verify your email",
         "description": "We sent a verification link to {{email}}. It expires in 30 minutes.",
-        "backToLogin": "Back to login",
+        "descriptionUnsent": "Your email isn't verified yet. Send a verification link to {{email}}.",
         "error": {
           "rateLimited": "Too many attempts. Please wait a minute and try again."
         },
-        "send": "Send email",
-        "sendCooldown": "Available again in {{seconds}}s"
+        "send": "Resend email",
+        "sendFirst": "Send verification email",
+        "sendCooldown": "Resend in {{seconds}}s",
+        "sending": "Sending…"
       }
     },
     "login": {
