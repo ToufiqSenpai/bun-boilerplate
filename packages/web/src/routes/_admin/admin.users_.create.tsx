@@ -1,3 +1,4 @@
+import { isKnownRole } from "@bun-boilerplate/backend/auth"
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
 import { useQueryClient } from "@tanstack/react-query"
@@ -11,23 +12,17 @@ import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "src/components/ui/select"
 import { i18n } from "src/i18n"
-import { isMatrixRole, ROLE_OPTIONS } from "src/routes/_admin/-users/roles"
+import { ROLE_OPTIONS } from "src/routes/_admin/-users/roles"
+import { userEmailSchema, userNameSchema, userPasswordSchema, userRoleSchema } from "src/routes/_admin/-users/schemas"
 import { authClient } from "src/utils/client"
 import { z } from "zod"
 
 const createUserSchema = z.object({
-  name: z.string().min(1, i18n.t("admin.users.error.name.required")).max(64, i18n.t("admin.users.error.name.max")),
-  email: z.email(i18n.t("admin.users.error.email.invalid")).max(128, i18n.t("admin.users.error.email.max")),
-  password: z
-    .string()
-    .min(8, i18n.t("admin.users.error.password.min"))
-    .max(128, i18n.t("admin.users.error.password.max")),
-  role: z.string().refine(isMatrixRole, i18n.t("admin.users.error.role.required"))
+  name: userNameSchema,
+  email: userEmailSchema,
+  password: userPasswordSchema,
+  role: userRoleSchema
 })
-
-function roleValidator({ value }: { value: string }): string | undefined {
-  return isMatrixRole(value) ? undefined : i18n.t("admin.users.error.role.required")
-}
 
 export const Route = createFileRoute("/_admin/admin/users_/create")({
   head: () => ({
@@ -62,10 +57,10 @@ function CreateUserPage() {
 
       const role = parsed.data.role
 
-      if (!isMatrixRole(role)) return
+      if (!isKnownRole(role)) return
 
       const { error } = await authClient.admin.createUser({
-        name: parsed.data.name.trim(),
+        name: parsed.data.name,
         email: parsed.data.email.trim(),
         password: parsed.data.password,
         role
@@ -166,7 +161,7 @@ function CreateUserPage() {
             )}
           </form.Field>
 
-          <form.Field name="role" validators={{ onChange: roleValidator }}>
+          <form.Field name="role" validators={{ onChange: fieldValidator(createUserSchema.shape.role) }}>
             {field => (
               <FieldChrome
                 id="create-role"

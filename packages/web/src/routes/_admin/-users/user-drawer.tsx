@@ -1,4 +1,4 @@
-import type { Role } from "@bun-boilerplate/backend/auth"
+import { isKnownRole, type Role } from "@bun-boilerplate/backend/auth"
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
 import type { QueryStatus } from "@tanstack/react-query"
@@ -26,19 +26,9 @@ import { Separator } from "src/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "src/components/ui/sheet"
 import { Skeleton } from "src/components/ui/skeleton"
 import { i18n } from "src/i18n"
-import { isMatrixRole, ROLE_OPTIONS } from "src/routes/_admin/-users/roles"
+import { ROLE_OPTIONS } from "src/routes/_admin/-users/roles"
+import { userNameSchema, userPasswordSchema } from "src/routes/_admin/-users/schemas"
 import { BanBadge, VerificationBadge } from "src/routes/_admin/-users/status-badges"
-import { z } from "zod"
-
-const nameSchema = z
-  .string()
-  .min(1, i18n.t("admin.users.error.name.required"))
-  .max(64, i18n.t("admin.users.error.name.max"))
-
-const passwordSchema = z
-  .string()
-  .min(8, i18n.t("admin.users.error.password.min"))
-  .max(128, i18n.t("admin.users.error.password.max"))
 
 export interface UserDetailDrawerProps {
   readonly user: UserWithRole | null
@@ -102,23 +92,12 @@ interface ConfirmActionDialogProps {
   readonly open: boolean
   readonly title: string
   readonly description: string
-  readonly confirmLabel: string
-  readonly cancelLabel: string
   readonly pending: boolean
   readonly onCancel: () => void
   readonly onConfirm: () => void
 }
 
-function ConfirmActionDialog({
-  open,
-  title,
-  description,
-  confirmLabel,
-  cancelLabel,
-  pending,
-  onCancel,
-  onConfirm
-}: ConfirmActionDialogProps) {
+function ConfirmActionDialog({ open, title, description, pending, onCancel, onConfirm }: ConfirmActionDialogProps) {
   return (
     <AlertDialog
       open={open}
@@ -132,10 +111,10 @@ function ConfirmActionDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>{i18n.t("admin.users.drawer.confirm.cancel")}</AlertDialogCancel>
           <AlertDialogAction disabled={pending} onClick={onConfirm}>
             {pending && <IconLoader2 className="animate-spin" aria-hidden="true" />}
-            {confirmLabel}
+            {i18n.t("admin.users.drawer.confirm.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -156,18 +135,18 @@ function ProfileSection({ user, onUpdateName }: ProfileSectionProps) {
   const form = useForm({
     defaultValues: { name: user.name },
     onSubmit: ({ value }) => {
-      if (!nameSchema.safeParse(value.name).success) return
+      if (!userNameSchema.safeParse(value.name).success) return
       setConfirmOpen(true)
     }
   })
 
   const confirm = async () => {
-    const parsed = nameSchema.safeParse(form.state.values.name)
+    const parsed = userNameSchema.safeParse(form.state.values.name)
 
     if (!parsed.success) return
 
     setPending(true)
-    const ok = await onUpdateName(parsed.data.trim())
+    const ok = await onUpdateName(parsed.data)
     setPending(false)
     setConfirmOpen(false)
     setServerError(!ok)
@@ -184,7 +163,7 @@ function ProfileSection({ user, onUpdateName }: ProfileSectionProps) {
         }}
       >
         <FieldGroup>
-          <form.Field name="name" validators={{ onChange: fieldValidator(nameSchema) }}>
+          <form.Field name="name" validators={{ onChange: fieldValidator(userNameSchema) }}>
             {field => (
               <FieldChrome
                 id="user-name"
@@ -224,9 +203,9 @@ function ProfileSection({ user, onUpdateName }: ProfileSectionProps) {
       <ConfirmActionDialog
         open={confirmOpen}
         title={i18n.t("admin.users.drawer.confirm.updateName.title")}
-        description={i18n.t("admin.users.drawer.confirm.updateName.description", { newName: form.state.values.name })}
-        confirmLabel={i18n.t("admin.users.drawer.confirm.confirm")}
-        cancelLabel={i18n.t("admin.users.drawer.confirm.cancel")}
+        description={i18n.t("admin.users.drawer.confirm.updateName.description", {
+          newName: form.state.values.name.trim()
+        })}
         pending={pending}
         onCancel={() => {
           setConfirmOpen(false)
@@ -245,7 +224,13 @@ interface RoleSectionProps {
 }
 
 function RoleSection({ user, onChangeRole }: RoleSectionProps) {
-  const [role, setRole] = useState<Role | null>(isMatrixRole(user.role) ? user.role : null)
+  const [role, setRole] = useState<Role | null>(() => {
+    const current = user.role
+
+    if (!current) return null
+
+    return isKnownRole(current) ? current : null
+  })
   const [serverError, setServerError] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pending, setPending] = useState(false)
@@ -300,8 +285,6 @@ function RoleSection({ user, onChangeRole }: RoleSectionProps) {
         open={confirmOpen}
         title={i18n.t("admin.users.drawer.confirm.changeRole.title")}
         description={i18n.t("admin.users.drawer.confirm.changeRole.description", { role: role ?? "" })}
-        confirmLabel={i18n.t("admin.users.drawer.confirm.confirm")}
-        cancelLabel={i18n.t("admin.users.drawer.confirm.cancel")}
         pending={pending}
         onCancel={() => {
           setConfirmOpen(false)
@@ -326,13 +309,13 @@ function PasswordSection({ onSetPassword }: PasswordSectionProps) {
   const form = useForm({
     defaultValues: { password: "" },
     onSubmit: ({ value }) => {
-      if (!passwordSchema.safeParse(value.password).success) return
+      if (!userPasswordSchema.safeParse(value.password).success) return
       setConfirmOpen(true)
     }
   })
 
   const confirm = async () => {
-    const parsed = passwordSchema.safeParse(form.state.values.password)
+    const parsed = userPasswordSchema.safeParse(form.state.values.password)
 
     if (!parsed.success) return
 
@@ -356,7 +339,7 @@ function PasswordSection({ onSetPassword }: PasswordSectionProps) {
         }}
       >
         <FieldGroup>
-          <form.Field name="password" validators={{ onChange: fieldValidator(passwordSchema) }}>
+          <form.Field name="password" validators={{ onChange: fieldValidator(userPasswordSchema) }}>
             {field => (
               <FieldChrome
                 id="user-password"
@@ -400,8 +383,6 @@ function PasswordSection({ onSetPassword }: PasswordSectionProps) {
         open={confirmOpen}
         title={i18n.t("admin.users.drawer.confirm.setPassword.title")}
         description={i18n.t("admin.users.drawer.confirm.setPassword.description")}
-        confirmLabel={i18n.t("admin.users.drawer.confirm.confirm")}
-        cancelLabel={i18n.t("admin.users.drawer.confirm.cancel")}
         pending={pending}
         onCancel={() => {
           setConfirmOpen(false)
