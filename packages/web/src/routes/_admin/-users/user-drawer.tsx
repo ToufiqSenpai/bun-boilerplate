@@ -1,4 +1,5 @@
 import type { QueryStatus } from "@tanstack/react-query"
+import type { SessionWithImpersonatedBy, UserWithRole } from "better-auth/plugins/admin"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Badge } from "src/components/ui/badge"
 import { Button } from "src/components/ui/button"
@@ -6,13 +7,12 @@ import { Separator } from "src/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "src/components/ui/sheet"
 import { Skeleton } from "src/components/ui/skeleton"
 import { i18n } from "src/i18n"
-import type { AdminSessionInfo, AdminUser } from "src/routes/_admin/-users/map-record"
 import { BanBadge, VerificationBadge } from "src/routes/_admin/-users/status-badges"
 
 export interface UserDetailDrawerProps {
-  readonly user: AdminUser | null
+  readonly user: UserWithRole | null
   readonly status: QueryStatus
-  readonly sessions: readonly AdminSessionInfo[]
+  readonly sessions: readonly SessionWithImpersonatedBy[]
   readonly onClose: () => void
 }
 
@@ -23,7 +23,7 @@ function SessionsSection({
   sessions
 }: {
   readonly status: QueryStatus
-  readonly sessions: readonly AdminSessionInfo[]
+  readonly sessions: readonly SessionWithImpersonatedBy[]
 }) {
   if (status === "error") {
     return (
@@ -56,7 +56,7 @@ function SessionsSection({
             <span className="text-muted-foreground">{session.ipAddress ?? "—"}</span>
           </div>
           <span className="text-xs text-muted-foreground">
-            {i18n.t("admin.users.drawer.expires")} {session.expiresAt.slice(0, 10)}
+            {i18n.t("admin.users.drawer.expires")} {new Date(session.expiresAt).toISOString().slice(0, 10)}
           </span>
         </li>
       ))}
@@ -91,11 +91,11 @@ export function UserDetailDrawer({ user, status, sessions, onClose }: UserDetail
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">{i18n.t("admin.users.columns.ban")}</span>
-              <BanBadge banned={user.banned} />
+              <BanBadge banned={user.banned ?? false} />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">{i18n.t("admin.users.columns.created")}</span>
-              <span>{user.createdAt.slice(0, 10)}</span>
+              <span>{new Date(user.createdAt).toISOString().slice(0, 10)}</span>
             </div>
           </div>
           <Separator />

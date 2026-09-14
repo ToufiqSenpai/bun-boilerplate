@@ -1,7 +1,18 @@
 import { IconSearch } from "@tabler/icons-react"
 import { queryOptions, skipToken, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
+import {
+  createColumnHelper,
+  functionalUpdate,
+  rowPaginationFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+  type PaginationState,
+  type SortingState
+} from "@tanstack/react-table"
+import type { UserWithRole } from "better-auth/plugins/admin"
+import { useMemo, useState } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Badge } from "src/components/ui/badge"
 import { Button } from "src/components/ui/button"
@@ -16,47 +27,103 @@ import {
 } from "src/components/ui/pagination"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "src/components/ui/table"
 import { i18n } from "src/i18n"
-import {
-  buildListUsersQuery,
-  USERS_PAGE_SIZE,
-  type UsersListState,
-  type UsersSortField
-} from "src/routes/_admin/-users/list-query"
-import { toAdminUser, toSessionInfo, type AdminSessionInfo, type AdminUser } from "src/routes/_admin/-users/map-record"
 import { BanBadge, VerificationBadge } from "src/routes/_admin/-users/status-badges"
 import { UserDetailDrawer } from "src/routes/_admin/-users/user-drawer"
 import { authClient } from "src/utils/client"
 import { z } from "zod"
 
-const usersSearchSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1).catch(1),
-  q: z.string().default("").catch(""),
-  sortBy: z.enum(["name", "email", "createdAt"]).default("createdAt").catch("createdAt"),
-  desc: z.boolean().default(true).catch(true)
+const PAGE_SIZE = 20
+
+const sortBySchema = z.enum(["name", "email", "createdAt"])
+
+const searchSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  search: z.string().default(""),
+  sortBy: sortBySchema.default("createdAt"),
+  order: z.enum(["asc", "desc"]).default("desc")
 })
 
-const usersQuery = (state: UsersListState) =>
+interface UsersTableMeta {
+  openUser: (user: UserWithRole) => void
+}
+
+// SAFETY: `tableMeta` is a phantom type-only slot in tableFeatures; the value is stripped at runtime.
+const usersTableFeatures = tableFeatures({
+  rowSortingFeature,
+  rowPaginationFeature,
+  tableMeta: {} as UsersTableMeta
+})
+
+const userColumnHelper = createColumnHelper<typeof usersTableFeatures, UserWithRole>()
+
+const userColumns = userColumnHelper.columns([
+  userColumnHelper.accessor("name", {
+    header: ({ column }) => (
+      <SortHeader label={i18n.t("admin.users.columns.name")} onClick={column.getToggleSortingHandler()} />
+    ),
+    cell: ({ row, table }) => (
+      <Button
+        variant="link"
+        className="h-auto p-0"
+        onClick={() => {
+          table.options.meta?.openUser(row.original)
+        }}
+      >
+        {row.original.name}
+      </Button>
+    )
+  }),
+  userColumnHelper.accessor("email", {
+    header: ({ column }) => (
+      <SortHeader label={i18n.t("admin.users.columns.email")} onClick={column.getToggleSortingHandler()} />
+    )
+  }),
+  userColumnHelper.accessor("createdAt", {
+    sortDescFirst: true,
+    header: ({ column }) => (
+      <SortHeader label={i18n.t("admin.users.columns.created")} onClick={column.getToggleSortingHandler()} />
+    ),
+    cell: ({ getValue }) => new Date(getValue()).toISOString().slice(0, 10)
+  }),
+  userColumnHelper.accessor("role", {
+    enableSorting: false,
+    header: () => i18n.t("admin.users.columns.role"),
+    cell: ({ getValue }) => <Badge variant="secondary">{getValue() ?? "—"}</Badge>
+  }),
+  userColumnHelper.display({
+    id: "verification",
+    header: () => i18n.t("admin.users.columns.verification"),
+    cell: ({ row }) => <VerificationBadge verified={row.original.emailVerified} />
+  }),
+  userColumnHelper.display({
+    id: "ban",
+    header: () => i18n.t("admin.users.columns.ban"),
+    cell: ({ row }) => <BanBadge banned={row.original.banned ?? false} />
+  })
+])
+
+const usersQuery = (state: z.output<typeof searchSchema>) =>
   queryOptions({
-    queryKey: ["admin-users", state],
+    queryKey: ["users", state],
     queryFn: async () => {
-      const { data } = await authClient.admin.listUsers({ query: buildListUsersQuery(state) })
+      const { data } = await authClient.admin.listUsers({
+        query: {
+          limit: PAGE_SIZE,
+          offset: (state.page - 1) * PAGE_SIZE,
+          sortBy: state.sortBy,
+          sortDirection: state.order,
+          searchValue: state.search,
+          searchField: state.search.includes("@") ? "email" : "name",
+          searchOperator: "contains"
+        }
+      })
 
-      if (!data) return null
-
-      return { users: data.users.map(toAdminUser), total: data.total }
+      return data
     }
   })
 
-async function fetchSessions(userId: string): Promise<AdminSessionInfo[]> {
-  const { data } = await authClient.admin.listUserSessions({ userId })
-
-  if (!data) throw new Error("Failed to load sessions")
-
-  return data.sessions.map(toSessionInfo)
-}
-
 export const Route = createFileRoute("/_admin/admin/users")({
-  validateSearch: usersSearchSchema,
+  validateSearch: searchSchema,
   head: () => ({
     meta: [{ title: "Admin Users" }]
   }),
@@ -70,26 +137,79 @@ export const Route = createFileRoute("/_admin/admin/users")({
   component: AdminUserPage
 })
 
-const sortableColumns = [
-  { field: "name", label: "admin.users.columns.name" },
-  { field: "email", label: "admin.users.columns.email" },
-  { field: "createdAt", label: "admin.users.columns.created" }
-] as const satisfies readonly { field: UsersSortField; label: string }[]
+function SortHeader({ label, onClick }: { label: string; onClick: ((event: unknown) => void) | undefined }) {
+  return (
+    <Button variant="ghost" size="xs" onClick={onClick}>
+      {label}
+    </Button>
+  )
+}
 
 function AdminUserPage() {
   const navigate = useNavigate()
   const state = Route.useSearch()
-  const [selected, setSelected] = useState<AdminUser | null>(null)
-  const [draft, setDraft] = useState(state.q)
+  const [selected, setSelected] = useState<UserWithRole | null>(null)
+  const [draft, setDraft] = useState(state.search)
 
   const { data } = useSuspenseQuery(usersQuery(state))
 
   const sessions = useQuery({
-    queryKey: ["admin-user-sessions", selected?.id ?? null],
-    queryFn: selected ? () => fetchSessions(selected.id) : skipToken
+    queryKey: ["user-sessions", selected?.id ?? null],
+    queryFn: selected
+      ? async () => {
+          const { data } = await authClient.admin.listUserSessions({ userId: selected.id })
+
+          if (!data) throw new Error("Failed to load sessions")
+
+          return data.sessions
+        }
+      : skipToken
   })
 
-  const totalPages = data === null ? 1 : Math.max(1, Math.ceil(data.total / USERS_PAGE_SIZE))
+  const sorting = useMemo<SortingState>(
+    () => [{ id: state.sortBy, desc: state.order === "desc" }],
+    [state.sortBy, state.order]
+  )
+  const pagination = useMemo<PaginationState>(() => ({ pageIndex: state.page - 1, pageSize: PAGE_SIZE }), [state.page])
+
+  const table = useTable({
+    features: usersTableFeatures,
+    columns: userColumns,
+    data: data?.users ?? [],
+    getRowId: row => row.id,
+    meta: { openUser: setSelected },
+    state: { sorting, pagination },
+    onSortingChange: updater => {
+      const [next] = functionalUpdate(updater, sorting)
+
+      if (!next) return
+
+      void navigate({
+        to: "/admin/users",
+        search: previous => ({
+          ...previous,
+          sortBy: sortBySchema.parse(next.id),
+          order: next.desc ? "desc" : "asc",
+          page: 1
+        })
+      })
+    },
+    onPaginationChange: updater => {
+      const next = functionalUpdate(updater, pagination)
+
+      void navigate({
+        to: "/admin/users",
+        search: previous => ({ ...previous, page: next.pageIndex + 1 })
+      })
+    },
+    manualSorting: true,
+    manualPagination: true,
+    rowCount: data?.total ?? 0,
+    enableSortingRemoval: false,
+    enableMultiSort: false
+  })
+
+  const totalPages = Math.max(1, table.getPageCount())
   const showPagination = data !== null && data.users.length > 0 && totalPages > 1
 
   let body
@@ -115,62 +235,31 @@ function AdminUserPage() {
     body = (
       <Table>
         <TableHeader>
-          <TableRow>
-            {sortableColumns.map(column => (
-              <TableHead
-                key={column.field}
-                aria-sort={state.sortBy === column.field ? (state.desc ? "descending" : "ascending") : undefined}
-                className={column.field === "name" ? undefined : "hidden md:table-cell"}
-              >
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => {
-                    void navigate({
-                      to: "/admin/users",
-                      search: previous => ({
-                        ...previous,
-                        sortBy: column.field,
-                        desc: previous.sortBy === column.field ? !previous.desc : column.field === "createdAt",
-                        page: 1
-                      })
-                    })
-                  }}
-                >
-                  {i18n.t(column.label)}
-                </Button>
-              </TableHead>
-            ))}
-            <TableHead className="hidden md:table-cell">{i18n.t("admin.users.columns.role")}</TableHead>
-            <TableHead>{i18n.t("admin.users.columns.verification")}</TableHead>
-            <TableHead>{i18n.t("admin.users.columns.ban")}</TableHead>
-          </TableRow>
+          {table.getHeaderGroups().map(headerGroup => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map(header => {
+                const sorted = header.column.getIsSorted()
+
+                return (
+                  <TableHead
+                    key={header.id}
+                    aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
+                  >
+                    {header.isPlaceholder ? null : <table.FlexRender header={header} />}
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          ))}
         </TableHeader>
         <TableBody>
-          {data.users.map(user => (
-            <TableRow key={user.id}>
-              <TableCell>
-                <Button
-                  variant="link"
-                  className="h-auto p-0"
-                  onClick={() => {
-                    setSelected(user)
-                  }}
-                >
-                  {user.name}
-                </Button>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">{user.email}</TableCell>
-              <TableCell className="hidden md:table-cell">{user.createdAt.slice(0, 10)}</TableCell>
-              <TableCell className="hidden md:table-cell">
-                <Badge variant="secondary">{user.role ?? "—"}</Badge>
-              </TableCell>
-              <TableCell>
-                <VerificationBadge verified={user.emailVerified} />
-              </TableCell>
-              <TableCell>
-                <BanBadge banned={user.banned} />
-              </TableCell>
+          {table.getRowModel().rows.map(row => (
+            <TableRow key={row.id}>
+              {row.getAllCells().map(cell => (
+                <TableCell key={cell.id}>
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
             </TableRow>
           ))}
         </TableBody>
@@ -192,7 +281,7 @@ function AdminUserPage() {
               event.preventDefault()
               void navigate({
                 to: "/admin/users",
-                search: previous => ({ ...previous, q: draft, page: 1 })
+                search: previous => ({ ...previous, search: draft, page: 1 })
               })
             }}
           >
@@ -223,12 +312,10 @@ function AdminUserPage() {
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
-                  aria-disabled={state.page <= 1}
+                  aria-disabled={!table.getCanPreviousPage()}
                   onClick={event => {
                     event.preventDefault()
-                    if (state.page > 1) {
-                      void navigate({ to: "/admin/users", search: previous => ({ ...previous, page: state.page - 1 }) })
-                    }
+                    if (table.getCanPreviousPage()) table.previousPage()
                   }}
                 />
               </PaginationItem>
@@ -240,12 +327,10 @@ function AdminUserPage() {
               <PaginationItem>
                 <PaginationNext
                   href="#"
-                  aria-disabled={state.page >= totalPages}
+                  aria-disabled={!table.getCanNextPage()}
                   onClick={event => {
                     event.preventDefault()
-                    if (state.page < totalPages) {
-                      void navigate({ to: "/admin/users", search: previous => ({ ...previous, page: state.page + 1 }) })
-                    }
+                    if (table.getCanNextPage()) table.nextPage()
                   }}
                 />
               </PaginationItem>

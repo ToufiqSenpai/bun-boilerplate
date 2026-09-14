@@ -1,20 +1,39 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import type { AdminUser } from "src/routes/_admin/-users/map-record"
+import type { SessionWithImpersonatedBy, UserWithRole } from "better-auth/plugins/admin"
 import { UserDetailDrawer, type UserDetailDrawerProps } from "src/routes/_admin/-users/user-drawer"
 
-const user: AdminUser = {
+const user: UserWithRole = {
   id: "u1",
   name: "Ada Lovelace",
   email: "ada@dev.io",
   role: "superadmin",
   emailVerified: true,
-  createdAt: "2026-01-02T00:00:00.000Z",
+  createdAt: new Date("2026-01-02T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-02T00:00:00.000Z"),
   banned: false
 }
 
-const sessions = [
-  { id: "s1", expiresAt: "2026-09-20T00:00:00.000Z", ipAddress: "203.0.113.7", userAgent: "Firefox on Linux" },
-  { id: "s2", expiresAt: "2026-09-21T00:00:00.000Z", ipAddress: null, userAgent: null }
+const sessions: SessionWithImpersonatedBy[] = [
+  {
+    id: "s1",
+    token: "token-1",
+    userId: "u1",
+    createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+    expiresAt: new Date("2026-09-20T00:00:00.000Z"),
+    ipAddress: "203.0.113.7",
+    userAgent: "Firefox on Linux"
+  },
+  {
+    id: "s2",
+    token: "token-2",
+    userId: "u1",
+    createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+    expiresAt: new Date("2026-09-21T00:00:00.000Z"),
+    ipAddress: null,
+    userAgent: null
+  }
 ]
 
 function renderDrawer(overrides: Partial<UserDetailDrawerProps> = {}) {
