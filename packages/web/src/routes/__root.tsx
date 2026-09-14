@@ -1,6 +1,8 @@
 import { DEFAULT_LOCALE, getTextDirection, isLocale } from "@bun-boilerplate/i18n"
+import { a11yDevtoolsPlugin } from "@tanstack/devtools-a11y/react"
+import { TanStackDevtools } from "@tanstack/react-devtools"
 import type { QueryClient } from "@tanstack/react-query"
-import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router"
+import { ClientOnly, HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 
 import appCss from "../styles.css?url"
@@ -44,6 +46,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere]">
         {children}
+        {import.meta.env.DEV && (
+          <ClientOnly>
+            <TanStackDevtools plugins={[a11yDevtoolsPlugin()]} />
+          </ClientOnly>
+        )}
         <Scripts />
       </body>
     </html>

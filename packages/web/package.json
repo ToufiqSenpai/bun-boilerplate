@@ -21,7 +21,6 @@
     "@sentry/tanstackstart-react": "^10.67.0",
     "@tabler/icons-react": "^3.46.0",
     "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/react-devtools": "latest",
     "@tanstack/react-form": "latest",
     "@tanstack/react-query": "latest",
     "@tanstack/react-query-devtools": "latest",
@@ -43,7 +42,9 @@
   "devDependencies": {
     "@rolldown/plugin-babel": "^0.2.3",
     "@tailwindcss/typography": "^0.5.16",
+    "@tanstack/devtools-a11y": "^0.2.2",
     "@tanstack/devtools-vite": "latest",
+    "@tanstack/react-devtools": "latest",
     "@tanstack/router-cli": "^1.167.33",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.2",
