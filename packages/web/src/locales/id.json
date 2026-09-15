@@ -84,9 +84,36 @@
         "invalidCredentials": "Email atau password salah"
       }
     },
+    "nav": {
+      "dashboard": "Dasbor",
+      "settings": "Pengaturan",
+      "users": "Pengguna"
+    },
     "users": {
-      "title": "Pengguna",
-      "description": "Kelola Pengguna dan Sesi mereka.",
+      "actions": {
+        "create": "Buat Pengguna"
+      },
+      "create": {
+        "title": "Buat Pengguna",
+        "description": "Provisikan akun Pengguna baru beserta Perannya.",
+        "name": {
+          "label": "Nama"
+        },
+        "email": {
+          "label": "Email"
+        },
+        "password": {
+          "label": "Kata Sandi",
+          "show": "Tampilkan kata sandi",
+          "hide": "Sembunyikan kata sandi"
+        },
+        "role": {
+          "label": "Peran",
+          "placeholder": "Pilih Peran"
+        },
+        "submit": "Buat Pengguna",
+        "submitting": "Membuat…"
+      },
       "search": {
         "placeholder": "Cari berdasarkan nama atau email",
         "submit": "Cari"
@@ -107,19 +134,73 @@
         "banned": "Diban",
         "active": "Aktif"
       },
+      "results": {
+        "showing": "Menampilkan {{from}}–{{to}} dari {{total}}"
+      },
       "empty": {
-        "title": "Pengguna tidak ditemukan",
-        "description": "Tidak ada Pengguna yang cocok dengan pencarian saat ini."
+        "search": {
+          "title": "Tidak ada hasil untuk “{{search}}”",
+          "description": "Coba nama atau email lain."
+        },
+        "noUsers": {
+          "title": "Belum ada Pengguna",
+          "description": "Buat akun Pengguna pertama untuk memulai."
+        },
+        "clearSearch": "Hapus pencarian"
       },
       "error": {
-        "generic": "Terjadi kesalahan. Silakan coba lagi."
+        "generic": "Terjadi kesalahan. Silakan coba lagi.",
+        "name": {
+          "required": "Nama wajib diisi",
+          "max": "Nama maksimal 64 karakter"
+        },
+        "email": {
+          "invalid": "Masukkan alamat email yang valid",
+          "max": "Email maksimal 128 karakter"
+        },
+        "password": {
+          "min": "Kata sandi minimal 8 karakter",
+          "max": "Kata sandi maksimal 128 karakter"
+        },
+        "role": {
+          "required": "Pilih Peran"
+        }
       },
-      "drawer": {
+      "detail": {
+        "crumb": "Detail Pengguna",
+        "saved": "Tersimpan",
+        "profile": "Profil",
+        "role": "Peran",
+        "password": "Kata Sandi",
+        "nameLabel": "Nama tampilan",
+        "newPassword": "Kata sandi baru",
+        "save": "Simpan",
+        "saving": "Menyimpan…",
+        "changeRole": "Ubah Peran",
+        "resetPassword": "Atur ulang kata sandi",
         "sessions": "Sesi",
         "sessionsEmpty": "Tidak ada Sesi aktif.",
         "unknownDevice": "Perangkat tidak dikenal",
         "expires": "Kedaluwarsa",
-        "close": "Tutup"
+        "device": "Perangkat",
+        "ip": "Alamat IP",
+        "notFound": {
+          "title": "Pengguna tidak ditemukan",
+          "description": "Pengguna ini tidak ada atau sudah dihapus.",
+          "back": "Kembali ke Pengguna"
+        },
+        "confirm": {
+          "cancel": "Batal",
+          "confirm": "Konfirmasi",
+          "changeRole": {
+            "title": "Ubah Peran?",
+            "description": "Peran {{role}} akan diberikan kepada Pengguna ini."
+          },
+          "setPassword": {
+            "title": "Atur ulang kata sandi?",
+            "description": "Kata sandi baru akan diatur untuk Pengguna ini."
+          }
+        }
       }
     }
   }
