@@ -4,32 +4,22 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "src/components/ui/card"
+import { useSessionStorage } from "src/hooks/use-session-storage"
 import { i18n } from "src/i18n"
 import { authClient } from "src/utils/client"
 import { z } from "zod"
 
 const SEND_COOLDOWN_SECONDS = 60
 const COOLDOWN_STORAGE_KEY = "admin:verify-email:cooldown"
-const cooldownExpirySchema = z.coerce.number().int().positive()
+const cooldownExpirySchema = z.number().int().positive()
 
 const verifySearchSchema = z.object({
   email: z.email()
 })
 
-function readCooldownSeconds() {
-  try {
-    const parsed = cooldownExpirySchema.safeParse(sessionStorage.getItem(COOLDOWN_STORAGE_KEY))
-
-    if (!parsed.success) return 0
-
-    return Math.max(0, Math.ceil((parsed.data - Date.now()) / 1000))
-  } catch {
-    return 0
-  }
-}
-
-function writeCooldown() {
-  sessionStorage.setItem(COOLDOWN_STORAGE_KEY, String(Date.now() + SEND_COOLDOWN_SECONDS * 1000))
+function remainingSeconds(expiresAt: number | null, now: number) {
+  if (expiresAt === null) return 0
+  return Math.max(0, Math.ceil((expiresAt - now) / 1000))
 }
 
 function sendButtonLabel(sending: boolean, cooldown: number, sent: boolean) {
@@ -50,11 +40,13 @@ export const Route = createFileRoute("/admin/verify-email")({
 
 function VerifyEmailPage() {
   const { email } = Route.useSearch()
-  const [sent, setSent] = useState(() => readCooldownSeconds() > 0)
-  const [sending, setSending] = useState(() => readCooldownSeconds() === 0)
-  const [cooldown, setCooldown] = useState(readCooldownSeconds)
+  const [cooldownExpiresAt, setCooldownExpiresAt] = useSessionStorage(COOLDOWN_STORAGE_KEY, cooldownExpirySchema)
+  const [now, setNow] = useState(() => Date.now())
+  const [sent, setSent] = useState(() => remainingSeconds(cooldownExpiresAt, Date.now()) > 0)
+  const [sending, setSending] = useState(() => remainingSeconds(cooldownExpiresAt, Date.now()) === 0)
   const [error, setError] = useState<string | null>(null)
   const autoSendRef = useRef(false)
+  const cooldown = remainingSeconds(cooldownExpiresAt, now)
 
   const send = useCallback(async () => {
     setSending(true)
@@ -75,22 +67,22 @@ function VerifyEmailPage() {
     }
 
     setSent(true)
-    setCooldown(SEND_COOLDOWN_SECONDS)
-    writeCooldown()
-  }, [email])
+    setNow(Date.now())
+    setCooldownExpiresAt(Date.now() + SEND_COOLDOWN_SECONDS * 1000)
+  }, [email, setCooldownExpiresAt, setNow])
 
   useEffect(() => {
-    if (readCooldownSeconds() > 0) return
+    if (cooldownExpiresAt !== null && cooldownExpiresAt > Date.now()) return
     if (autoSendRef.current) return
 
     autoSendRef.current = true
     void send()
-  }, [send])
+  }, [cooldownExpiresAt, send])
 
   useEffect(() => {
     if (cooldown <= 0) return
     const timer = setTimeout(() => {
-      setCooldown(readCooldownSeconds())
+      setNow(Date.now())
     }, 1000)
     return () => {
       clearTimeout(timer)
@@ -99,7 +91,7 @@ function VerifyEmailPage() {
 
   useEffect(() => {
     const sync = () => {
-      setCooldown(readCooldownSeconds())
+      setNow(Date.now())
     }
     document.addEventListener("visibilitychange", sync)
     return () => {
