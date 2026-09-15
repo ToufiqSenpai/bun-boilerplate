@@ -84,6 +84,11 @@
         "invalidCredentials": "Email or password is incorrect"
       }
     },
+    "nav": {
+      "dashboard": "Dashboard",
+      "settings": "Settings",
+      "users": "Users"
+    },
     "users": {
       "actions": {
         "create": "Create User"
@@ -129,9 +134,19 @@
         "banned": "Banned",
         "active": "Active"
       },
+      "results": {
+        "showing": "Showing {{from}}–{{to}} of {{total}}"
+      },
       "empty": {
-        "title": "No Users found",
-        "description": "No User matches the current search."
+        "search": {
+          "title": "No results for “{{search}}”",
+          "description": "Try a different name or email."
+        },
+        "noUsers": {
+          "title": "No Users yet",
+          "description": "Create the first User account to get started."
+        },
+        "clearSearch": "Clear search"
       },
       "error": {
         "generic": "Something went wrong. Please try again.",
@@ -151,12 +166,9 @@
           "required": "Select a Role"
         }
       },
-      "drawer": {
-        "sessions": "Sessions",
-        "sessionsEmpty": "No active Sessions.",
-        "unknownDevice": "Unknown device",
-        "expires": "Expires",
-        "close": "Close",
+      "detail": {
+        "crumb": "User detail",
+        "saved": "Saved",
         "profile": "Profile",
         "role": "Role",
         "password": "Password",
@@ -166,13 +178,20 @@
         "saving": "Saving…",
         "changeRole": "Change Role",
         "resetPassword": "Reset password",
+        "sessions": "Sessions",
+        "sessionsEmpty": "No active Sessions.",
+        "unknownDevice": "Unknown device",
+        "expires": "Expires",
+        "device": "Device",
+        "ip": "IP address",
+        "notFound": {
+          "title": "User not found",
+          "description": "This User does not exist or has been removed.",
+          "back": "Back to Users"
+        },
         "confirm": {
           "cancel": "Cancel",
           "confirm": "Confirm",
-          "updateName": {
-            "title": "Update name?",
-            "description": "Set the display name to {{newName}}."
-          },
           "changeRole": {
             "title": "Change Role?",
             "description": "Assign the {{role}} Role to this User."

@@ -16,6 +16,7 @@ import { Route as AdminSetupRouteImport } from './routes/admin/setup'
 import { Route as AdminVerifyEmailRouteImport } from './routes/admin/verify-email'
 import { Route as AdminAdminIndexRouteImport } from './routes/_admin/admin.index'
 import { Route as AdminAdminUsersRouteImport } from './routes/_admin/admin.users'
+import { Route as AdminAdminUsersUserIdRouteImport } from './routes/_admin/admin.users_.$userId'
 import { Route as AdminAdminUsersCreateRouteImport } from './routes/_admin/admin.users_.create'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +53,11 @@ const AdminAdminUsersRoute = AdminAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminAdminUsersUserIdRoute = AdminAdminUsersUserIdRouteImport.update({
+  id: '/admin/users_/$userId',
+  path: '/admin/users/$userId',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminAdminUsersCreateRoute = AdminAdminUsersCreateRouteImport.update({
   id: '/admin/users_/create',
   path: '/admin/users/create',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
   '/admin/': typeof AdminAdminIndexRoute
+  '/admin/users/$userId': typeof AdminAdminUsersUserIdRoute
   '/admin/users/create': typeof AdminAdminUsersCreateRoute
 }
 export interface FileRoutesByTo {
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
   '/admin': typeof AdminAdminIndexRoute
+  '/admin/users/$userId': typeof AdminAdminUsersUserIdRoute
   '/admin/users/create': typeof AdminAdminUsersCreateRoute
 }
 export interface FileRoutesById {
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/_admin/admin/users': typeof AdminAdminUsersRoute
   '/_admin/admin/': typeof AdminAdminIndexRoute
+  '/_admin/admin/users_/$userId': typeof AdminAdminUsersUserIdRoute
   '/_admin/admin/users_/create': typeof AdminAdminUsersCreateRoute
 }
 export interface FileRouteTypes {
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/admin/verify-email'
     | '/admin/users'
     | '/admin/'
+    | '/admin/users/$userId'
     | '/admin/users/create'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
     | '/admin/verify-email'
     | '/admin/users'
     | '/admin'
+    | '/admin/users/$userId'
     | '/admin/users/create'
   id:
     | '__root__'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '/admin/verify-email'
     | '/_admin/admin/users'
     | '/_admin/admin/'
+    | '/_admin/admin/users_/$userId'
     | '/_admin/admin/users_/create'
   fileRoutesById: FileRoutesById
 }
@@ -177,6 +189,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAdminUsersRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/_admin/admin/users_/$userId': {
+      id: '/_admin/admin/users_/$userId'
+      path: '/admin/users/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AdminAdminUsersUserIdRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/_admin/admin/users_/create': {
       id: '/_admin/admin/users_/create'
       path: '/admin/users/create'
@@ -190,12 +209,14 @@ declare module '@tanstack/react-router' {
 interface AdminRouteRouteChildren {
   AdminAdminUsersRoute: typeof AdminAdminUsersRoute
   AdminAdminIndexRoute: typeof AdminAdminIndexRoute
+  AdminAdminUsersUserIdRoute: typeof AdminAdminUsersUserIdRoute
   AdminAdminUsersCreateRoute: typeof AdminAdminUsersCreateRoute
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAdminUsersRoute: AdminAdminUsersRoute,
   AdminAdminIndexRoute: AdminAdminIndexRoute,
+  AdminAdminUsersUserIdRoute: AdminAdminUsersUserIdRoute,
   AdminAdminUsersCreateRoute: AdminAdminUsersCreateRoute,
 }
 

@@ -1,6 +1,12 @@
-import type { Role } from "@bun-boilerplate/backend/auth"
-import { IconPlus, IconSearch } from "@tabler/icons-react"
-import { queryOptions, skipToken, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
+import {
+  IconArrowsUpDown,
+  IconChevronDown,
+  IconChevronRight,
+  IconChevronUp,
+  IconPlus,
+  IconSearch
+} from "@tabler/icons-react"
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query"
 import { Link, createFileRoute, notFound, useNavigate } from "@tanstack/react-router"
 import {
   createColumnHelper,
@@ -17,7 +23,7 @@ import { useMemo, useState } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Badge } from "src/components/ui/badge"
 import { Button } from "src/components/ui/button"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "src/components/ui/empty"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "src/components/ui/empty"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "src/components/ui/input-group"
 import {
   Pagination,
@@ -29,8 +35,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "src/components/ui/table"
 import { i18n } from "src/i18n"
 import { BanBadge, VerificationBadge } from "src/routes/_admin/-users/status-badges"
-import { UserDetailDrawer } from "src/routes/_admin/-users/user-drawer"
 import { authClient } from "src/utils/client"
+import { formatDate } from "src/utils/date"
 import { z } from "zod"
 
 const PAGE_SIZE = 20
@@ -44,15 +50,9 @@ const searchSchema = z.object({
   order: z.enum(["asc", "desc"]).default("desc")
 })
 
-interface UsersTableMeta {
-  openUser: (user: UserWithRole) => void
-}
-
-// SAFETY: `tableMeta` is a phantom type-only slot in tableFeatures; the value is stripped at runtime.
 const usersTableFeatures = tableFeatures({
   rowSortingFeature,
-  rowPaginationFeature,
-  tableMeta: {} as UsersTableMeta
+  rowPaginationFeature
 })
 
 const userColumnHelper = createColumnHelper<typeof usersTableFeatures, UserWithRole>()
@@ -60,15 +60,18 @@ const userColumnHelper = createColumnHelper<typeof usersTableFeatures, UserWithR
 const userColumns = userColumnHelper.columns([
   userColumnHelper.accessor("name", {
     header: ({ column }) => (
-      <SortHeader label={i18n.t("admin.users.columns.name")} onClick={column.getToggleSortingHandler()} />
+      <SortHeader
+        label={i18n.t("admin.users.columns.name")}
+        sorted={column.getIsSorted()}
+        onClick={column.getToggleSortingHandler()}
+      />
     ),
-    cell: ({ row, table }) => (
+    cell: ({ row }) => (
       <Button
         variant="link"
         className="h-auto p-0"
-        onClick={() => {
-          table.options.meta?.openUser(row.original)
-        }}
+        nativeButton={false}
+        render={<Link to="/admin/users/$userId" params={{ userId: row.original.id }} />}
       >
         {row.original.name}
       </Button>
@@ -76,20 +79,32 @@ const userColumns = userColumnHelper.columns([
   }),
   userColumnHelper.accessor("email", {
     header: ({ column }) => (
-      <SortHeader label={i18n.t("admin.users.columns.email")} onClick={column.getToggleSortingHandler()} />
+      <SortHeader
+        label={i18n.t("admin.users.columns.email")}
+        sorted={column.getIsSorted()}
+        onClick={column.getToggleSortingHandler()}
+      />
     )
   }),
   userColumnHelper.accessor("createdAt", {
     sortDescFirst: true,
     header: ({ column }) => (
-      <SortHeader label={i18n.t("admin.users.columns.created")} onClick={column.getToggleSortingHandler()} />
+      <SortHeader
+        label={i18n.t("admin.users.columns.created")}
+        sorted={column.getIsSorted()}
+        onClick={column.getToggleSortingHandler()}
+      />
     ),
-    cell: ({ getValue }) => new Date(getValue()).toISOString().slice(0, 10)
+    cell: ({ getValue }) => formatDate(getValue())
   }),
   userColumnHelper.accessor("role", {
     enableSorting: false,
     header: () => i18n.t("admin.users.columns.role"),
-    cell: ({ getValue }) => <Badge variant="secondary">{getValue() ?? "—"}</Badge>
+    cell: ({ getValue }) => (
+      <Badge variant="secondary" className="capitalize">
+        {getValue() ?? "—"}
+      </Badge>
+    )
   }),
   userColumnHelper.display({
     id: "verification",
@@ -100,6 +115,11 @@ const userColumns = userColumnHelper.columns([
     id: "ban",
     header: () => i18n.t("admin.users.columns.ban"),
     cell: ({ row }) => <BanBadge banned={row.original.banned ?? false} />
+  }),
+  userColumnHelper.display({
+    id: "open",
+    header: () => null,
+    cell: () => <IconChevronRight className="text-muted-foreground" aria-hidden="true" />
   })
 ])
 
@@ -138,70 +158,29 @@ export const Route = createFileRoute("/_admin/admin/users")({
   component: AdminUserPage
 })
 
-function SortHeader({ label, onClick }: { label: string; onClick: ((event: unknown) => void) | undefined }) {
+interface SortHeaderProps {
+  readonly label: string
+  readonly sorted: false | "asc" | "desc"
+  readonly onClick: ((event: unknown) => void) | undefined
+}
+
+function SortHeader({ label, sorted, onClick }: SortHeaderProps) {
+  const Icon = sorted === "asc" ? IconChevronUp : sorted === "desc" ? IconChevronDown : IconArrowsUpDown
+
   return (
-    <Button variant="ghost" size="xs" onClick={onClick}>
+    <Button variant="ghost" size="sm" className="-ml-3" onClick={onClick}>
       {label}
+      <Icon className="text-muted-foreground" aria-hidden="true" />
     </Button>
   )
 }
 
 function AdminUserPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const state = Route.useSearch()
-  const [selected, setSelected] = useState<UserWithRole | null>(null)
   const [draft, setDraft] = useState(state.search)
 
   const { data } = useSuspenseQuery(usersQuery(state))
-
-  const sessions = useQuery({
-    queryKey: ["user-sessions", selected?.id ?? null],
-    queryFn: selected
-      ? async () => {
-          const { data } = await authClient.admin.listUserSessions({ userId: selected.id })
-
-          if (!data) throw new Error("Failed to load sessions")
-
-          return data.sessions
-        }
-      : skipToken
-  })
-
-  const updateName = async (name: string): Promise<boolean> => {
-    if (!selected) return false
-
-    const { data: updated, error } = await authClient.admin.updateUser({ userId: selected.id, data: { name } })
-
-    if (error) return false
-
-    setSelected(updated)
-    await queryClient.invalidateQueries({ queryKey: ["users"] })
-    return true
-  }
-
-  const changeRole = async (role: Role): Promise<boolean> => {
-    if (!selected) return false
-
-    const { data: updated, error } = await authClient.admin.setRole({ userId: selected.id, role })
-
-    if (error) return false
-
-    setSelected(updated.user)
-    await queryClient.invalidateQueries({ queryKey: ["users"] })
-    return true
-  }
-
-  const setPassword = async (password: string): Promise<boolean> => {
-    if (!selected) return false
-
-    const { error } = await authClient.admin.setUserPassword({ userId: selected.id, newPassword: password })
-
-    if (error) return false
-
-    await queryClient.invalidateQueries({ queryKey: ["users"] })
-    return true
-  }
 
   const sorting = useMemo<SortingState>(
     () => [{ id: state.sortBy, desc: state.order === "desc" }],
@@ -214,7 +193,6 @@ function AdminUserPage() {
     columns: userColumns,
     data: data?.users ?? [],
     getRowId: row => row.id,
-    meta: { openUser: setSelected },
     state: { sorting, pagination },
     onSortingChange: updater => {
       const [next] = functionalUpdate(updater, sorting)
@@ -247,12 +225,16 @@ function AdminUserPage() {
   })
 
   const totalPages = Math.max(1, table.getPageCount())
-  const showPagination = data !== null && data.users.length > 0 && totalPages > 1
+  const total = data?.total ?? 0
+  const rangeStart = total === 0 ? 0 : (state.page - 1) * PAGE_SIZE + 1
+  const rangeEnd = Math.min(state.page * PAGE_SIZE, total)
+  const showFooter = data !== null && data.users.length > 0
+  const searching = state.search !== ""
 
   let body
   if (data === null) {
     body = (
-      <Alert variant="destructive">
+      <Alert variant="destructive" className="m-3">
         <AlertDescription>{i18n.t("admin.users.error.generic")}</AlertDescription>
       </Alert>
     )
@@ -263,9 +245,39 @@ function AdminUserPage() {
           <EmptyMedia variant="icon">
             <IconSearch />
           </EmptyMedia>
-          <EmptyTitle>{i18n.t("admin.users.empty.title")}</EmptyTitle>
-          <EmptyDescription>{i18n.t("admin.users.empty.description")}</EmptyDescription>
+          <EmptyTitle>
+            {searching
+              ? i18n.t("admin.users.empty.search.title", { search: state.search })
+              : i18n.t("admin.users.empty.noUsers.title")}
+          </EmptyTitle>
+          <EmptyDescription>
+            {searching
+              ? i18n.t("admin.users.empty.search.description")
+              : i18n.t("admin.users.empty.noUsers.description")}
+          </EmptyDescription>
         </EmptyHeader>
+        <EmptyContent>
+          {searching ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDraft("")
+                void navigate({
+                  to: "/admin/users",
+                  search: previous => ({ ...previous, search: "", page: 1 })
+                })
+              }}
+            >
+              {i18n.t("admin.users.empty.clearSearch")}
+            </Button>
+          ) : (
+            <Button render={<Link to="/admin/users/create" />} nativeButton={false} size="sm">
+              <IconPlus />
+              {i18n.t("admin.users.actions.create")}
+            </Button>
+          )}
+        </EmptyContent>
       </Empty>
     )
   } else {
@@ -305,11 +317,11 @@ function AdminUserPage() {
   }
 
   return (
-    <>
-      <div className="flex w-full flex-col gap-4 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="flex w-full flex-col gap-4 p-4">
+      <div className="flex flex-col overflow-hidden rounded-xl border bg-card">
+        <div className="flex items-center justify-between gap-3 border-b p-3">
           <form
-            className="w-full sm:w-72"
+            className="min-w-0 flex-1 sm:max-w-72"
             onSubmit={event => {
               event.preventDefault()
               void navigate({
@@ -335,59 +347,58 @@ function AdminUserPage() {
               </InputGroupAddon>
             </InputGroup>
           </form>
-          <Button render={<Link to="/admin/users/create" />}>
+          <Button
+            aria-label={i18n.t("admin.users.actions.create")}
+            render={<Link to="/admin/users/create" />}
+            nativeButton={false}
+            className="shrink-0"
+          >
             <IconPlus />
-            {i18n.t("admin.users.actions.create")}
+            <span className="hidden sm:inline">{i18n.t("admin.users.actions.create")}</span>
           </Button>
         </div>
 
         {body}
 
-        {showPagination && (
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  aria-disabled={!table.getCanPreviousPage()}
-                  onClick={event => {
-                    event.preventDefault()
-                    if (table.getCanPreviousPage()) table.previousPage()
-                  }}
-                />
-              </PaginationItem>
-              <PaginationItem>
-                <span className="px-2 text-sm text-muted-foreground">
-                  {state.page} / {totalPages}
-                </span>
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  aria-disabled={!table.getCanNextPage()}
-                  onClick={event => {
-                    event.preventDefault()
-                    if (table.getCanNextPage()) table.nextPage()
-                  }}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+        {showFooter && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t p-3">
+            <p className="text-sm text-muted-foreground">
+              {i18n.t("admin.users.results.showing", { from: rangeStart, to: rangeEnd, total })}
+            </p>
+            {totalPages > 1 && (
+              <Pagination className="mx-0 w-auto justify-end">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      aria-disabled={!table.getCanPreviousPage()}
+                      onClick={event => {
+                        event.preventDefault()
+                        if (table.getCanPreviousPage()) table.previousPage()
+                      }}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <span className="px-2 text-sm text-muted-foreground">
+                      {state.page} / {totalPages}
+                    </span>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      aria-disabled={!table.getCanNextPage()}
+                      onClick={event => {
+                        event.preventDefault()
+                        if (table.getCanNextPage()) table.nextPage()
+                      }}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </div>
         )}
       </div>
-      {selected && (
-        <UserDetailDrawer
-          user={selected}
-          status={sessions.status}
-          sessions={sessions.data ?? []}
-          onClose={() => {
-            setSelected(null)
-          }}
-          onUpdateName={updateName}
-          onChangeRole={changeRole}
-          onSetPassword={setPassword}
-        />
-      )}
-    </>
+    </div>
   )
 }

@@ -84,6 +84,11 @@
         "invalidCredentials": "Email atau password salah"
       }
     },
+    "nav": {
+      "dashboard": "Dasbor",
+      "settings": "Pengaturan",
+      "users": "Pengguna"
+    },
     "users": {
       "actions": {
         "create": "Buat Pengguna"
@@ -129,9 +134,19 @@
         "banned": "Diban",
         "active": "Aktif"
       },
+      "results": {
+        "showing": "Menampilkan {{from}}–{{to}} dari {{total}}"
+      },
       "empty": {
-        "title": "Pengguna tidak ditemukan",
-        "description": "Tidak ada Pengguna yang cocok dengan pencarian saat ini."
+        "search": {
+          "title": "Tidak ada hasil untuk “{{search}}”",
+          "description": "Coba nama atau email lain."
+        },
+        "noUsers": {
+          "title": "Belum ada Pengguna",
+          "description": "Buat akun Pengguna pertama untuk memulai."
+        },
+        "clearSearch": "Hapus pencarian"
       },
       "error": {
         "generic": "Terjadi kesalahan. Silakan coba lagi.",
@@ -151,12 +166,9 @@
           "required": "Pilih Peran"
         }
       },
-      "drawer": {
-        "sessions": "Sesi",
-        "sessionsEmpty": "Tidak ada Sesi aktif.",
-        "unknownDevice": "Perangkat tidak dikenal",
-        "expires": "Kedaluwarsa",
-        "close": "Tutup",
+      "detail": {
+        "crumb": "Detail Pengguna",
+        "saved": "Tersimpan",
         "profile": "Profil",
         "role": "Peran",
         "password": "Kata Sandi",
@@ -166,13 +178,20 @@
         "saving": "Menyimpan…",
         "changeRole": "Ubah Peran",
         "resetPassword": "Atur ulang kata sandi",
+        "sessions": "Sesi",
+        "sessionsEmpty": "Tidak ada Sesi aktif.",
+        "unknownDevice": "Perangkat tidak dikenal",
+        "expires": "Kedaluwarsa",
+        "device": "Perangkat",
+        "ip": "Alamat IP",
+        "notFound": {
+          "title": "Pengguna tidak ditemukan",
+          "description": "Pengguna ini tidak ada atau sudah dihapus.",
+          "back": "Kembali ke Pengguna"
+        },
         "confirm": {
           "cancel": "Batal",
           "confirm": "Konfirmasi",
-          "updateName": {
-            "title": "Perbarui nama?",
-            "description": "Nama tampilan akan diubah menjadi {{newName}}."
-          },
           "changeRole": {
             "title": "Ubah Peran?",
             "description": "Peran {{role}} akan diberikan kepada Pengguna ini."
