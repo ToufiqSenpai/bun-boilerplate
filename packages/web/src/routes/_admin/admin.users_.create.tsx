@@ -1,27 +1,33 @@
-import { isKnownRole } from "@bun-boilerplate/backend/auth"
+import type { Role } from "@bun-boilerplate/backend/auth"
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
-import { useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
-import { FieldGroup } from "src/components/ui/field"
-import { FieldChrome, fieldValidator } from "src/components/ui/field-chrome"
+import { Field, FieldError, FieldGroup, FieldLabel } from "src/components/ui/field"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "src/components/ui/select"
 import { i18n } from "src/i18n"
 import { ROLE_OPTIONS } from "src/routes/_admin/-users/roles"
-import { userEmailSchema, userNameSchema, userPasswordSchema, userRoleSchema } from "src/routes/_admin/-users/schemas"
 import { authClient } from "src/utils/client"
 import { z } from "zod"
 
 const createUserSchema = z.object({
-  name: userNameSchema,
-  email: userEmailSchema,
-  password: userPasswordSchema,
-  role: userRoleSchema
+  name: z
+    .string()
+    .trim()
+    .min(1, i18n.t("admin.users.create.error.name.required"))
+    .max(64, i18n.t("admin.users.create.error.name.max")),
+  email: z
+    .email(i18n.t("admin.users.create.error.email.invalid"))
+    .max(128, i18n.t("admin.users.create.error.email.max")),
+  password: z
+    .string()
+    .min(8, i18n.t("admin.users.create.error.password.min"))
+    .max(128, i18n.t("admin.users.create.error.password.max")),
+  role: z.enum(ROLE_OPTIONS, { error: i18n.t("admin.users.create.error.role.required") })
 })
 
 export const Route = createFileRoute("/_admin/admin/users_/create")({
@@ -39,7 +45,17 @@ export const Route = createFileRoute("/_admin/admin/users_/create")({
 function CreateUserPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [serverError, setServerError] = useState(false)
+
+  const createUser = useMutation({
+    mutationFn: async (input: { name: string; email: string; password: string; role: Role }) => {
+      const { error } = await authClient.admin.createUser(input)
+      if (error) throw error
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["users"] })
+      void navigate({ to: "/admin/users" })
+    }
+  })
 
   const form = useForm({
     defaultValues: {
@@ -48,31 +64,16 @@ function CreateUserPage() {
       password: "",
       role: ""
     },
-    onSubmit: async ({ value }) => {
-      setServerError(false)
-
-      const parsed = createUserSchema.safeParse(value)
-
-      if (!parsed.success) return
-
-      const role = parsed.data.role
-
-      if (!isKnownRole(role)) return
-
-      const { error } = await authClient.admin.createUser({
-        name: parsed.data.name,
-        email: parsed.data.email.trim(),
-        password: parsed.data.password,
-        role
+    validators: { onChange: createUserSchema },
+    onSubmit: ({ value }) => {
+      createUser.mutate({
+        name: value.name.trim(),
+        email: value.email.trim(),
+        password: value.password,
+        // SAFETY: role is only settable through the <Select> whose items come from ROLE_OPTIONS,
+        // and the schema rejects any value outside that list before submit runs.
+        role: value.role as Role
       })
-
-      if (error) {
-        setServerError(true)
-        return
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["users"] })
-      void navigate({ to: "/admin/users" })
     }
   })
 
@@ -93,14 +94,10 @@ function CreateUserPage() {
           }}
         >
           <FieldGroup>
-            <form.Field name="name" validators={{ onChange: fieldValidator(createUserSchema.shape.name) }}>
+            <form.Field name="name">
               {field => (
-                <FieldChrome
-                  id="create-name"
-                  label={i18n.t("admin.users.create.name.label")}
-                  touched={field.state.meta.isTouched}
-                  messages={field.state.meta.errors.map(String)}
-                >
+                <Field data-invalid={field.state.meta.errors.length > 0}>
+                  <FieldLabel htmlFor="create-name">{i18n.t("admin.users.create.name.label")}</FieldLabel>
                   <Input
                     id="create-name"
                     name={field.name}
@@ -111,18 +108,15 @@ function CreateUserPage() {
                       field.handleChange(event.target.value)
                     }}
                   />
-                </FieldChrome>
+                  {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                </Field>
               )}
             </form.Field>
 
-            <form.Field name="email" validators={{ onChange: fieldValidator(createUserSchema.shape.email) }}>
+            <form.Field name="email">
               {field => (
-                <FieldChrome
-                  id="create-email"
-                  label={i18n.t("admin.users.create.email.label")}
-                  touched={field.state.meta.isTouched}
-                  messages={field.state.meta.errors.map(String)}
-                >
+                <Field data-invalid={field.state.meta.errors.length > 0}>
+                  <FieldLabel htmlFor="create-email">{i18n.t("admin.users.create.email.label")}</FieldLabel>
                   <Input
                     id="create-email"
                     name={field.name}
@@ -134,18 +128,15 @@ function CreateUserPage() {
                       field.handleChange(event.target.value)
                     }}
                   />
-                </FieldChrome>
+                  {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                </Field>
               )}
             </form.Field>
 
-            <form.Field name="password" validators={{ onChange: fieldValidator(createUserSchema.shape.password) }}>
+            <form.Field name="password">
               {field => (
-                <FieldChrome
-                  id="create-password"
-                  label={i18n.t("admin.users.create.password.label")}
-                  touched={field.state.meta.isTouched}
-                  messages={field.state.meta.errors.map(String)}
-                >
+                <Field data-invalid={field.state.meta.errors.length > 0}>
+                  <FieldLabel htmlFor="create-password">{i18n.t("admin.users.create.password.label")}</FieldLabel>
                   <PasswordInput
                     id="create-password"
                     name={field.name}
@@ -158,18 +149,15 @@ function CreateUserPage() {
                       field.handleChange(event.target.value)
                     }}
                   />
-                </FieldChrome>
+                  {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                </Field>
               )}
             </form.Field>
 
-            <form.Field name="role" validators={{ onChange: fieldValidator(createUserSchema.shape.role) }}>
+            <form.Field name="role">
               {field => (
-                <FieldChrome
-                  id="create-role"
-                  label={i18n.t("admin.users.create.role.label")}
-                  touched={field.state.meta.isTouched}
-                  messages={field.state.meta.errors.map(String)}
-                >
+                <Field data-invalid={field.state.meta.errors.length > 0}>
+                  <FieldLabel htmlFor="create-role">{i18n.t("admin.users.create.role.label")}</FieldLabel>
                   <Select
                     value={field.state.value === "" ? null : field.state.value}
                     onValueChange={value => {
@@ -189,21 +177,22 @@ function CreateUserPage() {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                </FieldChrome>
+                  {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                </Field>
               )}
             </form.Field>
 
-            {serverError && (
+            {createUser.error && (
               <Alert variant="destructive">
-                <AlertDescription>{i18n.t("admin.users.error.generic")}</AlertDescription>
+                <AlertDescription>{i18n.t("admin.users.create.error.generic")}</AlertDescription>
               </Alert>
             )}
 
-            <form.Subscribe selector={state => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}>
-              {({ canSubmit, isSubmitting }) => (
-                <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-                  {isSubmitting && <IconLoader2 className="animate-spin" aria-hidden="true" />}
-                  {isSubmitting ? i18n.t("admin.users.create.submitting") : i18n.t("admin.users.create.submit")}
+            <form.Subscribe selector={state => state.canSubmit}>
+              {canSubmit => (
+                <Button type="submit" className="w-full" disabled={!canSubmit || createUser.isPending}>
+                  {createUser.isPending && <IconLoader2 className="animate-spin" aria-hidden="true" />}
+                  {createUser.isPending ? i18n.t("admin.users.create.submitting") : i18n.t("admin.users.create.submit")}
                 </Button>
               )}
             </form.Subscribe>

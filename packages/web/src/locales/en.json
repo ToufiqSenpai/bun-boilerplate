@@ -112,7 +112,25 @@
           "placeholder": "Select a Role"
         },
         "submit": "Create User",
-        "submitting": "Creating…"
+        "submitting": "Creating…",
+        "error": {
+          "generic": "Something went wrong. Please try again.",
+          "name": {
+            "required": "Name is required",
+            "max": "Name must be at most 64 characters"
+          },
+          "email": {
+            "invalid": "Enter a valid email address",
+            "max": "Email must be at most 128 characters"
+          },
+          "password": {
+            "min": "Password must be at least 8 characters",
+            "max": "Password must be at most 128 characters"
+          },
+          "role": {
+            "required": "Select a Role"
+          }
+        }
       },
       "search": {
         "placeholder": "Search by name or email",
@@ -149,29 +167,36 @@
         "clearSearch": "Clear search"
       },
       "error": {
-        "generic": "Something went wrong. Please try again.",
-        "name": {
-          "required": "Name is required",
-          "max": "Name must be at most 64 characters"
-        },
-        "email": {
-          "invalid": "Enter a valid email address",
-          "max": "Email must be at most 128 characters"
-        },
-        "password": {
-          "min": "Password must be at least 8 characters",
-          "max": "Password must be at most 128 characters"
-        },
-        "role": {
-          "required": "Select a Role"
-        }
+        "generic": "Something went wrong. Please try again."
       },
       "detail": {
         "crumb": "User detail",
-        "saved": "Saved",
-        "profile": "Profile",
-        "role": "Role",
-        "password": "Password",
+        "profile": {
+          "title": "Profile",
+          "error": {
+            "generic": "Something went wrong. Please try again.",
+            "name": {
+              "required": "Name is required",
+              "max": "Name must be at most 64 characters"
+            }
+          }
+        },
+        "role": {
+          "title": "Role",
+          "error": {
+            "generic": "Something went wrong. Please try again."
+          }
+        },
+        "password": {
+          "title": "Password",
+          "error": {
+            "generic": "Something went wrong. Please try again.",
+            "password": {
+              "min": "Password must be at least 8 characters",
+              "max": "Password must be at most 128 characters"
+            }
+          }
+        },
         "nameLabel": "Display name",
         "newPassword": "New password",
         "save": "Save",

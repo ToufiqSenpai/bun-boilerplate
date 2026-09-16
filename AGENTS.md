@@ -32,6 +32,13 @@ Per-package (from package dir):
 
 Run single test: `bun --bun vitest run src/path/file.test.ts` or `vitest run --project=backend|web|i18n -t "test name"`.
 
+Agent command discipline:
+
+- Never run smoke tests or ad-hoc end-to-end verification scripts.
+- Never start the dev server (`bun run dev`). If you need to access the running app, ask the user first whether they want to run it.
+- Do not run `build` to verify the app; running `typecheck` in the affected package(s) (`bun run typecheck`) is enough.
+- Do not run tests unless test files (`*.{test,spec}.{ts,tsx}`) were modified in the session. If no test file was touched, skip the test run.
+
 ## Config & Env
 
 - `packages/backend/src/common/config.ts` is single source of truth (Zod `configSchema`). Env is loaded via `secret.ts` → Infisical SDK (`INFISICAL_CLIENT_ID/SECRET/PROJECT_ID` + `NODE_ENV`) plus `process.loadEnvFile(.env)`. Do not read `.env` files directly; use `config` object. Required groups: `app` (port, origins, baseURL), `auth` (BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID/SECRET), `database` (DATABASE_URL), `email` (RESEND_API_KEY `re_*`), `s3` (S3_*), `sentry` (SENTRY_DSN). `drizzle.config.ts` reads `config.database.url`.

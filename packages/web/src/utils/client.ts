@@ -2,7 +2,7 @@ import type { App } from "@bun-boilerplate/backend"
 import { ac, roles } from "@bun-boilerplate/backend/auth"
 import { treaty } from "@elysiajs/eden"
 import { createIsomorphicFn } from "@tanstack/react-start"
-import { getRequestHeaders } from "@tanstack/react-start/server"
+import { getRequestHeaders, getRequestUrl } from "@tanstack/react-start/server"
 import { adminClient } from "better-auth/client/plugins"
 import { createAuthClient } from "better-auth/react"
 
@@ -14,6 +14,7 @@ const isomorphicFetch = createIsomorphicFn()
   .server((input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers)
     headers.set("cookie", getRequestHeaders().get("cookie") ?? "")
+    headers.set("origin", getRequestUrl({ xForwardedHost: true }).origin)
 
     return fetch(input, { ...init, headers })
   })

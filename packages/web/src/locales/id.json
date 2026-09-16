@@ -112,7 +112,25 @@
           "placeholder": "Pilih Peran"
         },
         "submit": "Buat Pengguna",
-        "submitting": "Membuat…"
+        "submitting": "Membuat…",
+        "error": {
+          "generic": "Terjadi kesalahan. Silakan coba lagi.",
+          "name": {
+            "required": "Nama wajib diisi",
+            "max": "Nama maksimal 64 karakter"
+          },
+          "email": {
+            "invalid": "Masukkan alamat email yang valid",
+            "max": "Email maksimal 128 karakter"
+          },
+          "password": {
+            "min": "Kata sandi minimal 8 karakter",
+            "max": "Kata sandi maksimal 128 karakter"
+          },
+          "role": {
+            "required": "Pilih Peran"
+          }
+        }
       },
       "search": {
         "placeholder": "Cari berdasarkan nama atau email",
@@ -149,29 +167,36 @@
         "clearSearch": "Hapus pencarian"
       },
       "error": {
-        "generic": "Terjadi kesalahan. Silakan coba lagi.",
-        "name": {
-          "required": "Nama wajib diisi",
-          "max": "Nama maksimal 64 karakter"
-        },
-        "email": {
-          "invalid": "Masukkan alamat email yang valid",
-          "max": "Email maksimal 128 karakter"
-        },
-        "password": {
-          "min": "Kata sandi minimal 8 karakter",
-          "max": "Kata sandi maksimal 128 karakter"
-        },
-        "role": {
-          "required": "Pilih Peran"
-        }
+        "generic": "Terjadi kesalahan. Silakan coba lagi."
       },
       "detail": {
         "crumb": "Detail Pengguna",
-        "saved": "Tersimpan",
-        "profile": "Profil",
-        "role": "Peran",
-        "password": "Kata Sandi",
+        "profile": {
+          "title": "Profil",
+          "error": {
+            "generic": "Terjadi kesalahan. Silakan coba lagi.",
+            "name": {
+              "required": "Nama wajib diisi",
+              "max": "Nama maksimal 64 karakter"
+            }
+          }
+        },
+        "role": {
+          "title": "Peran",
+          "error": {
+            "generic": "Terjadi kesalahan. Silakan coba lagi."
+          }
+        },
+        "password": {
+          "title": "Kata Sandi",
+          "error": {
+            "generic": "Terjadi kesalahan. Silakan coba lagi.",
+            "password": {
+              "min": "Kata sandi minimal 8 karakter",
+              "max": "Kata sandi maksimal 128 karakter"
+            }
+          }
+        },
         "nameLabel": "Nama tampilan",
         "newPassword": "Kata sandi baru",
         "save": "Simpan",

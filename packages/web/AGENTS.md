@@ -25,6 +25,7 @@ Single test: `bun --bun vitest run src/path/file.test.ts`.
 
 ## Testing Conventions
 
+- Do not create test files when implementing something in this package — most components are hard to test. Ask the user first to confirm which parts (if any) need test files.
 - `vitest.config.ts` uses `jsdom` + `@vitejs/plugin-react`. Test with `@testing-library/react` (`render`, `screen`, `fireEvent`).
 - Follow root mocking discipline: no `vi.mock` / `vi.doMock`. Inject seams via props (e.g. `onSignIn`) instead of mocking modules.
 - Prefer behavior assertions (roles, labels, alert text) over snapshots or implementation details.

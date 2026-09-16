@@ -1,12 +1,11 @@
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
+import { useMutation } from "@tanstack/react-query"
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
-import { FieldGroup } from "src/components/ui/field"
-import { FieldChrome, fieldValidator } from "src/components/ui/field-chrome"
+import { Field, FieldError, FieldGroup, FieldLabel } from "src/components/ui/field"
 import { Input } from "src/components/ui/input"
 import { PasswordInput } from "src/components/ui/password-input"
 import { i18n } from "src/i18n"
@@ -40,8 +39,17 @@ export const Route = createFileRoute("/admin/setup")({
 })
 
 function SetupPage() {
-  const [serverError, setServerError] = useState<string | null>(null)
   const navigate = useNavigate()
+
+  const signUp = useMutation({
+    mutationFn: async (input: { name: string; email: string; password: string }) => {
+      const { error } = await authClient.signUp.email(input)
+      if (error) throw error
+    },
+    onSuccess: (_data, input) => {
+      void navigate({ to: "/admin/verify-email", search: { email: input.email } })
+    }
+  })
 
   const form = useForm({
     defaultValues: {
@@ -50,29 +58,9 @@ function SetupPage() {
       password: "",
       confirmPassword: ""
     },
-    onSubmit: async ({ value }) => {
-      setServerError(null)
-
-      const parsed = setupSchema.safeParse(value)
-
-      if (!parsed.success) {
-        const firstIssue = parsed.error.issues[0]
-        setServerError(firstIssue?.message ?? i18n.t("admin.setup.error.server.generic"))
-        return
-      }
-
-      const { error } = await authClient.signUp.email({
-        name: parsed.data.name,
-        email: parsed.data.email,
-        password: parsed.data.password
-      })
-
-      if (error) {
-        setServerError(error.message ?? i18n.t("admin.setup.error.server.generic"))
-        return
-      }
-
-      void navigate({ to: "/admin/verify-email", search: { email: parsed.data.email } })
+    validators: { onChange: setupSchema },
+    onSubmit: ({ value }) => {
+      signUp.mutate({ name: value.name, email: value.email, password: value.password })
     }
   })
 
@@ -92,14 +80,10 @@ function SetupPage() {
         >
           <CardContent>
             <FieldGroup>
-              <form.Field name="name" validators={{ onChange: fieldValidator(setupSchema.shape.name) }}>
+              <form.Field name="name">
                 {field => (
-                  <FieldChrome
-                    id={field.name}
-                    label={i18n.t("admin.setup.name.label")}
-                    touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(String)}
-                  >
+                  <Field data-invalid={field.state.meta.errors.length > 0}>
+                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.name.label")}</FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -109,18 +93,15 @@ function SetupPage() {
                         field.handleChange(e.target.value)
                       }}
                     />
-                  </FieldChrome>
+                    {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
                 )}
               </form.Field>
 
-              <form.Field name="email" validators={{ onChange: fieldValidator(setupSchema.shape.email) }}>
+              <form.Field name="email">
                 {field => (
-                  <FieldChrome
-                    id={field.name}
-                    label={i18n.t("admin.setup.email.label")}
-                    touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(String)}
-                  >
+                  <Field data-invalid={field.state.meta.errors.length > 0}>
+                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.email.label")}</FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -131,18 +112,15 @@ function SetupPage() {
                         field.handleChange(e.target.value)
                       }}
                     />
-                  </FieldChrome>
+                    {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
                 )}
               </form.Field>
 
-              <form.Field name="password" validators={{ onChange: fieldValidator(setupSchema.shape.password) }}>
+              <form.Field name="password">
                 {field => (
-                  <FieldChrome
-                    id={field.name}
-                    label={i18n.t("admin.setup.password.label")}
-                    touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(String)}
-                  >
+                  <Field data-invalid={field.state.meta.errors.length > 0}>
+                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.password.label")}</FieldLabel>
                     <PasswordInput
                       id={field.name}
                       name={field.name}
@@ -155,28 +133,15 @@ function SetupPage() {
                         field.handleChange(e.target.value)
                       }}
                     />
-                  </FieldChrome>
+                    {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
                 )}
               </form.Field>
 
-              <form.Field
-                name="confirmPassword"
-                validators={{
-                  onChangeListenTo: ["password"],
-                  onChange: ({ value, fieldApi }) => {
-                    if (value.length === 0) return i18n.t("admin.setup.error.confirmPassword.required")
-                    if (value === fieldApi.form.getFieldValue("password")) return undefined
-                    return i18n.t("admin.setup.error.password.mismatch")
-                  }
-                }}
-              >
+              <form.Field name="confirmPassword">
                 {field => (
-                  <FieldChrome
-                    id={field.name}
-                    label={i18n.t("admin.setup.confirmPassword.label")}
-                    touched={field.state.meta.isTouched}
-                    messages={field.state.meta.errors.map(String)}
-                  >
+                  <Field data-invalid={field.state.meta.errors.length > 0}>
+                    <FieldLabel htmlFor={field.name}>{i18n.t("admin.setup.confirmPassword.label")}</FieldLabel>
                     <PasswordInput
                       id={field.name}
                       name={field.name}
@@ -189,23 +154,26 @@ function SetupPage() {
                         field.handleChange(e.target.value)
                       }}
                     />
-                  </FieldChrome>
+                    {field.state.meta.isTouched && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
                 )}
               </form.Field>
 
-              {serverError && (
+              {signUp.error && (
                 <Alert variant="destructive">
-                  <AlertDescription>{serverError}</AlertDescription>
+                  <AlertDescription>
+                    {signUp.error.message || i18n.t("admin.setup.error.server.generic")}
+                  </AlertDescription>
                 </Alert>
               )}
             </FieldGroup>
           </CardContent>
           <CardFooter className="mt-6">
-            <form.Subscribe selector={state => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}>
-              {({ canSubmit, isSubmitting }) => (
-                <Button type="submit" className="w-full" disabled={!canSubmit}>
-                  {isSubmitting && <IconLoader2 className="animate-spin" aria-hidden="true" />}
-                  {isSubmitting ? i18n.t("admin.setup.submitting") : i18n.t("admin.setup.submit")}
+            <form.Subscribe selector={state => state.canSubmit}>
+              {canSubmit => (
+                <Button type="submit" className="w-full" disabled={!canSubmit || signUp.isPending}>
+                  {signUp.isPending && <IconLoader2 className="animate-spin" aria-hidden="true" />}
+                  {signUp.isPending ? i18n.t("admin.setup.submitting") : i18n.t("admin.setup.submit")}
                 </Button>
               )}
             </form.Subscribe>
