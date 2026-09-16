@@ -60,7 +60,7 @@ export function ProfileSection({ user }: ProfileSectionProps) {
             void form.handleSubmit()
           }}
         >
-          <FieldGroup>
+          <FieldGroup className="gap-2">
             <form.Field name="name">
               {field => (
                 <Field data-invalid={field.state.meta.errors.length > 0}>

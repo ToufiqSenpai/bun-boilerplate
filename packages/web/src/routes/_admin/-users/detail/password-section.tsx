@@ -73,7 +73,7 @@ export function PasswordSection({ user }: PasswordSectionProps) {
             void form.handleSubmit()
           }}
         >
-          <FieldGroup>
+          <FieldGroup className="gap-2">
             <form.Field name="password">
               {field => (
                 <Field data-invalid={field.state.meta.errors.length > 0}>
