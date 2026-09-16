@@ -37,14 +37,6 @@ async function invalidateUserQueries(queryClient: QueryClient, userId: string): 
   await queryClient.invalidateQueries({ queryKey: ["user-sessions", userId] })
 }
 
-function banActionLabel(banned: boolean): string {
-  return banned ? i18n.t("admin.users.detail.ban.unban") : i18n.t("admin.users.detail.ban.action")
-}
-
-function banActionVariant(banned: boolean): "outline" | "destructive" {
-  return banned ? "outline" : "destructive"
-}
-
 interface BanSummaryProps {
   readonly user: UserWithRole
 }
@@ -187,7 +179,7 @@ function BanConfirmDialog({ user, banned, open, reason, expires, onOpenChange, o
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{i18n.t("admin.users.detail.confirm.cancel")}</AlertDialogCancel>
           <AlertDialogAction
-            variant={banActionVariant(banned)}
+            variant={banned ? "outline" : "destructive"}
             disabled={pending}
             onClick={() => {
               if (banned) {
@@ -250,13 +242,13 @@ export function BanSection({ user }: BanSectionProps) {
         <Button
           type="button"
           size="sm"
-          variant={banActionVariant(banned)}
+          variant={banned ? "outline" : "destructive"}
           className="self-start"
           onClick={() => {
             setConfirmOpen(true)
           }}
         >
-          {banActionLabel(banned)}
+          {banned ? i18n.t("admin.users.detail.ban.unban") : i18n.t("admin.users.detail.ban.action")}
         </Button>
 
         <BanConfirmDialog
