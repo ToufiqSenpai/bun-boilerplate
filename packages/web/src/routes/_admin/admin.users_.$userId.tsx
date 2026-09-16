@@ -3,8 +3,10 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 import type { UserWithRole } from "better-auth/plugins/admin"
 import { Badge } from "src/components/ui/badge"
 import { i18n } from "src/i18n"
+import { BanSection } from "src/routes/_admin/-users/detail/ban-section"
 import { PasswordSection } from "src/routes/_admin/-users/detail/password-section"
 import { ProfileSection } from "src/routes/_admin/-users/detail/profile-section"
+import { RemoveSection } from "src/routes/_admin/-users/detail/remove-section"
 import { RoleSection } from "src/routes/_admin/-users/detail/role-section"
 import { SessionsCard } from "src/routes/_admin/-users/detail/sessions-card"
 import { UserNotFound } from "src/routes/_admin/-users/detail/user-not-found"
@@ -62,6 +64,9 @@ function UserDetailPage() {
   const canSetRole = authClient.admin.checkRolePermission({ role, permissions: { user: ["set-role"] } })
   const canSetPassword = authClient.admin.checkRolePermission({ role, permissions: { user: ["set-password"] } })
   const canListSessions = authClient.admin.checkRolePermission({ role, permissions: { session: ["list"] } })
+  const canRevokeSessions = authClient.admin.checkRolePermission({ role, permissions: { session: ["revoke"] } })
+  const canBan = authClient.admin.checkRolePermission({ role, permissions: { user: ["ban"] } })
+  const canDelete = authClient.admin.checkRolePermission({ role, permissions: { user: ["delete"] } })
   const sideSectionsSideBySide = canSetRole && canSetPassword
 
   if (!user) return null
@@ -97,7 +102,11 @@ function UserDetailPage() {
         </div>
       )}
 
-      {canListSessions && <SessionsCard userId={userId} />}
+      {canListSessions && <SessionsCard userId={userId} canRevoke={canRevokeSessions} />}
+
+      {canBan && <BanSection user={user} />}
+
+      {canDelete && <RemoveSection user={user} />}
     </div>
   )
 }

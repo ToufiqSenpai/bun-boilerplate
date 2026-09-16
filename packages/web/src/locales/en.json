@@ -209,6 +209,43 @@
         "expires": "Expires",
         "device": "Device",
         "ip": "IP address",
+        "actions": "Actions",
+        "revoke": "Revoke",
+        "revokeAll": "Revoke all",
+        "revokeConfirm": {
+          "title": "Revoke this Session?",
+          "description": "The device at {{device}} will be signed out."
+        },
+        "revokeAllConfirm": {
+          "title": "Revoke all Sessions?",
+          "description": "This User will be signed out on every device."
+        },
+        "ban": {
+          "title": "Ban",
+          "description": "Block sign-in and revoke all Sessions for this User.",
+          "reasonLabel": "Reason",
+          "reasonPlaceholder": "Optional reason",
+          "expiryLabel": "Expiry",
+          "expiryPlaceholder": "No expiry",
+          "clearExpiry": "Clear",
+          "action": "Ban User",
+          "banning": "Banning…",
+          "unban": "Unban User",
+          "unbanning": "Unbanning…",
+          "noReason": "No reason provided",
+          "error": {
+            "generic": "Something went wrong. Please try again."
+          }
+        },
+        "remove": {
+          "title": "Remove User",
+          "description": "Permanently remove this User, their Sessions, and accounts. This cannot be undone.",
+          "action": "Remove User",
+          "removing": "Removing…",
+          "error": {
+            "generic": "Something went wrong. Please try again."
+          }
+        },
         "notFound": {
           "title": "User not found",
           "description": "This User does not exist or has been removed.",
@@ -224,6 +261,18 @@
           "setPassword": {
             "title": "Reset password?",
             "description": "Set a new password for this User."
+          },
+          "ban": {
+            "title": "Ban this User?",
+            "description": "Sign-in will be blocked and all Sessions revoked."
+          },
+          "unban": {
+            "title": "Unban this User?",
+            "description": "Sign-in will be allowed again."
+          },
+          "remove": {
+            "title": "Remove this User?",
+            "description": "Permanently remove {{email}}. This cannot be undone."
           }
         }
       }
