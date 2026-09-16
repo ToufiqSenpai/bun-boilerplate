@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute, notFound } from "@tanstack/react-router"
 import type { UserWithRole } from "better-auth/plugins/admin"
+import { Avatar, AvatarFallback, AvatarImage } from "src/components/ui/avatar"
 import { Badge } from "src/components/ui/badge"
 import { i18n } from "src/i18n"
 import { BanSection } from "src/routes/_admin/-users/detail/ban-section"
@@ -74,9 +75,10 @@ function UserDetailPage() {
   return (
     <div className="flex w-full flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-base font-medium">
-          {initials(user)}
-        </div>
+        <Avatar className="size-12">
+          <AvatarImage src={user.image ?? undefined} alt={user.name} />
+          <AvatarFallback className="text-base font-medium">{initials(user)}</AvatarFallback>
+        </Avatar>
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-heading text-lg font-medium">{user.name}</span>
