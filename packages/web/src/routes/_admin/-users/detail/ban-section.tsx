@@ -29,6 +29,8 @@ function secondsUntilEndOfDay(date: Date): number {
   return Math.max(1, Math.round((end.getTime() - Date.now()) / 1000))
 }
 
+const betterAuthDefaultBanReason = "No reason"
+
 interface BanSectionProps {
   readonly user: UserWithRole
 }
@@ -100,7 +102,11 @@ export function BanSection({ user }: BanSectionProps) {
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
               <span className="text-sm text-muted-foreground">{i18n.t("admin.users.detail.ban.reasonLabel")}</span>
-              <span className="text-sm">{user.banReason ?? i18n.t("admin.users.detail.ban.noReason")}</span>
+              <span className="text-sm">
+                {user.banReason && user.banReason !== betterAuthDefaultBanReason
+                  ? user.banReason
+                  : i18n.t("admin.users.detail.ban.noReason")}
+              </span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-sm text-muted-foreground">{i18n.t("admin.users.detail.expires")}</span>
