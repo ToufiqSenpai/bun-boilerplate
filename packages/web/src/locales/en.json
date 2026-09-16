@@ -93,7 +93,6 @@
           "label": "Email"
         },
         "submit": "Send reset link",
-        "backToSignIn": "Back to sign in",
         "error": {
           "email": {
             "invalid": "Enter a valid email address"

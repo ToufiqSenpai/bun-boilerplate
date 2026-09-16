@@ -1,5 +1,5 @@
 import { useForm } from "@tanstack/react-form"
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
 import { Field, FieldError, FieldGroup, FieldLabel } from "src/components/ui/field"
@@ -72,7 +72,7 @@ function ForgotPasswordPage() {
               </form.Field>
             </FieldGroup>
           </CardContent>
-          <CardFooter className="mt-6 flex-col gap-2">
+          <CardFooter className="mt-6">
             <form.Subscribe selector={state => state.canSubmit}>
               {canSubmit => (
                 <Button type="submit" className="w-full" disabled={!canSubmit}>
@@ -80,14 +80,6 @@ function ForgotPasswordPage() {
                 </Button>
               )}
             </form.Subscribe>
-            <Button
-              render={<Link to="/admin/login" />}
-              nativeButton={false}
-              variant="link"
-              className="text-muted-foreground"
-            >
-              {i18n.t("admin.passwordReset.request.backToSignIn")}
-            </Button>
           </CardFooter>
         </form>
       </Card>

@@ -93,7 +93,6 @@
           "label": "Email"
         },
         "submit": "Kirim tautan reset",
-        "backToSignIn": "Kembali ke halaman masuk",
         "error": {
           "email": {
             "invalid": "Masukkan alamat email yang valid"
