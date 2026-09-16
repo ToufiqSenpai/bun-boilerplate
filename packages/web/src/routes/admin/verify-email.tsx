@@ -1,26 +1,19 @@
 import { IconLoader2, IconMail, IconMailCheck } from "@tabler/icons-react"
 import { createFileRoute } from "@tanstack/react-router"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "src/components/ui/card"
-import { useSessionStorage } from "src/hooks/use-session-storage"
+import { RateLimitedError, useSendCooldown } from "src/hooks/use-send-cooldown"
 import { i18n } from "src/i18n"
 import { authClient } from "src/utils/client"
 import { z } from "zod"
 
-const SEND_COOLDOWN_SECONDS = 60
 const COOLDOWN_STORAGE_KEY = "admin:verify-email:cooldown"
-const cooldownExpirySchema = z.number().int().positive()
 
 const verifySearchSchema = z.object({
   email: z.email()
 })
-
-function remainingSeconds(expiresAt: number | null, now: number) {
-  if (expiresAt === null) return 0
-  return Math.max(0, Math.ceil((expiresAt - now) / 1000))
-}
 
 function sendButtonLabel(sending: boolean, cooldown: number, sent: boolean) {
   if (sending) return i18n.t("admin.setup.success.sending")
@@ -40,64 +33,20 @@ export const Route = createFileRoute("/admin/verify-email")({
 
 function VerifyEmailPage() {
   const { email } = Route.useSearch()
-  const [cooldownExpiresAt, setCooldownExpiresAt] = useSessionStorage(COOLDOWN_STORAGE_KEY, cooldownExpirySchema)
-  const [now, setNow] = useState(() => Date.now())
-  const [sent, setSent] = useState(() => remainingSeconds(cooldownExpiresAt, Date.now()) > 0)
-  const [sending, setSending] = useState(() => remainingSeconds(cooldownExpiresAt, Date.now()) === 0)
-  const [error, setError] = useState<string | null>(null)
-  const autoSendRef = useRef(false)
-  const cooldown = remainingSeconds(cooldownExpiresAt, now)
 
-  const send = useCallback(async () => {
-    setSending(true)
-    setError(null)
-
+  const sendEmail = useCallback(async () => {
     const { error: sendError } = await authClient.sendVerificationEmail({ email })
+    if (sendError) throw sendError.status === 429 ? new RateLimitedError() : sendError
+  }, [email])
 
-    setSending(false)
-
-    if (sendError) {
-      setSent(false)
-      setError(
-        sendError.status === 429
-          ? i18n.t("admin.setup.success.error.rateLimited")
-          : i18n.t("admin.setup.error.server.generic")
-      )
-      return
+  const { cooldown, sending, sent, error, send } = useSendCooldown({
+    storageKey: COOLDOWN_STORAGE_KEY,
+    send: sendEmail,
+    messages: {
+      rateLimited: i18n.t("admin.setup.success.error.rateLimited"),
+      generic: i18n.t("admin.setup.error.server.generic")
     }
-
-    setSent(true)
-    setNow(Date.now())
-    setCooldownExpiresAt(Date.now() + SEND_COOLDOWN_SECONDS * 1000)
-  }, [email, setCooldownExpiresAt, setNow])
-
-  useEffect(() => {
-    if (cooldownExpiresAt !== null && cooldownExpiresAt > Date.now()) return
-    if (autoSendRef.current) return
-
-    autoSendRef.current = true
-    void send()
-  }, [cooldownExpiresAt, send])
-
-  useEffect(() => {
-    if (cooldown <= 0) return
-    const timer = setTimeout(() => {
-      setNow(Date.now())
-    }, 1000)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [cooldown])
-
-  useEffect(() => {
-    const sync = () => {
-      setNow(Date.now())
-    }
-    document.addEventListener("visibilitychange", sync)
-    return () => {
-      document.removeEventListener("visibilitychange", sync)
-    }
-  }, [])
+  })
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background p-4">
