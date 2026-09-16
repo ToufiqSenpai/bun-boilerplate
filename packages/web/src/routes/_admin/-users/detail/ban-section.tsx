@@ -2,7 +2,6 @@ import { IconCalendar, IconLoader2 } from "@tabler/icons-react"
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import type { UserWithRole } from "better-auth/plugins/admin"
 import { useState } from "react"
-import { enUS, id as idLocale } from "react-day-picker/locale"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import {
   AlertDialog,
@@ -22,7 +21,7 @@ import { Input } from "src/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover"
 import { i18n } from "src/i18n"
 import { authClient } from "src/utils/client"
-import { formatDate } from "src/utils/date"
+import { dayPickerLocale, formatDate } from "src/utils/date"
 
 function secondsUntilEndOfDay(date: Date): number {
   const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
@@ -38,12 +37,8 @@ async function invalidateUserQueries(queryClient: QueryClient, userId: string): 
   await queryClient.invalidateQueries({ queryKey: ["user-sessions", userId] })
 }
 
-function banActionLabel(banned: boolean, pending: boolean): string {
-  if (banned) {
-    return pending ? i18n.t("admin.users.detail.ban.unbanning") : i18n.t("admin.users.detail.ban.unban")
-  }
-
-  return pending ? i18n.t("admin.users.detail.ban.banning") : i18n.t("admin.users.detail.ban.action")
+function banActionLabel(banned: boolean): string {
+  return banned ? i18n.t("admin.users.detail.ban.unban") : i18n.t("admin.users.detail.ban.action")
 }
 
 function banActionVariant(banned: boolean): "outline" | "destructive" {
@@ -82,7 +77,6 @@ interface ExpiryPickerProps {
 
 function ExpiryPicker({ expires, onChange }: ExpiryPickerProps) {
   const [open, setOpen] = useState(false)
-  const dayPickerLocale = i18n.language === "id" ? idLocale : enUS
 
   return (
     <div className="flex items-center gap-2">
@@ -96,7 +90,7 @@ function ExpiryPicker({ expires, onChange }: ExpiryPickerProps) {
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             mode="single"
-            locale={dayPickerLocale}
+            locale={dayPickerLocale()}
             selected={expires}
             onSelect={date => {
               onChange(date)
@@ -123,51 +117,17 @@ function ExpiryPicker({ expires, onChange }: ExpiryPickerProps) {
 }
 
 interface BanConfirmDialogProps {
-  readonly open: boolean
-  readonly banned: boolean
-  readonly pending: boolean
-  readonly onOpenChange: (open: boolean) => void
-  readonly onConfirm: () => void
-}
-
-function BanConfirmDialog({ open, banned, pending, onOpenChange, onConfirm }: BanConfirmDialogProps) {
-  const title = banned
-    ? i18n.t("admin.users.detail.confirm.unban.title")
-    : i18n.t("admin.users.detail.confirm.ban.title")
-  const description = banned
-    ? i18n.t("admin.users.detail.confirm.unban.description")
-    : i18n.t("admin.users.detail.confirm.ban.description")
-
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>{i18n.t("admin.users.detail.confirm.cancel")}</AlertDialogCancel>
-          <AlertDialogAction variant={banActionVariant(banned)} disabled={pending} onClick={onConfirm}>
-            {pending && <IconLoader2 className="animate-spin" aria-hidden="true" />}
-            {i18n.t("admin.users.detail.confirm.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
-interface BanSectionProps {
   readonly user: UserWithRole
+  readonly banned: boolean
+  readonly open: boolean
+  readonly reason: string
+  readonly expires: Date | undefined
+  readonly onOpenChange: (open: boolean) => void
+  readonly onComplete: () => void
 }
 
-export function BanSection({ user }: BanSectionProps) {
+function BanConfirmDialog({ user, banned, open, reason, expires, onOpenChange, onComplete }: BanConfirmDialogProps) {
   const queryClient = useQueryClient()
-  const [reason, setReason] = useState("")
-  const [expires, setExpires] = useState<Date | undefined>(undefined)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-
-  const banned = user.banned ?? false
 
   const ban = useMutation({
     mutationFn: async () => {
@@ -183,12 +143,9 @@ export function BanSection({ user }: BanSectionProps) {
       if (error) throw error
     },
     onSuccess: async () => {
-      setReason("")
-      setExpires(undefined)
+      onComplete()
       await invalidateUserQueries(queryClient, user.id)
-    },
-    onSettled: () => {
-      setConfirmOpen(false)
+      onOpenChange(false)
     }
   })
 
@@ -200,14 +157,65 @@ export function BanSection({ user }: BanSectionProps) {
     },
     onSuccess: async () => {
       await invalidateUserQueries(queryClient, user.id)
-    },
-    onSettled: () => {
-      setConfirmOpen(false)
+      onOpenChange(false)
     }
   })
 
   const pending = ban.isPending || unban.isPending
-  const error = ban.error || unban.error
+  const error = ban.error ?? unban.error
+  const title = banned
+    ? i18n.t("admin.users.detail.confirm.unban.title")
+    : i18n.t("admin.users.detail.confirm.ban.title")
+  const description = banned
+    ? i18n.t("admin.users.detail.confirm.unban.description")
+    : i18n.t("admin.users.detail.confirm.ban.description")
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{i18n.t("admin.users.detail.ban.error.generic")}</AlertDescription>
+          </Alert>
+        )}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>{i18n.t("admin.users.detail.confirm.cancel")}</AlertDialogCancel>
+          <AlertDialogAction
+            variant={banActionVariant(banned)}
+            disabled={pending}
+            onClick={() => {
+              if (banned) {
+                unban.mutate()
+              } else {
+                ban.mutate()
+              }
+            }}
+          >
+            {pending && <IconLoader2 className="animate-spin" aria-hidden="true" />}
+            {i18n.t("admin.users.detail.confirm.confirm")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+interface BanSectionProps {
+  readonly user: UserWithRole
+}
+
+export function BanSection({ user }: BanSectionProps) {
+  const [reason, setReason] = useState("")
+  const [expires, setExpires] = useState<Date | undefined>(undefined)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const banned = user.banned ?? false
 
   return (
     <Card>
@@ -239,39 +247,30 @@ export function BanSection({ user }: BanSectionProps) {
           </FieldGroup>
         )}
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{i18n.t("admin.users.detail.ban.error.generic")}</AlertDescription>
-          </Alert>
-        )}
-
         <Button
           type="button"
           size="sm"
           variant={banActionVariant(banned)}
           className="self-start"
-          disabled={pending}
           onClick={() => {
             setConfirmOpen(true)
           }}
         >
-          {pending && <IconLoader2 className="animate-spin" aria-hidden="true" />}
-          {banActionLabel(banned, pending)}
+          {banActionLabel(banned)}
         </Button>
 
         <BanConfirmDialog
-          open={confirmOpen}
+          user={user}
           banned={banned}
-          pending={pending}
+          open={confirmOpen}
+          reason={reason}
+          expires={expires}
           onOpenChange={nextOpen => {
             if (!nextOpen) setConfirmOpen(false)
           }}
-          onConfirm={() => {
-            if (banned) {
-              unban.mutate()
-            } else {
-              ban.mutate()
-            }
+          onComplete={() => {
+            setReason("")
+            setExpires(undefined)
           }}
         />
       </CardContent>
