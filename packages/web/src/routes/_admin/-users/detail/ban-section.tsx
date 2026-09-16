@@ -2,6 +2,7 @@ import { IconCalendar, IconLoader2 } from "@tabler/icons-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { UserWithRole } from "better-auth/plugins/admin"
 import { useState } from "react"
+import { enUS, id as idLocale } from "react-day-picker/locale"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import {
   AlertDialog,
@@ -40,8 +41,10 @@ export function BanSection({ user }: BanSectionProps) {
   const [reason, setReason] = useState("")
   const [expires, setExpires] = useState<Date | undefined>(undefined)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const banned = user.banned ?? false
+  const dayPickerLocale = i18n.language === "id" ? idLocale : enUS
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ["user", user.id] })
@@ -132,7 +135,7 @@ export function BanSection({ user }: BanSectionProps) {
             <Field>
               <FieldLabel htmlFor="ban-expires">{i18n.t("admin.users.detail.ban.expiryLabel")}</FieldLabel>
               <div className="flex items-center gap-2">
-                <Popover>
+                <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
                   <PopoverTrigger
                     render={<Button variant="outline" id="ban-expires" className="flex-1 justify-start font-normal" />}
                   >
@@ -142,24 +145,27 @@ export function BanSection({ user }: BanSectionProps) {
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
+                      locale={dayPickerLocale}
                       selected={expires}
-                      onSelect={setExpires}
+                      onSelect={date => {
+                        setExpires(date)
+                        setPickerOpen(false)
+                      }}
                       disabled={{ before: new Date() }}
                     />
                   </PopoverContent>
                 </Popover>
-                {expires && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setExpires(undefined)
-                    }}
-                  >
-                    {i18n.t("admin.users.detail.ban.clearExpiry")}
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={expires ? undefined : "invisible"}
+                  onClick={() => {
+                    setExpires(undefined)
+                  }}
+                >
+                  {i18n.t("admin.users.detail.ban.clearExpiry")}
+                </Button>
               </div>
             </Field>
           </FieldGroup>
