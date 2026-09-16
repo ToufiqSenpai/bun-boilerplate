@@ -106,17 +106,18 @@ function ExpiryPicker({ expires, onChange }: ExpiryPickerProps) {
           />
         </PopoverContent>
       </Popover>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className={expires ? undefined : "invisible"}
-        onClick={() => {
-          onChange(undefined)
-        }}
-      >
-        {i18n.t("admin.users.detail.ban.clearExpiry")}
-      </Button>
+      {expires && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            onChange(undefined)
+          }}
+        >
+          {i18n.t("admin.users.detail.ban.clearExpiry")}
+        </Button>
+      )}
     </div>
   )
 }
