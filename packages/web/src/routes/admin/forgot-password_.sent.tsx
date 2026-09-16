@@ -9,8 +9,6 @@ import { i18n } from "src/i18n"
 import { authClient } from "src/utils/client"
 import { z } from "zod"
 
-const COOLDOWN_STORAGE_KEY = "admin:forgot-password:cooldown"
-
 const sentSearchSchema = z.object({
   email: z.email()
 })
@@ -43,7 +41,7 @@ function ForgotPasswordSentPage() {
   }, [email])
 
   const { cooldown, sending, sent, error, send } = useSendCooldown({
-    storageKey: COOLDOWN_STORAGE_KEY,
+    storageKey: `admin:forgot-password:${email}:cooldown`,
     send: sendReset,
     messages: {
       rateLimited: i18n.t("admin.passwordReset.sent.error.rateLimited"),
