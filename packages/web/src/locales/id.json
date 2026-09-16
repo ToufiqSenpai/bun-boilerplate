@@ -209,6 +209,35 @@
         "expires": "Kedaluwarsa",
         "device": "Perangkat",
         "ip": "Alamat IP",
+        "actions": "Aksi",
+        "revoke": "Cabut",
+        "revokeAll": "Cabut semua",
+        "revokeConfirm": {
+          "title": "Cabut Sesi ini?",
+          "description": "Perangkat di {{device}} akan dikeluarkan."
+        },
+        "revokeAllConfirm": {
+          "title": "Cabut semua Sesi?",
+          "description": "Pengguna ini akan dikeluarkan dari semua perangkat."
+        },
+        "ban": {
+          "title": "Ban",
+          "description": "Blokir masuk dan cabut semua Sesi Pengguna ini.",
+          "reasonLabel": "Alasan",
+          "reasonPlaceholder": "Alasan (opsional)",
+          "expiryLabel": "Kedaluwarsa",
+          "expiryPlaceholder": "Tanpa kedaluwarsa",
+          "clearExpiry": "Hapus",
+          "action": "Ban Pengguna",
+          "unban": "Buka Ban Pengguna",
+          "noReason": "Tanpa alasan"
+        },
+        "remove": {
+          "title": "Hapus Pengguna",
+          "description": "Hapus permanen Pengguna ini, Sesi, dan akunnya. Tindakan ini tidak dapat dibatalkan.",
+          "action": "Hapus Pengguna",
+          "removing": "Menghapus…"
+        },
         "notFound": {
           "title": "Pengguna tidak ditemukan",
           "description": "Pengguna ini tidak ada atau sudah dihapus.",
@@ -224,6 +253,20 @@
           "setPassword": {
             "title": "Atur ulang kata sandi?",
             "description": "Kata sandi baru akan diatur untuk Pengguna ini."
+          },
+          "ban": {
+            "title": "Ban Pengguna ini?",
+            "description": "Masuk akan diblokir dan semua Sesi dicabut."
+          },
+          "unban": {
+            "title": "Buka ban Pengguna ini?",
+            "description": "Masuk akan diizinkan kembali."
+          },
+          "remove": {
+            "title": "Hapus Pengguna ini?",
+            "description": "Hapus permanen {{email}}. Tindakan ini tidak dapat dibatalkan.",
+            "inputLabel": "Ketik delete untuk konfirmasi",
+            "word": "delete"
           }
         }
       }
