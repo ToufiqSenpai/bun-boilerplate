@@ -16,6 +16,8 @@ import {
 } from "src/components/ui/alert-dialog"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "src/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "src/components/ui/field"
+import { Input } from "src/components/ui/input"
 import { i18n } from "src/i18n"
 import { authClient } from "src/utils/client"
 
@@ -27,6 +29,7 @@ export function RemoveSection({ user }: RemoveSectionProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmText, setConfirmText] = useState("")
 
   const remove = useMutation({
     mutationFn: async () => {
@@ -38,25 +41,18 @@ export function RemoveSection({ user }: RemoveSectionProps) {
       queryClient.removeQueries({ queryKey: ["user", user.id] })
       await queryClient.invalidateQueries({ queryKey: ["users"] })
       await navigate({ to: "/admin/users" })
-    },
-    onSettled: () => {
-      setConfirmOpen(false)
     }
   })
 
+  const confirmed = confirmText.trim().toLowerCase() === i18n.t("admin.users.detail.confirm.remove.word").toLowerCase()
+
   return (
-    <Card>
+    <Card className="ring-destructive/30">
       <CardHeader>
-        <CardTitle>{i18n.t("admin.users.detail.remove.title")}</CardTitle>
+        <CardTitle className="text-destructive">{i18n.t("admin.users.detail.remove.title")}</CardTitle>
         <CardDescription>{i18n.t("admin.users.detail.remove.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {remove.error && (
-          <Alert variant="destructive">
-            <AlertDescription>{i18n.t("admin.users.detail.remove.error.generic")}</AlertDescription>
-          </Alert>
-        )}
-
         <Button
           type="button"
           size="sm"
@@ -74,7 +70,8 @@ export function RemoveSection({ user }: RemoveSectionProps) {
         <AlertDialog
           open={confirmOpen}
           onOpenChange={nextOpen => {
-            if (!nextOpen) setConfirmOpen(false)
+            setConfirmOpen(nextOpen)
+            if (!nextOpen) setConfirmText("")
           }}
         >
           <AlertDialogContent>
@@ -84,13 +81,38 @@ export function RemoveSection({ user }: RemoveSectionProps) {
                 {i18n.t("admin.users.detail.confirm.remove.description", { email: user.email })}
               </AlertDialogDescription>
             </AlertDialogHeader>
+
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="remove-confirm">
+                  {i18n.t("admin.users.detail.confirm.remove.inputLabel")}
+                </FieldLabel>
+                <Input
+                  id="remove-confirm"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={confirmText}
+                  onChange={event => {
+                    setConfirmText(event.target.value)
+                  }}
+                />
+              </Field>
+            </FieldGroup>
+
+            {remove.error && (
+              <Alert variant="destructive">
+                <AlertDescription>{i18n.t("admin.users.detail.remove.error.generic")}</AlertDescription>
+              </Alert>
+            )}
+
             <AlertDialogFooter>
               <AlertDialogCancel disabled={remove.isPending}>
                 {i18n.t("admin.users.detail.confirm.cancel")}
               </AlertDialogCancel>
               <AlertDialogAction
                 variant="destructive"
-                disabled={remove.isPending}
+                disabled={remove.isPending || !confirmed}
                 onClick={() => {
                   remove.mutate()
                 }}

@@ -272,7 +272,9 @@
           },
           "remove": {
             "title": "Remove this User?",
-            "description": "Permanently remove {{email}}. This cannot be undone."
+            "description": "Permanently remove {{email}}. This cannot be undone.",
+            "inputLabel": "Type delete to confirm",
+            "word": "delete"
           }
         }
       }

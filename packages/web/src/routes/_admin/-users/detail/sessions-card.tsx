@@ -133,7 +133,7 @@ export function SessionsCard({ userId, canRevoke }: SessionsCardProps) {
                       <Button
                         type="button"
                         variant="outline"
-                        size="xs"
+                        size="sm"
                         onClick={() => {
                           setRevokeTarget(session)
                         }}

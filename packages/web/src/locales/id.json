@@ -272,7 +272,9 @@
           },
           "remove": {
             "title": "Hapus Pengguna ini?",
-            "description": "Hapus permanen {{email}}. Tindakan ini tidak dapat dibatalkan."
+            "description": "Hapus permanen {{email}}. Tindakan ini tidak dapat dibatalkan.",
+            "inputLabel": "Ketik delete untuk konfirmasi",
+            "word": "delete"
           }
         }
       }
