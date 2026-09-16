@@ -8,7 +8,7 @@ const messages = {
 }
 
 function renderCooldown(send: () => Promise<void>) {
-  return renderHook(() => useSendCooldown({ storageKey, send, messages }))
+  return renderHook(() => useSendCooldown({ storageKey, send, messages: { ...messages } }))
 }
 
 async function flush() {
@@ -50,6 +50,22 @@ describe("useSendCooldown", () => {
     expect(send).not.toHaveBeenCalled()
     expect(result.current.sent).toBe(true)
     expect(result.current.cooldown).toBe(30)
+  })
+
+  it("does not auto-send when a stored cooldown lapses while mounted", async () => {
+    sessionStorage.setItem(storageKey, JSON.stringify(Date.now() + 2000))
+    const send = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const { result } = renderCooldown(send)
+    await flush()
+
+    for (let tick = 0; tick < 3; tick += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+      })
+    }
+
+    expect(result.current.cooldown).toBe(0)
+    expect(send).not.toHaveBeenCalled()
   })
 
   it("keeps the cooldown across a remount inside the window", async () => {

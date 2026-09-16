@@ -52,12 +52,11 @@ export function useSendCooldown({ storageKey, send, messages }: UseSendCooldownO
     } finally {
       setSending(false)
     }
-  }, [send, messages, setCooldownExpiresAt])
+  }, [send, messages.rateLimited, messages.generic, setCooldownExpiresAt])
 
   useEffect(() => {
     if (cooldownExpiresAt !== null && cooldownExpiresAt > Date.now()) return
     if (autoSendRef.current) return
-
     autoSendRef.current = true
     void runSend()
   }, [cooldownExpiresAt, runSend])
