@@ -1,7 +1,7 @@
 import { IconLoader2 } from "@tabler/icons-react"
 import { useForm } from "@tanstack/react-form"
 import { useMutation } from "@tanstack/react-query"
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, redirect, Link, useNavigate } from "@tanstack/react-router"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
@@ -133,7 +133,7 @@ function LoginPage() {
               )}
             </FieldGroup>
           </CardContent>
-          <CardFooter className="mt-6">
+          <CardFooter className="mt-6 flex-col gap-2">
             <form.Subscribe selector={state => state.canSubmit}>
               {canSubmit => (
                 <Button type="submit" className="w-full" disabled={!canSubmit || signIn.isPending}>
@@ -142,6 +142,14 @@ function LoginPage() {
                 </Button>
               )}
             </form.Subscribe>
+            <Button
+              render={<Link to="/admin/forgot-password" />}
+              nativeButton={false}
+              variant="link"
+              className="text-muted-foreground"
+            >
+              {i18n.t("admin.login.forgotPassword")}
+            </Button>
           </CardFooter>
         </form>
       </Card>
