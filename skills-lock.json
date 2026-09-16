@@ -139,12 +139,6 @@
       "skillPath": "skills/engineering/resolving-merge-conflicts/SKILL.md",
       "computedHash": "63b2dcadbe9124caeb3448f1378286fe18dcefb2494f60e136831b8b4986ca27"
     },
-    "security-and-hardening": {
-      "source": "addyosmani/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/security-and-hardening/SKILL.md",
-      "computedHash": "22d91d82a47263a9c8966afc475f0bf4cf437b90aadd5f46ffabd8de8a3fcb93"
-    },
     "sentry-debug-issue": {
       "source": "getsentry/sentry-for-ai",
       "sourceType": "github",
