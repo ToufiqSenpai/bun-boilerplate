@@ -11,11 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/_admin/route'
+import { Route as AdminForgotPasswordRouteImport } from './routes/admin/forgot-password'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminSetupRouteImport } from './routes/admin/setup'
 import { Route as AdminVerifyEmailRouteImport } from './routes/admin/verify-email'
 import { Route as AdminAdminIndexRouteImport } from './routes/_admin/admin.index'
 import { Route as AdminAdminUsersRouteImport } from './routes/_admin/admin.users'
+import { Route as AdminForgotPasswordSentRouteImport } from './routes/admin/forgot-password_.sent'
 import { Route as AdminAdminUsersUserIdRouteImport } from './routes/_admin/admin.users_.$userId'
 import { Route as AdminAdminUsersCreateRouteImport } from './routes/_admin/admin.users_.create'
 
@@ -26,6 +28,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AdminRouteRoute = AdminRouteRouteImport.update({
   id: '/_admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminForgotPasswordRoute = AdminForgotPasswordRouteImport.update({
+  id: '/admin/forgot-password',
+  path: '/admin/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
@@ -53,6 +60,11 @@ const AdminAdminUsersRoute = AdminAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminForgotPasswordSentRoute = AdminForgotPasswordSentRouteImport.update({
+  id: '/admin/forgot-password_/sent',
+  path: '/admin/forgot-password/sent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAdminUsersUserIdRoute = AdminAdminUsersUserIdRouteImport.update({
   id: '/admin/users_/$userId',
   path: '/admin/users/$userId',
@@ -66,20 +78,24 @@ const AdminAdminUsersCreateRoute = AdminAdminUsersCreateRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin/forgot-password': typeof AdminForgotPasswordRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/setup': typeof AdminSetupRoute
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
+  '/admin/forgot-password/sent': typeof AdminForgotPasswordSentRoute
   '/admin/': typeof AdminAdminIndexRoute
   '/admin/users/$userId': typeof AdminAdminUsersUserIdRoute
   '/admin/users/create': typeof AdminAdminUsersCreateRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/forgot-password': typeof AdminForgotPasswordRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/setup': typeof AdminSetupRoute
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
+  '/admin/forgot-password/sent': typeof AdminForgotPasswordSentRoute
   '/admin': typeof AdminAdminIndexRoute
   '/admin/users/$userId': typeof AdminAdminUsersUserIdRoute
   '/admin/users/create': typeof AdminAdminUsersCreateRoute
@@ -88,10 +104,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_admin': typeof AdminRouteRouteWithChildren
+  '/admin/forgot-password': typeof AdminForgotPasswordRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/setup': typeof AdminSetupRoute
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/_admin/admin/users': typeof AdminAdminUsersRoute
+  '/admin/forgot-password_/sent': typeof AdminForgotPasswordSentRoute
   '/_admin/admin/': typeof AdminAdminIndexRoute
   '/_admin/admin/users_/$userId': typeof AdminAdminUsersUserIdRoute
   '/_admin/admin/users_/create': typeof AdminAdminUsersCreateRoute
@@ -100,20 +118,24 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin/forgot-password'
     | '/admin/login'
     | '/admin/setup'
     | '/admin/verify-email'
     | '/admin/users'
+    | '/admin/forgot-password/sent'
     | '/admin/'
     | '/admin/users/$userId'
     | '/admin/users/create'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin/forgot-password'
     | '/admin/login'
     | '/admin/setup'
     | '/admin/verify-email'
     | '/admin/users'
+    | '/admin/forgot-password/sent'
     | '/admin'
     | '/admin/users/$userId'
     | '/admin/users/create'
@@ -121,10 +143,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_admin'
+    | '/admin/forgot-password'
     | '/admin/login'
     | '/admin/setup'
     | '/admin/verify-email'
     | '/_admin/admin/users'
+    | '/admin/forgot-password_/sent'
     | '/_admin/admin/'
     | '/_admin/admin/users_/$userId'
     | '/_admin/admin/users_/create'
@@ -133,9 +157,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  AdminForgotPasswordRoute: typeof AdminForgotPasswordRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminSetupRoute: typeof AdminSetupRoute
   AdminVerifyEmailRoute: typeof AdminVerifyEmailRoute
+  AdminForgotPasswordSentRoute: typeof AdminForgotPasswordSentRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +178,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AdminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/forgot-password': {
+      id: '/admin/forgot-password'
+      path: '/admin/forgot-password'
+      fullPath: '/admin/forgot-password'
+      preLoaderRoute: typeof AdminForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/login': {
@@ -188,6 +221,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminAdminUsersRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/forgot-password_/sent': {
+      id: '/admin/forgot-password_/sent'
+      path: '/admin/forgot-password/sent'
+      fullPath: '/admin/forgot-password/sent'
+      preLoaderRoute: typeof AdminForgotPasswordSentRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_admin/admin/users_/$userId': {
       id: '/_admin/admin/users_/$userId'
@@ -227,9 +267,11 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
+  AdminForgotPasswordRoute: AdminForgotPasswordRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminSetupRoute: AdminSetupRoute,
   AdminVerifyEmailRoute: AdminVerifyEmailRoute,
+  AdminForgotPasswordSentRoute: AdminForgotPasswordSentRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
