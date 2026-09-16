@@ -11,7 +11,7 @@ import { RoleSection } from "src/routes/_admin/-users/detail/role-section"
 import { SessionsCard } from "src/routes/_admin/-users/detail/sessions-card"
 import { UserNotFound } from "src/routes/_admin/-users/detail/user-not-found"
 import { sessionsQuery, userQuery } from "src/routes/_admin/-users/queries"
-import { BanBadge, VerificationBadge } from "src/routes/_admin/-users/status-badges"
+import { VerificationBadge } from "src/routes/_admin/-users/status-badges"
 import { authClient } from "src/utils/client"
 import { formatDate } from "src/utils/date"
 
@@ -84,7 +84,6 @@ function UserDetailPage() {
               {user.role ?? "—"}
             </Badge>
             <VerificationBadge verified={user.emailVerified} />
-            <BanBadge banned={user.banned ?? false} />
           </div>
           <span className="truncate text-sm text-muted-foreground">{user.email}</span>
           <span className="text-xs text-muted-foreground">
