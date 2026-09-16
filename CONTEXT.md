@@ -42,6 +42,14 @@ _Avoid_: Delete, Erase, Deactivate
 The one-time initialization that creates the first `User` with `Role` `superadmin` via `/admin/setup`. `Setup` succeeds only after `Verification` is completed, not on `signUp` alone.
 _Avoid_: Onboarding, Bootstrap, Install
 
+**Password Reset**:
+A time-bound `Verification` delivered by email that lets a `User` who forgot their password choose a new one. Requesting a `Password Reset` never reveals whether an email belongs to a `User`, and completing one revokes every existing `Session`.
+_Avoid_: Forgot password, Password recovery
+
+**Password Set**:
+The admin action on a `User` detail page that assigns a password directly, without an emailed token.
+_Avoid_: Reset password, Force reset
+
 ### Content
 
 **Article**:
