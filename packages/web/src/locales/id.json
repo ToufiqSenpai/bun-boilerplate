@@ -95,7 +95,7 @@
       },
       "create": {
         "title": "Buat Pengguna",
-        "description": "Provisikan akun Pengguna baru beserta Perannya.",
+        "description": "Provisikan akun pengguna baru beserta perannya.",
         "name": {
           "label": "Nama"
         },
@@ -162,7 +162,7 @@
         },
         "noUsers": {
           "title": "Belum ada Pengguna",
-          "description": "Buat akun Pengguna pertama untuk memulai."
+          "description": "Buat akun pengguna pertama untuk memulai."
         },
         "clearSearch": "Hapus pencarian"
       },
@@ -204,7 +204,7 @@
         "changeRole": "Ubah Peran",
         "resetPassword": "Atur ulang kata sandi",
         "sessions": "Sesi",
-        "sessionsEmpty": "Tidak ada Sesi aktif.",
+        "sessionsEmpty": "Tidak ada sesi aktif.",
         "unknownDevice": "Perangkat tidak dikenal",
         "expires": "Kedaluwarsa",
         "device": "Perangkat",
@@ -222,7 +222,7 @@
         },
         "ban": {
           "title": "Ban",
-          "description": "Blokir masuk dan cabut semua Sesi Pengguna ini.",
+          "description": "Blokir masuk dan cabut semua sesi pengguna ini.",
           "reasonLabel": "Alasan",
           "reasonPlaceholder": "Alasan (opsional)",
           "expiryLabel": "Kedaluwarsa",
@@ -234,7 +234,7 @@
         },
         "remove": {
           "title": "Hapus Pengguna",
-          "description": "Hapus permanen Pengguna ini, Sesi, dan akunnya. Tindakan ini tidak dapat dibatalkan.",
+          "description": "Hapus permanen pengguna ini, sesi, dan akunnya. Tindakan ini tidak dapat dibatalkan.",
           "action": "Hapus Pengguna",
           "removing": "Menghapus…"
         },
@@ -248,15 +248,15 @@
           "confirm": "Konfirmasi",
           "changeRole": {
             "title": "Ubah Peran?",
-            "description": "Peran {{role}} akan diberikan kepada Pengguna ini."
+            "description": "Peran {{role}} akan diberikan kepada pengguna ini."
           },
           "setPassword": {
             "title": "Atur ulang kata sandi?",
-            "description": "Kata sandi baru akan diatur untuk Pengguna ini."
+            "description": "Kata sandi baru akan diatur untuk pengguna ini."
           },
           "ban": {
             "title": "Ban Pengguna ini?",
-            "description": "Masuk akan diblokir dan semua Sesi dicabut."
+            "description": "Masuk akan diblokir dan semua sesi dicabut."
           },
           "unban": {
             "title": "Buka ban Pengguna ini?",

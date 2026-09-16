@@ -95,7 +95,7 @@
       },
       "create": {
         "title": "Create User",
-        "description": "Provision a new User account with a Role.",
+        "description": "Provision a new user account with a role.",
         "name": {
           "label": "Name"
         },
@@ -162,7 +162,7 @@
         },
         "noUsers": {
           "title": "No Users yet",
-          "description": "Create the first User account to get started."
+          "description": "Create the first user account to get started."
         },
         "clearSearch": "Clear search"
       },
@@ -204,7 +204,7 @@
         "changeRole": "Change Role",
         "resetPassword": "Reset password",
         "sessions": "Sessions",
-        "sessionsEmpty": "No active Sessions.",
+        "sessionsEmpty": "No active sessions.",
         "unknownDevice": "Unknown device",
         "expires": "Expires",
         "device": "Device",
@@ -218,11 +218,11 @@
         },
         "revokeAllConfirm": {
           "title": "Revoke all Sessions?",
-          "description": "This User will be signed out on every device."
+          "description": "This user will be signed out on every device."
         },
         "ban": {
           "title": "Ban",
-          "description": "Block sign-in and revoke all Sessions for this User.",
+          "description": "Block sign-in and revoke all sessions for this user.",
           "reasonLabel": "Reason",
           "reasonPlaceholder": "Optional reason",
           "expiryLabel": "Expiry",
@@ -234,13 +234,13 @@
         },
         "remove": {
           "title": "Remove User",
-          "description": "Permanently remove this User, their Sessions, and accounts. This cannot be undone.",
+          "description": "Permanently remove this user, their sessions, and accounts. This cannot be undone.",
           "action": "Remove User",
           "removing": "Removing…"
         },
         "notFound": {
           "title": "User not found",
-          "description": "This User does not exist or has been removed.",
+          "description": "This user does not exist or has been removed.",
           "back": "Back to Users"
         },
         "confirm": {
@@ -248,15 +248,15 @@
           "confirm": "Confirm",
           "changeRole": {
             "title": "Change Role?",
-            "description": "Assign the {{role}} Role to this User."
+            "description": "Assign the {{role}} role to this user."
           },
           "setPassword": {
             "title": "Reset password?",
-            "description": "Set a new password for this User."
+            "description": "Set a new password for this user."
           },
           "ban": {
             "title": "Ban this User?",
-            "description": "Sign-in will be blocked and all Sessions revoked."
+            "description": "Sign-in will be blocked and all sessions revoked."
           },
           "unban": {
             "title": "Unban this User?",
