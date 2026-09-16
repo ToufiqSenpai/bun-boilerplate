@@ -102,7 +102,7 @@ export function RemoveSection({ user }: RemoveSectionProps) {
 
             {remove.error && (
               <Alert variant="destructive">
-                <AlertDescription>{i18n.t("admin.users.detail.remove.error.generic")}</AlertDescription>
+                <AlertDescription>{i18n.t("admin.users.error.generic")}</AlertDescription>
               </Alert>
             )}
 

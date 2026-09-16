@@ -229,22 +229,14 @@
           "expiryPlaceholder": "Tanpa kedaluwarsa",
           "clearExpiry": "Hapus",
           "action": "Ban Pengguna",
-          "banning": "Memblokir…",
           "unban": "Buka Ban Pengguna",
-          "unbanning": "Membuka blokir…",
-          "noReason": "Tanpa alasan",
-          "error": {
-            "generic": "Terjadi kesalahan. Silakan coba lagi."
-          }
+          "noReason": "Tanpa alasan"
         },
         "remove": {
           "title": "Hapus Pengguna",
           "description": "Hapus permanen Pengguna ini, Sesi, dan akunnya. Tindakan ini tidak dapat dibatalkan.",
           "action": "Hapus Pengguna",
-          "removing": "Menghapus…",
-          "error": {
-            "generic": "Terjadi kesalahan. Silakan coba lagi."
-          }
+          "removing": "Menghapus…"
         },
         "notFound": {
           "title": "Pengguna tidak ditemukan",

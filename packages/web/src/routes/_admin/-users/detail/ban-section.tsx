@@ -24,12 +24,9 @@ import { authClient } from "src/utils/client"
 import { dayPickerLocale, formatDate } from "src/utils/date"
 
 function secondsUntilEndOfDay(date: Date): number {
-  const timeZone = Temporal.Now.timeZoneId()
-  const day = Temporal.Instant.fromEpochMilliseconds(date.getTime()).toZonedDateTimeISO(timeZone).toPlainDate()
-  const endOfDay = day.toZonedDateTime({ timeZone, plainTime: "23:59:59.999" })
-  const remaining = Temporal.Now.instant().until(endOfDay).total("second")
+  const end = new Date(date).setHours(23, 59, 59, 999)
 
-  return Math.max(1, Math.round(remaining))
+  return Math.max(1, Math.round((end - Date.now()) / 1000))
 }
 
 const betterAuthDefaultBanReason = "No reason"
@@ -175,7 +172,7 @@ function BanConfirmDialog({ user, banned, open, reason, expires, onOpenChange, o
 
         {error && (
           <Alert variant="destructive">
-            <AlertDescription>{i18n.t("admin.users.detail.ban.error.generic")}</AlertDescription>
+            <AlertDescription>{i18n.t("admin.users.error.generic")}</AlertDescription>
           </Alert>
         )}
 

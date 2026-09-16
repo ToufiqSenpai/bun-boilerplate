@@ -229,22 +229,14 @@
           "expiryPlaceholder": "No expiry",
           "clearExpiry": "Clear",
           "action": "Ban User",
-          "banning": "Banning…",
           "unban": "Unban User",
-          "unbanning": "Unbanning…",
-          "noReason": "No reason provided",
-          "error": {
-            "generic": "Something went wrong. Please try again."
-          }
+          "noReason": "No reason provided"
         },
         "remove": {
           "title": "Remove User",
           "description": "Permanently remove this User, their Sessions, and accounts. This cannot be undone.",
           "action": "Remove User",
-          "removing": "Removing…",
-          "error": {
-            "generic": "Something went wrong. Please try again."
-          }
+          "removing": "Removing…"
         },
         "notFound": {
           "title": "User not found",
