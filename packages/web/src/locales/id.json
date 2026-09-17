@@ -86,6 +86,42 @@
       }
     },
     "passwordReset": {
+      "confirm": {
+        "title": "Atur password baru",
+        "description": "Pilih password baru untuk akun Anda.",
+        "password": {
+          "label": "Password baru",
+          "show": "Tampilkan password",
+          "hide": "Sembunyikan password"
+        },
+        "confirmPassword": {
+          "label": "Konfirmasi password baru",
+          "show": "Tampilkan password",
+          "hide": "Sembunyikan password"
+        },
+        "submit": "Atur ulang password",
+        "submitting": "Mengatur ulang…",
+        "error": {
+          "password": {
+            "min": "Password minimal 8 karakter",
+            "max": "Password maksimal 128 karakter"
+          },
+          "confirmPassword": {
+            "required": "Konfirmasi password baru Anda",
+            "mismatch": "Password tidak sama"
+          }
+        },
+        "success": {
+          "title": "Password diatur ulang",
+          "description": "Password Anda telah diatur ulang. Masuk dengan password baru Anda.",
+          "signIn": "Masuk"
+        },
+        "invalid": {
+          "title": "Tautan tidak valid atau kedaluwarsa",
+          "description": "Tautan reset password ini tidak valid atau sudah kedaluwarsa. Minta tautan baru untuk melanjutkan.",
+          "requestNew": "Minta tautan baru"
+        }
+      },
       "request": {
         "title": "Lupa kata sandi",
         "description": "Masukkan email Anda dan kami akan mengirim tautan untuk mengatur ulang kata sandi.",

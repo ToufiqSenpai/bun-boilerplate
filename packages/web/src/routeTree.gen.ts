@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/_admin/route'
 import { Route as AdminForgotPasswordRouteImport } from './routes/admin/forgot-password'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminResetPasswordRouteImport } from './routes/admin/reset-password'
 import { Route as AdminSetupRouteImport } from './routes/admin/setup'
 import { Route as AdminVerifyEmailRouteImport } from './routes/admin/verify-email'
 import { Route as AdminAdminIndexRouteImport } from './routes/_admin/admin.index'
@@ -38,6 +39,11 @@ const AdminForgotPasswordRoute = AdminForgotPasswordRouteImport.update({
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin/login',
   path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminResetPasswordRoute = AdminResetPasswordRouteImport.update({
+  id: '/admin/reset-password',
+  path: '/admin/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminSetupRoute = AdminSetupRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin/forgot-password': typeof AdminForgotPasswordRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/reset-password': typeof AdminResetPasswordRoute
   '/admin/setup': typeof AdminSetupRoute
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/forgot-password': typeof AdminForgotPasswordRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/reset-password': typeof AdminResetPasswordRoute
   '/admin/setup': typeof AdminSetupRoute
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/admin/users': typeof AdminAdminUsersRoute
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/_admin': typeof AdminRouteRouteWithChildren
   '/admin/forgot-password': typeof AdminForgotPasswordRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/reset-password': typeof AdminResetPasswordRoute
   '/admin/setup': typeof AdminSetupRoute
   '/admin/verify-email': typeof AdminVerifyEmailRoute
   '/_admin/admin/users': typeof AdminAdminUsersRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/forgot-password'
     | '/admin/login'
+    | '/admin/reset-password'
     | '/admin/setup'
     | '/admin/verify-email'
     | '/admin/users'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/forgot-password'
     | '/admin/login'
+    | '/admin/reset-password'
     | '/admin/setup'
     | '/admin/verify-email'
     | '/admin/users'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/_admin'
     | '/admin/forgot-password'
     | '/admin/login'
+    | '/admin/reset-password'
     | '/admin/setup'
     | '/admin/verify-email'
     | '/_admin/admin/users'
@@ -159,6 +171,7 @@ export interface RootRouteChildren {
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   AdminForgotPasswordRoute: typeof AdminForgotPasswordRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  AdminResetPasswordRoute: typeof AdminResetPasswordRoute
   AdminSetupRoute: typeof AdminSetupRoute
   AdminVerifyEmailRoute: typeof AdminVerifyEmailRoute
   AdminForgotPasswordSentRoute: typeof AdminForgotPasswordSentRoute
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/login'
       fullPath: '/admin/login'
       preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/reset-password': {
+      id: '/admin/reset-password'
+      path: '/admin/reset-password'
+      fullPath: '/admin/reset-password'
+      preLoaderRoute: typeof AdminResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/setup': {
@@ -269,6 +289,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRouteRoute: AdminRouteRouteWithChildren,
   AdminForgotPasswordRoute: AdminForgotPasswordRoute,
   AdminLoginRoute: AdminLoginRoute,
+  AdminResetPasswordRoute: AdminResetPasswordRoute,
   AdminSetupRoute: AdminSetupRoute,
   AdminVerifyEmailRoute: AdminVerifyEmailRoute,
   AdminForgotPasswordSentRoute: AdminForgotPasswordSentRoute,
