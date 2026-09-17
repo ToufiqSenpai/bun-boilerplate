@@ -2,6 +2,7 @@ import { IconAlertTriangle, IconCircleCheck, IconLoader2 } from "@tabler/icons-r
 import { useForm } from "@tanstack/react-form"
 import { useMutation } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import type { ReactNode } from "react"
 import { Alert, AlertDescription } from "src/components/ui/alert"
 import { Button } from "src/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "src/components/ui/card"
@@ -37,6 +38,28 @@ export const Route = createFileRoute("/admin/reset-password")({
   component: ResetPasswordPage
 })
 
+interface StatusCardProps {
+  readonly icon: ReactNode
+  readonly title: string
+  readonly description: string
+  readonly action: ReactNode
+}
+
+function StatusCard({ icon, title, description, action }: StatusCardProps) {
+  return (
+    <main className="flex min-h-svh items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm border shadow-sm">
+        <CardHeader className="text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">{icon}</div>
+          <CardTitle className="text-2xl font-semibold tracking-tight">{title}</CardTitle>
+          <CardDescription className="text-balance [overflow-wrap:anywhere]">{description}</CardDescription>
+        </CardHeader>
+        <CardContent>{action}</CardContent>
+      </Card>
+    </main>
+  )
+}
+
 function ResetPasswordPage() {
   const { token, error: linkError } = Route.useSearch()
 
@@ -60,51 +83,31 @@ function ResetPasswordPage() {
 
   if (!token || linkError || resetPassword.error?.status === 400) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-sm border shadow-sm">
-          <CardHeader className="text-center">
-            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-              <IconAlertTriangle className="size-6 text-muted-foreground" aria-hidden="true" />
-            </div>
-            <CardTitle className="text-2xl font-semibold tracking-tight">
-              {i18n.t("admin.passwordReset.confirm.invalid.title")}
-            </CardTitle>
-            <CardDescription className="text-balance [overflow-wrap:anywhere]">
-              {i18n.t("admin.passwordReset.confirm.invalid.description")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button render={<Link to="/admin/forgot-password" />} nativeButton={false} className="w-full">
-              {i18n.t("admin.passwordReset.confirm.invalid.requestNew")}
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
+      <StatusCard
+        icon={<IconAlertTriangle className="size-6 text-muted-foreground" aria-hidden="true" />}
+        title={i18n.t("admin.passwordReset.confirm.invalid.title")}
+        description={i18n.t("admin.passwordReset.confirm.invalid.description")}
+        action={
+          <Button render={<Link to="/admin/forgot-password" />} nativeButton={false} className="w-full">
+            {i18n.t("admin.passwordReset.confirm.invalid.requestNew")}
+          </Button>
+        }
+      />
     )
   }
 
   if (resetPassword.isSuccess) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-sm border shadow-sm">
-          <CardHeader className="text-center">
-            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-              <IconCircleCheck className="size-6 text-muted-foreground" aria-hidden="true" />
-            </div>
-            <CardTitle className="text-2xl font-semibold tracking-tight">
-              {i18n.t("admin.passwordReset.confirm.success.title")}
-            </CardTitle>
-            <CardDescription className="text-balance">
-              {i18n.t("admin.passwordReset.confirm.success.description")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button render={<Link to="/admin/login" />} nativeButton={false} className="w-full">
-              {i18n.t("admin.passwordReset.confirm.success.signIn")}
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
+      <StatusCard
+        icon={<IconCircleCheck className="size-6 text-muted-foreground" aria-hidden="true" />}
+        title={i18n.t("admin.passwordReset.confirm.success.title")}
+        description={i18n.t("admin.passwordReset.confirm.success.description")}
+        action={
+          <Button render={<Link to="/admin/login" />} nativeButton={false} className="w-full">
+            {i18n.t("admin.passwordReset.confirm.success.signIn")}
+          </Button>
+        }
+      />
     )
   }
 
