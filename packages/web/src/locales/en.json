@@ -86,6 +86,42 @@
       }
     },
     "passwordReset": {
+      "confirm": {
+        "title": "Set a new password",
+        "description": "Choose a new password for your account.",
+        "password": {
+          "label": "New password",
+          "show": "Show password",
+          "hide": "Hide password"
+        },
+        "confirmPassword": {
+          "label": "Confirm new password",
+          "show": "Show password",
+          "hide": "Hide password"
+        },
+        "submit": "Reset password",
+        "submitting": "Resetting…",
+        "error": {
+          "password": {
+            "min": "Password must be at least 8 characters",
+            "max": "Password must be at most 128 characters"
+          },
+          "confirmPassword": {
+            "required": "Confirm your new password",
+            "mismatch": "Passwords do not match"
+          }
+        },
+        "success": {
+          "title": "Password reset",
+          "description": "Your password has been reset. Sign in with your new password.",
+          "signIn": "Sign in"
+        },
+        "invalid": {
+          "title": "Link expired or invalid",
+          "description": "This password reset link is invalid or has expired. Request a new link to continue.",
+          "requestNew": "Request a new link"
+        }
+      },
       "request": {
         "title": "Forgot password",
         "description": "Enter your email and we'll send you a link to reset your password.",
